@@ -1,0 +1,140 @@
+#
+# DEV-3 — the AI review passes that stand in for the second reviewer this one-person team does not
+# have (ADR 0004, spec §17.3).
+#
+# Two passes, and the split is the whole design:
+#
+#   * **General** (`review`) runs on every PR and is **non-blocking**. It comments; it cannot stop a
+#     merge. A correctness reviewer that blocks becomes a reviewer people learn to argue with, and
+#     the failure mode of a false positive here is a wasted twenty minutes.
+#   * **Security** (`security-review`) runs only when a PR touches the sensitive surfaces, and its
+#     verdict **is** a required check. The failure mode of a false negative there is a row-scoping
+#     hole in production, so the asymmetry is deliberate: annoying is cheaper than exposed.
+#
+# The policy lives in `.github/review-prompt.md` and `.github/security-review-prompt.md`, in-repo and
+# therefore itself review-gated (ADR 0004's "two prompt files become load-bearing security
+# artefacts"). Editing either is a change to what the pipeline enforces, which is why the path filter
+# below includes them: a PR that weakens the security prompt gets the security pass run on it.
+#
+name: AI review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  # For the security job's SARIF-free structured verdict we only need the check run itself.
+  checks: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Which surfaces did this PR touch?
+  # ---------------------------------------------------------------------------
+  #
+  # A separate job rather than a `paths:` filter on the workflow, because a required check has to
+  # *run* on every PR to report a verdict. A `paths`-filtered workflow simply does not run, and a
+  # required check that never runs leaves the PR permanently pending — the classic way branch
+  # protection ends up disabled by whoever hits it at 6pm.
+  scope:
+    name: Classify the change
+    runs-on: ubuntu-latest
+    outputs:
+      security: ${{ steps.filter.outputs.security }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Does this touch a sensitive surface?
+        id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "Changed files:"; echo "$changed"
+
+          # The categories the security prompt is written against, plus the prompts and workflows
+          # themselves. Broad on purpose: a false positive costs one extra review pass, a false
+          # negative costs a security review that never happened.
+          #
+          # Every pattern here is checked against the tracked file list when it changes — a filter
+          # that silently matches nothing is worse than no filter, because it reports "not
+          # applicable" and passes. The mobile patterns were wrong on the first attempt for exactly
+          # that reason (the paths are `lib/src/data/`, not `lib/src/sync/`).
+          if echo "$changed" | grep -Eq \
+            -e '(^|/)platform/security/' \
+            -e '(^|/)platform/audit/' \
+            -e '(^|/)au/crewcomp/(sync|evidence)/' \
+            -e '(^|/)au/crewcomp/people/(UserAdminService|PeopleRepositories)\.kt$' \
+            -e '(^|/)db/migration/' \
+            -e '(^|/)api/.*Resource\.kt$' \
+            -e '(^|/)mcp/' \
+            -e '^mobile/lib/src/(data|api)/' \
+            -e '^admin-web/src/api/(client|session)\.tsx?$' \
+            -e '^\.github/(review|security-review)-prompt\.md$' \
+            -e '^\.github/workflows/' ; then
+            echo "security=true" >> "$GITHUB_OUTPUT"
+            echo "Sensitive surface touched — the security pass will run."
+          else
+            echo "security=false" >> "$GITHUB_OUTPUT"
+            echo "No sensitive surface touched."
+          fi
+
+  # ---------------------------------------------------------------------------
+  # The general correctness pass — every PR, non-blocking
+  # ---------------------------------------------------------------------------
+  review:
+    name: Correctness review (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Advisory means advisory: a failure here is a failure to review, not a failure of the change.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: .github/review-prompt.md
+          # Read-only. A reviewer that can push is not a reviewer.
+          claude_args: >-
+            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*)"
+
+  # ---------------------------------------------------------------------------
+  # The security pass — path-filtered, blocking
+  # ---------------------------------------------------------------------------
+  security-review:
+    name: Security review (blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: scope
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Reports success without running the model when nothing sensitive changed. This is what lets
+      # the job be a *required* check: it always reports, so a documentation PR is not held pending
+      # forever.
+      - name: Not applicable to this change
+        if: needs.scope.outputs.security != 'true'
+        run: echo "No auth, sync, row-scoping, evidence, migration or pipeline change — passing."
+
+      - name: Security review
+        if: needs.scope.outputs.security == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt_file: .github/security-review-prompt.md
+          claude_args: >-
+            --allowedTools "Read,Grep,Glob,Bash(git diff:*),Bash(git log:*)"

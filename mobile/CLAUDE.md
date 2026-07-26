@@ -39,6 +39,7 @@ flutter test                              # 43 tests
 flutter analyze                           # clean
 dart run tool/generate_api.dart           # regenerate lib/src/api/schema.g.dart
 dart run tool/generate_api.dart --check   # fail if committed types are stale — the CI check
+CREWCOMP_OPENAPI=/path/to/openapi.json dart run tool/generate_api.dart --check   # read the schema elsewhere
 dart run build_runner build               # regenerate drift's local_store.g.dart
 ```
 
@@ -117,6 +118,11 @@ test.
 | `lib/src/domain/` | `calendar.dart` calendar-date arithmetic, `states.dart` Appendix A presentation |
 | `lib/src/ui/` | `app_state.dart` (the only thing that talks to the engine), `screens.dart` (`*Screen` wrappers do the streams, `*View` widgets are pure) |
 | `tool/` | `generate_api.dart` — the DEV-2 generator |
+
+`CREWCOMP_OPENAPI` exists for CI: the backend job publishes the schema as an artefact and both
+client jobs check against *that*, rather than each building its own. A job that regenerated the schema
+itself could never catch a stale committed file — it would produce a matching pair and pass. Same
+variable, same reason, as `admin-web/scripts/generate-api-types.sh`.
 
 `schema.g.dart` is generated from the **whole** backend schema, so it carries types for admin-only
 DTOs the app never uses (ADM-10's configuration, the evidence review queue). That is deliberate: the

@@ -1,0 +1,74 @@
+#
+# Secret and static-analysis scanning (ADR 0004).
+#
+# The two scanners here need nothing but the source tree, which is why they are in the bootstrap and
+# the rest of ADR 0004's stack is not: Trivy scans an image and there is no image build lane until
+# ADR 0005 chooses a platform, and cosign signs what Trivy scanned. Dependabot is configuration
+# rather than a workflow and lives in `.github/dependabot.yml`.
+#
+# GitHub Secret Protection's push protection is the layer in front of this and is a repository
+# setting, not a workflow. Gitleaks is the backstop for what is already in history — including
+# anything committed before push protection was switched on.
+#
+name: Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so a rule added to a scanner after a commit merged still finds it. Monday morning AWST.
+    - cron: '0 22 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: scan-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: a secret's danger is that it was ever committed, not that it is in the tip.
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Note for whoever adds a rule here: `application.properties` legitimately contains
+          # `%test.crewcomp.mcp.token=test-token-not-a-secret-0123456789abcdef`. It is a fixed
+          # development value, it is named for what it is, and it is the length the MCP configuration
+          # check requires. If Gitleaks flags it, allow-list *that string* in a `.gitleaks.toml` —
+          # never the file, and never the rule.
+
+  static-analysis:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Semgrep
+        run: semgrep scan --config auto --sarif --output semgrep.sarif
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+        # Non-blocking on its own: findings land in the security tab and are triaged there. The
+        # blocking security gate is the path-filtered AI review, which reads this project's actual
+        # rules (AUTH-1, AUTH-2, LLM-1) rather than a generic ruleset.
+        continue-on-error: true
+
+      - name: Upload SARIF
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif

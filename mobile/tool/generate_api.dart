@@ -24,17 +24,29 @@
 import 'dart:convert';
 import 'dart:io';
 
-const schemaPath = '../backend/target/openapi/openapi.json';
+const defaultSchemaPath = '../backend/target/openapi/openapi.json';
 const outputPath = 'lib/src/api/schema.g.dart';
+
+/// Where to read the schema from.
+///
+/// `CREWCOMP_OPENAPI` overrides the sibling-directory default, which is what CI needs: the schema is
+/// published as an artefact by the backend job and checked against there, rather than each client job
+/// building its own. A job that regenerated the schema itself could never catch a stale committed
+/// file — it would simply produce a matching pair. Same variable, same reason, as
+/// `admin-web/scripts/generate-api-types.sh`.
+String _schemaPath() =>
+    Platform.environment['CREWCOMP_OPENAPI'] ?? defaultSchemaPath;
 
 void main(List<String> args) {
   final check = args.contains('--check');
 
+  final schemaPath = _schemaPath();
   final schemaFile = File(schemaPath);
   if (!schemaFile.existsSync()) {
     stderr.writeln(
       'Cannot find $schemaPath.\n'
-      'The backend writes it during `./mvnw package` or `./mvnw quarkus:dev`.',
+      'The backend writes it during `./mvnw package` or `./mvnw quarkus:dev`.\n'
+      'Set CREWCOMP_OPENAPI to read it from somewhere else.',
     );
     exit(2);
   }

@@ -16,9 +16,9 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 | `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, notifications centre, evidence queue, administration |
 | `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens** — encrypted store, sync, outbox; **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
-| `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | seeded |
+| `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
 | `docs/` | spec, ADRs, research | current |
-| `.github/` | workflows + AI review prompts | prompts seeded, workflows at bootstrap |
+| `.github/` | workflows + AI review prompts | **verification lanes, AI review and scanning built**; deploy lane and previews wait on ADR 0005 |
 
 ## Hard rules (from the spec — apply to all code)
 
@@ -107,11 +107,25 @@ The largest functional gaps, in the order they bite:
    pipeline bootstrap's.
 
 Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended spike sequence"):
-1. Pipeline bootstrap (repo CI, OpenTofu baselines, AI review workflows). Lanes: `./mvnw verify`
-   with ITs; `npm run verify:api`, `npm run build`, `npm test` and the dev-shim grep for the SPA;
-   `dart run tool/generate_api.dart --check`, `flutter analyze`, `flutter test` and now
-   `flutter build ios --no-codesign` for mobile. **Android needs a runner with the SDK** — that
-   lane cannot be run here at all, so CI is the only thing that will ever enforce ADR 0002 parity.
+1. Pipeline bootstrap — **the verification half is built and the deploy half cannot be.**
+   `.github/workflows/` now carries every lane the three components' CLAUDE.md files tell a developer
+   to run, plus the three nobody can run locally: the **Android build** (no SDK here, so CI is the
+   only thing that will ever enforce ADR 0002's parity mandate), the **native image** (no GraalVM),
+   and the **generated-types checks** against a schema artefact the backend job publishes — checking
+   against a schema the client job built itself could never catch a stale committed file. Also DEV-3's
+   two AI review passes (advisory correctness on every PR; a path-filtered blocking security pass),
+   Gitleaks, Semgrep and grouped Dependabot.
+
+   **None of it has been executed** — there is no way to run a GitHub Actions workflow from here. The
+   YAML parses, every command in it was run by hand first, and every pattern in the security pass's
+   path filter is asserted to match at least one tracked file (the mobile patterns were wrong on the
+   first attempt for exactly that reason, and a filter that matches nothing reports "not applicable"
+   and passes). Expect the first real run to need adjusting anyway.
+
+   What is deliberately absent: the deploy lane, the preview environment (DEV-4, Neon branch
+   database), image scanning and cosign signing, and the OpenTofu stacks. ADR 0004 says the deploy
+   lane lands with ADR 0005's platform verdict, and writing a cloud stack now would be writing the
+   thing the spike decides.
 2. Backend spike (Quarkus native + MCP + OIDC multitenancy) deployed to **both** AWS and GCP →
    resolves ADR 0005. Also the place to add Postgres RLS for AUTH-2 against a real database.
 3. Identity spike (BFF session + device-session layer) — replaces the development auth shim in
