@@ -153,15 +153,32 @@ jobs:
       # constant. That guarantee holds until someone moves the constant behind a runtime check, at
       # which point the bundle would carry a header-authentication path into production — so it is
       # asserted rather than trusted.
+      #
+      # **Source maps are excluded, and that is not a loophole.** `build.sourcemap` is on, and a
+      # source map contains the pre-transform source by definition — the dev-shim branch included.
+      # Grepping it would fail every build while telling you nothing about what executes. What ships
+      # as code is the `.js`, `.css` and `.html`, and that is what is checked. (The first version of
+      # this step grepped `dist/` recursively and failed on the map; the shim was correctly stripped
+      # from the JS all along.)
+      #
+      # Worth knowing separately: if the map is ever deployed publicly it hands out the app's source.
+      # It is a debugging artefact for an error tracker, not something to serve.
       - name: Assert the dev auth shim is absent from the bundle
         run: |
-          if grep -r --quiet 'X-Dev-Roles' dist/; then
-            echo "::error file=admin-web/src/api/client.ts::The production bundle contains the" \
-                 "development auth shim's header. It must be stripped at build time (SEC-1)."
-            grep -rl 'X-Dev-Roles' dist/
+          set -euo pipefail
+          shipped=$(find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' \) ! -name '*.map')
+          if [ -z "$shipped" ]; then
+            echo "::error::No bundle files found to check — the build did not produce dist/ output."
             exit 1
           fi
-          echo "No dev-shim header in the bundle."
+          echo "Checking:"; echo "$shipped" | sed 's/^/  /'
+          if echo "$shipped" | xargs grep --quiet 'X-Dev-Roles'; then
+            echo "::error file=admin-web/src/api/client.ts::The production bundle contains the" \
+                 "development auth shim's header. It must be stripped at build time (SEC-1)."
+            echo "$shipped" | xargs grep -l 'X-Dev-Roles'
+            exit 1
+          fi
+          echo "No dev-shim header in anything that ships as code."
         working-directory: admin-web
 
   # ---------------------------------------------------------------------------

@@ -96,11 +96,24 @@ SPA carries a matching role picker behind `import.meta.env.DEV`.
 Both halves are compile-time stripped, and the production bundle is checked for it:
 
 ```bash
-npm run build && grep -c "X-Dev-Roles" dist/assets/*.js   # expect 0
+npm run build
+find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' \) ! -name '*.map' \
+  | xargs grep -l 'X-Dev-Roles'      # expect no output
 ```
 
-Worth keeping in the CI lane — it is the kind of guarantee that holds until someone moves the
-constant behind a runtime check.
+This is a CI lane (`.github/workflows/ci.yml`) — it is the kind of guarantee that holds until
+someone moves the constant behind a runtime check, at which point the bundle would carry a
+header-authentication path into production.
+
+**Check what ships as code, not `dist/` recursively.** `build.sourcemap` is on, and a source map
+contains the pre-transform source by definition — the dev-shim branch included. A recursive grep
+therefore fails on `index-*.js.map` on every single build while telling you nothing about what
+executes, which is exactly what the first version of the CI step did. The shim was correctly stripped
+from the JS all along.
+
+Separately worth knowing: a deployed source map hands out the app's source. It is a debugging
+artefact to upload to an error tracker, not something to serve — one for the deploy lane to exclude
+when ADR 0005 resolves.
 
 ## The ruler (`components/Ruler.tsx`)
 
