@@ -1,0 +1,219 @@
+import type { components } from './schema'
+
+/**
+ * The typed HTTP client.
+ *
+ * Two rules hold everything else together:
+ *
+ *  1. **No hand-written request or response types** (DEV-2). Everything below aliases the
+ *     generated schema, so a backend DTO change fails `tsc` here instead of surfacing as an
+ *     `undefined` in a table cell.
+ *  2. **No token ever touches JavaScript** (ADR 0003, SEC-1). Authentication is the BFF's
+ *     `HttpOnly` session cookie; `credentials: 'same-origin'` is the whole of the client's part
+ *     in it. There is no place to put an `Authorization` header, and that is deliberate.
+ */
+
+type Schemas = components['schemas']
+
+export type Session = Schemas['SessionDto']
+export type Partnership = Schemas['PartnershipDto']
+export type CrewChange = Schemas['CrewChangeDto']
+export type Requirement = Schemas['RequirementDto']
+export type Position = Schemas['PositionDto']
+export type Slot = Schemas['SlotDto']
+export type Person = Schemas['PersonDto']
+export type Holding = Schemas['HoldingDto']
+export type Assignment = Schemas['AssignmentDto']
+export type LeaveRecord = Schemas['LeaveRecordDto']
+export type SwingEvaluation = Schemas['SwingEvaluationDto']
+export type AssignmentEvaluation = Schemas['AssignmentEvaluationDto']
+export type PersonEvaluation = Schemas['PersonEvaluationDto']
+export type Cell = Schemas['CellDto']
+export type Quota = Schemas['QuotaDto']
+export type GapReportRow = Schemas['GapReportRowDto']
+export type Suggestion = Schemas['SuggestionDto']
+export type ExpiryAlert = Schemas['ExpiryAlertDto']
+export type SetHoldingRequest = Schemas['SetHoldingRequest']
+
+/** A failed call, carrying the backend's `ErrorDto` code so screens can branch on it. */
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'ApiError'
+  }
+
+  get isUnauthenticated(): boolean {
+    return this.status === 401
+  }
+
+  get isForbidden(): boolean {
+    return this.status === 403
+  }
+
+  get isNotFound(): boolean {
+    return this.status === 404
+  }
+}
+
+/**
+ * The development identity, sent as headers to the backend's dev-auth shim.
+ *
+ * Stripped from production builds: `import.meta.env.DEV` is a compile-time constant, so the
+ * whole branch — and the header names with it — is removed by the bundler's dead-code pass.
+ * In production the session cookie is the only credential.
+ */
+export interface DevIdentity {
+  user: string
+  roles: string[]
+  personId?: number
+  partnershipIds?: number[]
+}
+
+const DEV_IDENTITY_KEY = 'crewcomp.dev-identity'
+
+export function readDevIdentity(): DevIdentity | null {
+  if (!import.meta.env.DEV) return null
+  const raw = window.localStorage.getItem(DEV_IDENTITY_KEY)
+  if (raw === null) return null
+  try {
+    return JSON.parse(raw) as DevIdentity
+  } catch {
+    return null
+  }
+}
+
+export function writeDevIdentity(identity: DevIdentity | null): void {
+  if (!import.meta.env.DEV) return
+  if (identity === null) window.localStorage.removeItem(DEV_IDENTITY_KEY)
+  else window.localStorage.setItem(DEV_IDENTITY_KEY, JSON.stringify(identity))
+}
+
+function devHeaders(): Record<string, string> {
+  if (!import.meta.env.DEV) return {}
+  const identity = readDevIdentity()
+  if (identity === null) return {}
+  const headers: Record<string, string> = {
+    'X-Dev-User': identity.user,
+    'X-Dev-Roles': identity.roles.join(','),
+  }
+  if (identity.personId !== undefined) headers['X-Dev-Person-Id'] = String(identity.personId)
+  if (identity.partnershipIds !== undefined && identity.partnershipIds.length > 0) {
+    headers['X-Dev-Partnerships'] = identity.partnershipIds.join(',')
+  }
+  return headers
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    ...init,
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      ...(init?.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...devHeaders(),
+      ...init?.headers,
+    },
+  })
+
+  if (!response.ok) {
+    throw new ApiError(response.status, ...(await errorBody(response)))
+  }
+  if (response.status === 204) return undefined as T
+  return (await response.json()) as T
+}
+
+/**
+ * The backend's `ErrorDto`, declared here rather than taken from the generated schema: no
+ * operation lists it as a declared response, so OpenAPI does not carry it. If the error contract
+ * ever grows, annotate the mappers' shape onto the operations and this alias goes away.
+ */
+interface ErrorBody {
+  error?: string
+  detail?: string | null
+}
+
+async function errorBody(response: Response): Promise<[code: string, message: string]> {
+  try {
+    const body = (await response.json()) as ErrorBody | undefined
+    if (body?.error !== undefined && body.error !== null) {
+      return [body.error, body.detail ?? body.error]
+    }
+  } catch {
+    // A non-JSON error body (a proxy 502, say) is still an error — fall through to the status.
+  }
+  return ['http_error', `${response.status} ${response.statusText}`]
+}
+
+function query(params: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) search.set(key, String(value))
+  }
+  const rendered = search.toString()
+  return rendered === '' ? '' : `?${rendered}`
+}
+
+export const api = {
+  session: (): Promise<Session> => request('/api/v1/session'),
+
+  partnerships: (): Promise<Partnership[]> => request('/api/v1/partnerships'),
+
+  crewChanges: (partnership: string): Promise<CrewChange[]> =>
+    request(`/api/v1/partnerships/${encodeURIComponent(partnership)}/crew-changes`),
+
+  requirements: (): Promise<Requirement[]> => request('/api/v1/requirements'),
+
+  positions: (): Promise<Position[]> => request('/api/v1/positions'),
+
+  slots: (): Promise<Slot[]> => request('/api/v1/slots'),
+
+  people: (): Promise<Person[]> => request('/api/v1/people'),
+
+  person: (personId: number): Promise<Person> => request(`/api/v1/people/${personId}`),
+
+  holdings: (personId: number): Promise<Holding[]> => request(`/api/v1/people/${personId}/holdings`),
+
+  assignments: (personId: number): Promise<Assignment[]> =>
+    request(`/api/v1/people/${personId}/assignments`),
+
+  leave: (personId: number): Promise<LeaveRecord[]> => request(`/api/v1/people/${personId}/leave`),
+
+  swingEvaluation: (partnership: string, cc: string, matrixVersionId?: number): Promise<SwingEvaluation> =>
+    request(
+      `/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/evaluation` +
+        query({ matrixVersionId }),
+    ),
+
+  swingGaps: (partnership: string, cc: string, matrixVersionId?: number): Promise<GapReportRow[]> =>
+    request(
+      `/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/gaps` +
+        query({ matrixVersionId }),
+    ),
+
+  suggestions: (partnership: string, cc: string, slotRef: number, limit = 20): Promise<Suggestion[]> =>
+    request(
+      `/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/suggestions` +
+        query({ slotRef, limit }),
+    ),
+
+  personEvaluation: (
+    personId: number,
+    partnership: string,
+    cc: string,
+    matrixVersionId?: number,
+  ): Promise<PersonEvaluation> =>
+    request(`/api/v1/people/${personId}/evaluation` + query({ partnership, cc, matrixVersionId })),
+
+  expiryAlerts: (leadDays: number): Promise<ExpiryAlert[]> =>
+    request('/api/v1/expiry-alerts' + query({ leadDays })),
+
+  setHolding: (personId: number, requirementId: number, body: SetHoldingRequest): Promise<Holding> =>
+    request(`/api/v1/people/${personId}/holdings/${requirementId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+}

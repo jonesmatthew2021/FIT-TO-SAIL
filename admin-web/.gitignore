@@ -1,0 +1,3 @@
+# node_modules/ and dist/ are already ignored at the repo root.
+*.tsbuildinfo
+vite.config.ts.timestamp-*
