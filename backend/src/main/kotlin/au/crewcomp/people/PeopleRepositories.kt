@@ -87,7 +87,26 @@ class QualificationHoldingRepository(
 
     /** The standing "unknown holdings" chase list (§4.3, Q11 / ADM-7). */
     fun unknownUnscoped(): List<QualificationHolding> =
-        list("statusValue = ?1", au.crewcomp.engine.HoldingStatus.UNKNOWN.wire)
+        find(
+            "from QualificationHolding h join fetch h.person join fetch h.requirement " +
+                "where h.statusValue = ?1 order by h.person.name",
+            au.crewcomp.engine.HoldingStatus.UNKNOWN.wire,
+        ).list()
+
+    /**
+     * `requirement_id → how many people hold a record for it` — ADM-6's usage count.
+     *
+     * Unscoped, and deliberately: the number answers "is this catalogue entry in use", which is a
+     * property of the catalogue rather than of any person. It exposes no one's holdings.
+     */
+    fun countByRequirementUnscoped(): Map<Long, Long> =
+        getEntityManager()
+            .createQuery(
+                "select h.requirement.id, count(h) from QualificationHolding h group by h.requirement.id",
+                Array<Any>::class.java,
+            )
+            .resultList
+            .associate { (it[0] as Number).toLong() to (it[1] as Number).toLong() }
 }
 
 @ApplicationScoped
@@ -117,6 +136,22 @@ class AssignmentRepository(private val scopeGuard: ScopeGuard) : PanacheReposito
 
     fun upcomingUnscoped(onOrAfter: LocalDate): List<Assignment> =
         list("toDate >= ?1 order by fromDate", onOrAfter)
+
+    /**
+     * Everything this person is already committed to across `[from, to]` — the clash check the
+     * assignment write path runs (ADM-2).
+     *
+     * Unlike [overlappingUnscoped] this does **not** exclude a crew change, because being in two
+     * slots of the *same* swing is exactly as much of a clash as being in two swings. It fetches
+     * the crew change and partnership because the caller renders them into the clash message
+     * after the transaction has closed.
+     */
+    fun overlappingForPersonUnscoped(personId: Long, from: LocalDate, to: LocalDate): List<Assignment> =
+        find(
+            "from Assignment a join fetch a.crewChange join fetch a.partnership join fetch a.person " +
+                "where a.person.id = ?1 and a.fromDate <= ?2 and a.toDate >= ?3 order by a.fromDate",
+            personId, to, from,
+        ).list()
 }
 
 @ApplicationScoped
@@ -152,4 +187,14 @@ class LeaveRecordRepository(private val scopeGuard: ScopeGuard) : PanacheReposit
         scopeGuard.assertVisible(personId)
         return list("person.id = ?1 order by fromDate desc", personId)
     }
+
+    /**
+     * Leave overlapping `[from, to]` that still stands — the second half of ADM-2's clash check.
+     * Declined and cancelled leave is not a clash: the person is available.
+     */
+    fun overlappingForPersonUnscoped(personId: Long, from: LocalDate, to: LocalDate): List<LeaveRecord> =
+        list(
+            "person.id = ?1 and fromDate <= ?2 and toDate >= ?3 and status in ?4 order by fromDate",
+            personId, to, from, listOf("recorded", "requested", "approved"),
+        )
 }

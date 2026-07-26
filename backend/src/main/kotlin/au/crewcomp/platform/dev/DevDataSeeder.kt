@@ -24,6 +24,15 @@ import au.crewcomp.rules.MatrixStatus
 import au.crewcomp.rules.MatrixVersion
 import au.crewcomp.rules.QuotaRule
 import au.crewcomp.rules.RequirementRule
+import au.crewcomp.engine.RegisterOutcome
+import au.crewcomp.workflow.ApprovalCondition
+import au.crewcomp.workflow.ConditionType
+import au.crewcomp.workflow.ExceptionItem
+import au.crewcomp.workflow.RegisterAuditEntry
+import au.crewcomp.workflow.RegisterNote
+import au.crewcomp.workflow.RegisterRecord
+import au.crewcomp.workflow.RegisterStatus
+import au.crewcomp.workflow.RegisterType
 import io.quarkus.arc.properties.IfBuildProperty
 import io.quarkus.runtime.StartupEvent
 import io.quarkus.runtime.configuration.ConfigUtils
@@ -449,6 +458,168 @@ class DevDataSeeder(
             body = "Work at Heights is now required for Chief Officer under matrix " +
                 "${matrix.label}.",
             deepLink = "crewcomp://certifications/${heights.requiredId}",
+        )
+
+        // -------------------------------------------------------------------
+        // ADM-4 register (§4.4), and with it the §5.1 step 4 exemption overlay.
+        //
+        // Two records against UNI CC24, chosen so both overlay outcomes appear on the planner:
+        // an approved one turns Finn's Sea Survival `gap` into `exempt`, and an open one turns
+        // his GPH ticket `gap` into `pending`. Without these the overlay is dead code on screen.
+        // -------------------------------------------------------------------
+
+        var registerSeq = 0
+        fun registerRecord(
+            type: RegisterType,
+            who: Person,
+            what: Requirement,
+            swing: CrewChange,
+            recordStatus: RegisterStatus,
+            recordOutcome: RegisterOutcome? = null,
+            approval: Pair<LocalDate, LocalDate>? = null,
+            conditions: List<Pair<ConditionType, String>> = emptyList(),
+            notes: List<Pair<String, String>> = emptyList(),
+        ): RegisterRecord {
+            registerSeq += 1
+            val record = RegisterRecord().apply {
+                recordId = "${swing.partnership.abbrev}${swing.ccId}-$registerSeq"
+                this.type = type
+                person = who
+                position = who.position
+                requirement = what
+                partnership = swing.partnership
+                crewChange = swing
+                effectiveFrom = swing.fromDate
+                effectiveTo = swing.toDate
+                raisedDate = swing.cutoffDate.minusDays(2)
+                status = recordStatus
+                outcome = recordOutcome
+                approvalFrom = approval?.first
+                approvalTo = approval?.second
+                stampCreated(actor, now)
+            }
+            em.persist(record)
+
+            conditions.forEachIndexed { index, (conditionType, body) ->
+                em.persist(
+                    ApprovalCondition().apply {
+                        registerRecord = record
+                        this.type = conditionType
+                        this.body = body
+                        stampCreated(actor, now.plusSeconds(index.toLong()))
+                    },
+                )
+            }
+            notes.forEachIndexed { index, (party, body) ->
+                em.persist(
+                    RegisterNote().apply {
+                        registerRecord = record
+                        this.party = party
+                        this.body = body
+                        stampCreated(actor, now.plusSeconds(index.toLong()))
+                    },
+                )
+            }
+            em.persist(
+                RegisterAuditEntry().apply {
+                    registerRecord = record
+                    ordinal = 1
+                    body = "Raised as ${type.wire} (${recordStatus.wire})."
+                    this.actor = actor
+                    occurredAt = now
+                },
+            )
+            return record
+        }
+
+        registerRecord(
+            type = RegisterType.EXEMPTION_REQUEST_PW,
+            who = gapCrew,
+            what = sea,
+            swing = uniCurrent,
+            recordStatus = RegisterStatus.CLOSED_APPROVED,
+            recordOutcome = RegisterOutcome.APPROVED,
+            approval = uniCurrent.fromDate to uniCurrent.toDate,
+            conditions = listOf(
+                ConditionType.SUPERVISION to "Works under the slot-2 Chief Officer for the swing.",
+                ConditionType.TRAINING_BOOKED to "Sea Survival course booked for the following swing.",
+            ),
+            notes = listOf(
+                "PW" to "Course fully booked before the swing; requesting an exemption.",
+                "OPS" to "Approved on the supervision condition below.",
+            ),
+        )
+        registerRecord(
+            type = RegisterType.EXEMPTION_REQUEST_PW,
+            who = gapCrew,
+            what = gphTicket,
+            swing = uniCurrent,
+            recordStatus = RegisterStatus.OPEN_OPS,
+            notes = listOf("PW" to "Renewal lodged with the issuing authority, awaiting the card."),
+        )
+        registerRecord(
+            type = RegisterType.MRL_QUERY,
+            who = unknownCrew,
+            what = sea,
+            swing = uniCurrent,
+            recordStatus = RegisterStatus.CLOSED_INFO_REQUIRED,
+            recordOutcome = RegisterOutcome.INFO_REQUIRED,
+            notes = listOf("MRL" to "Certificate number on file does not match the register."),
+        )
+
+        // -------------------------------------------------------------------
+        // ADM-7 data-quality worklist (§4.4, §11).
+        //
+        // Shaped after the fix-up classes the real migration is specified to produce, so the
+        // screen is exercised against the kinds of anomaly that actually exist rather than
+        // against invented tidy ones. The real load produces 35 of these; this is three.
+        // -------------------------------------------------------------------
+
+        fun exception(
+            area: String,
+            description: String,
+            linkedType: String? = null,
+            linkedId: Long? = null,
+            resolution: String? = null,
+        ) {
+            em.persist(
+                ExceptionItem().apply {
+                    this.area = area
+                    this.description = description
+                    state = if (resolution == null) "open" else "resolved"
+                    linkedEntityType = linkedType
+                    linkedEntityId = linkedId
+                    resolutionNote = resolution
+                    resolvedAt = if (resolution == null) null else now
+                    resolvedBy = if (resolution == null) null else actor
+                    stampCreated(actor, now)
+                },
+            )
+        }
+
+        exception(
+            area = "people",
+            description = "Two crew records share Sam # ${spare.sam}. Preserved rather than " +
+                "merged: the register history references both, and merging would silently " +
+                "reassign someone else's exemptions.",
+            linkedType = "Person",
+            linkedId = spare.requiredId,
+        )
+        exception(
+            area = "holdings",
+            description = "${gapCrew.name}'s holding for ${heights.code} was never established — " +
+                "the source workbook left the cell blank, which is not the same as 'not held'.",
+            linkedType = "Person",
+            linkedId = gapCrew.requiredId,
+        )
+        exception(
+            area = "catalogue",
+            description = "Register rows carried the free-text title 'Sea Survival Cert' with no " +
+                "catalogue code.",
+            linkedType = "Requirement",
+            linkedId = sea.requiredId,
+            resolution = "Mapped to ${sea.code} as a legacy alias; the raw title is preserved on " +
+                "the register rows.",
         )
 
         em.flush()

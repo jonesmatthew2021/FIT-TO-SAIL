@@ -165,3 +165,74 @@ export function roleLabel(role: string): string {
 export function categoryLabel(category: string): string {
   return category
 }
+
+/**
+ * Appendix A's categories, in the spec's order. Mirrors `ReferenceService.CATEGORIES` and the
+ * database CHECK constraint — the server rejects anything else, and this is only what the
+ * catalogue editor offers so a Compliance Lead never has to remember them.
+ */
+export const REQUIREMENT_CATEGORIES: readonly string[] = [
+  'QL',
+  'VS',
+  'PS',
+  'MS',
+  'CS',
+  'HR',
+  'PT',
+  'VI',
+  'PI',
+]
+
+export const REQUIREMENT_STATUSES: readonly string[] = ['active', 'retired']
+
+/**
+ * Appendix A's register enumerations, as their exact wire strings.
+ *
+ * The wire value **is** the label here — "Exemption Request - PW" is what the register has always
+ * called it and what the CSV export has to carry. Inventing a prettier display form would put two
+ * names on one thing.
+ */
+export const REGISTER_TYPES: readonly string[] = [
+  'Exemption Request - PW',
+  'Exemption Request - OPS',
+  'Exemption Request following MRL Query',
+  'MRL Query',
+  'PW Query',
+]
+
+/** The open statuses. Closure carries an outcome and goes through the close endpoint, not here. */
+export const REGISTER_OPEN_STATUSES: readonly string[] = [
+  'Open - PW',
+  'Open - MRL',
+  'Open - OPS',
+  'Complete before joining',
+]
+
+export const REGISTER_OUTCOMES: readonly string[] = [
+  'Approved',
+  'Not Approved',
+  'Info Required',
+  'Admin Action',
+  'Not Required',
+]
+
+export const CONDITION_TYPES: readonly string[] = [
+  'supervision',
+  'time_limit',
+  'duty_restriction',
+  'training_booked',
+  'other',
+]
+
+export const REGISTER_PARTIES: readonly string[] = ['PW', 'MRL', 'OPS']
+
+/**
+ * A register status's tone. Open work needs attention; an approval is good; every other closure
+ * is neutral — "Not Approved" is a decision, not a fault, and colouring it red would read as one.
+ */
+export function registerStatusTone(status: string): Tone {
+  if (status.startsWith('Open')) return 'caution'
+  if (status === 'Closed - Approved') return 'good'
+  if (status === 'Complete before joining') return 'neutral'
+  return 'muted'
+}

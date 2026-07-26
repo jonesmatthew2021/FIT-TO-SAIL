@@ -13,17 +13,11 @@ const BLOCKERS: Record<string, string> = {
     'Needs the matrix versioning service: version list, draft creation, cell editing, the §5.5 ' +
     'diff and publication. The engine already consumes a MatrixSnapshot; nothing exposes or ' +
     'edits versions over the API yet.',
-  'ADM-4':
-    'Needs the register workflow service: creation with auto-ID and window validation, status ' +
-    'transitions, close-with-outcome, structured conditions and party notes. The §4.4 schema and ' +
-    'enumerations exist; the write paths do not.',
-  'ADM-6':
-    'Needs the catalogue write path (Compliance Lead only) and usage counts. Reads are already ' +
-    'live at GET /api/v1/requirements — this screen is the editing half.',
-  'ADM-7':
-    'Needs the ExceptionItem read and resolution endpoints. The table exists and the §11 ' +
-    'migration is specified to populate it with 35 known items.',
-  'ADM-8': 'Needs the §9 notification service — per-user notifications, read state, deep links.',
+  'ADM-8':
+    'Needs a back-office recipient to notify. NotificationService.raise works and the crew app ' +
+    'renders its list, but notifications are addressed to a UserAccount and back-office users ' +
+    'have none until the identity spike (ADR 0003) creates them. The §9 expiry scan and push ' +
+    'fan-out are the other half.',
   'ADM-9':
     'Needs the §8 evidence pipeline: upload, LLM extraction, and the verification queue that a ' +
     'Data Steward accepts, corrects or rejects (LLM-1 — the model never writes the record).',

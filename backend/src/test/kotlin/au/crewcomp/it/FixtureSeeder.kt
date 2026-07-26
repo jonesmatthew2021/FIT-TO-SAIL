@@ -59,6 +59,13 @@ class FixtureSeeder(private val em: EntityManager) {
         // Child-first, so foreign keys stay satisfied.
         listOf(
             "delete from AuditEvent",
+            "delete from ExceptionItem",
+            // The FKs cascade in the database, but a JPQL bulk delete does not fire them — the
+            // children go first or the parent delete violates them.
+            "delete from RegisterAuditEntry",
+            "delete from RegisterNote",
+            "delete from ApprovalCondition",
+            "delete from RegisterRecord",
             "delete from Notification",
             "delete from EvidenceDocument",
             "delete from LeaveRecord",

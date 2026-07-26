@@ -34,6 +34,29 @@ export type GapReportRow = Schemas['GapReportRowDto']
 export type Suggestion = Schemas['SuggestionDto']
 export type ExpiryAlert = Schemas['ExpiryAlertDto']
 export type SetHoldingRequest = Schemas['SetHoldingRequest']
+export type AssignRequest = Schemas['AssignRequest']
+export type RequirementDetail = Schemas['RequirementDetailDto']
+export type RequirementAlias = Schemas['RequirementAliasDto']
+export type RequirementUsage = Schemas['RequirementUsageDto']
+export type SaveRequirementRequest = Schemas['SaveRequirementRequest']
+export type ExceptionItem = Schemas['ExceptionItemDto']
+export type UnknownHolding = Schemas['UnknownHoldingDto']
+export type RaiseExceptionRequest = Schemas['RaiseExceptionRequest']
+export type RegisterRecord = Schemas['RegisterRecordDto']
+export type RegisterRecordDetail = Schemas['RegisterRecordDetailDto']
+export type ApprovalCondition = Schemas['ApprovalConditionDto']
+export type RegisterNote = Schemas['RegisterNoteDto']
+export type CreateRegisterRecordRequest = Schemas['CreateRegisterRecordRequest']
+export type CloseRegisterRecordRequest = Schemas['CloseRegisterRecordRequest']
+export type AddConditionRequest = Schemas['AddConditionRequest']
+
+/** ADM-4 list filters. `state` omitted means the whole history, which is the point of the module. */
+export interface RegisterFilters {
+  partnership?: string | undefined
+  cc?: string | undefined
+  type?: string | undefined
+  state?: 'open' | 'closed' | 'all' | undefined
+}
 
 /** A failed call, carrying the backend's `ErrorDto` code so screens can branch on it. */
 export class ApiError extends Error {
@@ -214,6 +237,102 @@ export const api = {
   setHolding: (personId: number, requirementId: number, body: SetHoldingRequest): Promise<Holding> =>
     request(`/api/v1/people/${personId}/holdings/${requirementId}`, {
       method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
+  assign: (partnership: string, cc: string, body: AssignRequest): Promise<Assignment> =>
+    request(
+      `/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/assignments`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  unassign: (assignmentId: number): Promise<void> =>
+    request(`/api/v1/assignments/${assignmentId}`, { method: 'DELETE' }),
+
+  catalogue: (): Promise<RequirementDetail[]> => request('/api/v1/requirements/catalogue'),
+
+  createRequirement: (body: SaveRequirementRequest): Promise<RequirementDetail> =>
+    request('/api/v1/requirements', { method: 'POST', body: JSON.stringify(body) }),
+
+  updateRequirement: (
+    requirementId: number,
+    body: SaveRequirementRequest,
+  ): Promise<RequirementDetail> =>
+    request(`/api/v1/requirements/${requirementId}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  addAlias: (requirementId: number, alias: string): Promise<RequirementDetail> =>
+    request(`/api/v1/requirements/${requirementId}/aliases`, {
+      method: 'POST',
+      body: JSON.stringify({ alias }),
+    }),
+
+  removeAlias: (requirementId: number, aliasId: number): Promise<RequirementDetail> =>
+    request(`/api/v1/requirements/${requirementId}/aliases/${aliasId}`, { method: 'DELETE' }),
+
+  exceptions: (state: 'open' | 'resolved' | 'all'): Promise<ExceptionItem[]> =>
+    request('/api/v1/exceptions' + query({ state: state === 'all' ? undefined : state })),
+
+  unknownHoldings: (): Promise<UnknownHolding[]> => request('/api/v1/exceptions/unknown-holdings'),
+
+  raiseException: (body: RaiseExceptionRequest): Promise<ExceptionItem> =>
+    request('/api/v1/exceptions', { method: 'POST', body: JSON.stringify(body) }),
+
+  resolveException: (exceptionItemId: number, note: string): Promise<ExceptionItem> =>
+    request(`/api/v1/exceptions/${exceptionItemId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
+
+  reopenException: (exceptionItemId: number): Promise<ExceptionItem> =>
+    request(`/api/v1/exceptions/${exceptionItemId}/reopen`, { method: 'POST' }),
+
+  register: (filters: RegisterFilters): Promise<RegisterRecord[]> =>
+    request(
+      '/api/v1/register' +
+        query({
+          partnership: filters.partnership,
+          cc: filters.cc,
+          type: filters.type,
+          state: filters.state === 'all' ? undefined : filters.state,
+        }),
+    ),
+
+  registerRecord: (recordId: string): Promise<RegisterRecordDetail> =>
+    request(`/api/v1/register/${encodeURIComponent(recordId)}`),
+
+  nextRecordId: (partnership: string, cc: string): Promise<{ recordId: string }> =>
+    request('/api/v1/register/next-id' + query({ partnership, cc })),
+
+  createRegisterRecord: (body: CreateRegisterRecordRequest): Promise<RegisterRecordDetail> =>
+    request('/api/v1/register', { method: 'POST', body: JSON.stringify(body) }),
+
+  transitionRegisterRecord: (recordId: string, status: string): Promise<RegisterRecordDetail> =>
+    request(`/api/v1/register/${encodeURIComponent(recordId)}/transition`, {
+      method: 'POST',
+      body: JSON.stringify({ status }),
+    }),
+
+  closeRegisterRecord: (
+    recordId: string,
+    body: CloseRegisterRecordRequest,
+  ): Promise<RegisterRecordDetail> =>
+    request(`/api/v1/register/${encodeURIComponent(recordId)}/close`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  addRegisterNote: (recordId: string, party: string, body: string): Promise<RegisterRecordDetail> =>
+    request(`/api/v1/register/${encodeURIComponent(recordId)}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ party, body }),
+    }),
+
+  addRegisterCondition: (
+    recordId: string,
+    body: AddConditionRequest,
+  ): Promise<RegisterRecordDetail> =>
+    request(`/api/v1/register/${encodeURIComponent(recordId)}/conditions`, {
+      method: 'POST',
       body: JSON.stringify(body),
     }),
 }

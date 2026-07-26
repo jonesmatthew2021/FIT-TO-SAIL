@@ -2,9 +2,11 @@ package au.crewcomp.api
 
 import au.crewcomp.compliance.NoPublishedMatrixException
 import au.crewcomp.evidence.ChunkOutOfOrderException
+import au.crewcomp.people.AssignmentClashException
 import au.crewcomp.platform.persistence.EntityNotFoundException
 import au.crewcomp.platform.security.AccessDeniedException
 import au.crewcomp.platform.security.NotAuthenticatedException
+import au.crewcomp.workflow.LateSubmissionException
 import jakarta.ws.rs.core.Response
 import jakarta.ws.rs.ext.ExceptionMapper
 import jakarta.ws.rs.ext.Provider
@@ -78,6 +80,37 @@ class ChunkOutOfOrderMapper : ExceptionMapper<ChunkOutOfOrderException> {
                         "but it began at ${exception.received}",
                 ),
             )
+            .build()
+}
+
+/**
+ * ADM-2: the person is committed elsewhere for part of the window.
+ *
+ * 409 rather than 400 because the request is well-formed and may well be what the coordinator
+ * intends — a cross-partnership loan, leave about to be cancelled. The clashes travel in the
+ * detail so the planner can show them and offer to proceed, which resends the same request with
+ * `acknowledgeClash`.
+ */
+@Provider
+class AssignmentClashMapper : ExceptionMapper<AssignmentClashException> {
+    override fun toResponse(exception: AssignmentClashException): Response =
+        Response.status(Response.Status.CONFLICT)
+            .entity(ErrorDto("assignment_clash", exception.clashes.joinToString("; ")))
+            .build()
+}
+
+/**
+ * ADM-4, Q17: the request is being lodged after the swing's submission cutoff.
+ *
+ * 409, like the assignment clash and for the same reason — the request is well formed and the
+ * answer is "yes, but say so out loud". The retry carries `acknowledgeLateSubmission`, and the
+ * acknowledgement lands on the record itself as well as in the audit event.
+ */
+@Provider
+class LateSubmissionMapper : ExceptionMapper<LateSubmissionException> {
+    override fun toResponse(exception: LateSubmissionException): Response =
+        Response.status(Response.Status.CONFLICT)
+            .entity(ErrorDto("late_submission", exception.message))
             .build()
 }
 

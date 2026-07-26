@@ -51,6 +51,17 @@ class RequirementRepository : PanacheRepositoryBase<Requirement, Long> {
     fun active(): List<Requirement> = list("status = 'active' order by code")
 
     /**
+     * The catalogue with its legacy aliases attached — ADM-6's screen and the only shape safe to
+     * map outside the transaction. Aliases are a lazy collection, and the DTO mapping happens
+     * after the service transaction closes.
+     */
+    fun allWithAliases(): List<Requirement> =
+        find("select distinct r from Requirement r left join fetch r.aliases order by r.code").list()
+
+    fun withAliases(id: Long): Requirement? =
+        find("select r from Requirement r left join fetch r.aliases where r.id = ?1", id).firstResult()
+
+    /**
      * Catalogue matching for the evidence pipeline (§8 stage 3): code, then title, then legacy
      * alias. Returns every candidate rather than picking one — an ambiguous match goes to
      * `pending_review` and is never guessed silently.

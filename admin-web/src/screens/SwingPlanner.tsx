@@ -1,21 +1,25 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
+  useAssign,
   usePositions,
   useRequirements,
   useSlots,
   useSuggestions,
   useSwingEvaluation,
   useSwingGaps,
+  useUnassign,
 } from '../api/queries'
-import type {
-  AssignmentEvaluation,
-  GapReportRow,
-  Quota,
-  Slot,
-  Suggestion,
-  SwingEvaluation,
+import {
+  ApiError,
+  type AssignmentEvaluation,
+  type GapReportRow,
+  type Quota,
+  type Slot,
+  type Suggestion,
+  type SwingEvaluation,
 } from '../api/client'
+import { useHasRole } from '../api/session'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Spinner } from '../components/Spinner'
@@ -24,6 +28,9 @@ import { SwingSelector } from '../components/SwingSelector'
 import { formatDate, formatDateRange } from '../domain/dates'
 import { needsAttention } from '../domain/enums'
 import { requirementLookup } from './Dashboard'
+
+/** The roles the server accepts for an assignment write — mirrored to hide the controls. */
+const ROSTER_EDITORS = ['crew_coordinator', 'system_administrator'] as const
 
 /**
  * ADM-2 — the swing planner.
@@ -84,7 +91,13 @@ export function SwingPlanner(): React.ReactNode {
           {slotUnderConsideration !== null && (
             <section className="section">
               <h2 className="section__title">Suggestions for slot {slotUnderConsideration}</h2>
-              <Suggestions partnership={partnership} cc={cc} slotRef={slotUnderConsideration} />
+              <Suggestions
+                partnership={partnership}
+                cc={cc}
+                slotRef={slotUnderConsideration}
+                swing={evaluation.data}
+                onAssigned={() => setSlotUnderConsideration(null)}
+              />
             </section>
           )}
 
@@ -151,6 +164,8 @@ function SlotTable({
 }): React.ReactNode {
   const slots = useSlots()
   const positions = usePositions()
+  const canEditRoster = useHasRole(...ROSTER_EDITORS)
+  const unassign = useUnassign()
 
   if (slots.isPending) return <Spinner label="Loading slot model" />
   if (slots.error !== null) return <ErrorPanel title="Could not load the slot model" error={slots.error} />
@@ -206,6 +221,16 @@ function SlotTable({
                 <span className="muted">{formatDateRange(assignment.from, assignment.to)}</span>
                 <StateChip state={assignment.evaluation.rollUp} />
                 <AttentionCounts assignment={assignment} />
+                {canEditRoster && (
+                  <button
+                    type="button"
+                    className="button button--quiet"
+                    disabled={unassign.isPending}
+                    onClick={() => unassign.mutate(assignment.assignmentId)}
+                  >
+                    Unassign
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -216,6 +241,8 @@ function SlotTable({
       header: '',
       enableSorting: false,
       accessorFn: () => '',
+      // A fully covered slot has nowhere to put anyone: any window would overlap the person
+      // already there, and the server refuses that outright. Unassign first.
       cell: ({ row }) =>
         row.original.coverage === 'covered' ? null : (
           <button
@@ -232,29 +259,38 @@ function SlotTable({
   ]
 
   return (
-    <DataTable
-      rows={rows}
-      columns={columns}
-      filterPlaceholder="Filter slots"
-      rowClassName={(row) => (row.coverage === 'open' ? 'table__row--attention' : undefined)}
-      csv={{
-        filename: `swing-${evaluation.ccId}-slots.csv`,
-        columns: [
-          { header: 'Slot', value: (row) => row.ref },
-          { header: 'Shift', value: (row) => row.shift },
-          {
-            header: 'Position',
-            value: (row) => row.allowedPositionIds.map((id) => positionName.get(id) ?? `#${id}`).join(' / '),
-          },
-          { header: 'Coverage', value: (row) => row.coverage },
-          { header: 'Crew', value: (row) => row.assignments.map((a) => `${a.name} (${a.sam})`).join('; ') },
-          {
-            header: 'Roll-up',
-            value: (row) => row.assignments.map((a) => a.evaluation.rollUp).join('; '),
-          },
-        ],
-      }}
-    />
+    <>
+      {unassign.error !== null && (
+        <ErrorPanel title="Could not remove that assignment" error={unassign.error} />
+      )}
+      <DataTable
+        rows={rows}
+        columns={columns}
+        filterPlaceholder="Filter slots"
+        rowClassName={(row) => (row.coverage === 'open' ? 'table__row--attention' : undefined)}
+        csv={{
+          filename: `swing-${evaluation.ccId}-slots.csv`,
+          columns: [
+            { header: 'Slot', value: (row) => row.ref },
+            { header: 'Shift', value: (row) => row.shift },
+            {
+              header: 'Position',
+              value: (row) =>
+                row.allowedPositionIds.map((id) => positionName.get(id) ?? `#${id}`).join(' / '),
+            },
+            { header: 'Coverage', value: (row) => row.coverage },
+            {
+              header: 'Crew',
+              value: (row) => row.assignments.map((a) => `${a.name} (${a.sam})`).join('; '),
+            },
+            {
+              header: 'Roll-up',
+              value: (row) => row.assignments.map((a) => a.evaluation.rollUp).join('; '),
+            },
+          ],
+        }}
+      />
+    </>
   )
 }
 
@@ -346,7 +382,25 @@ function GapReport({ partnership, cc }: { partnership: string; cc: string }): Re
       id: 'register',
       header: 'Register',
       accessorFn: (row) => row.registerRecordId ?? '',
-      cell: ({ row }) => row.original.registerRecordId ?? <span className="muted">—</span>,
+      // §6, ADM-2: a gap with no register record gets a one-click pre-filled exemption request.
+      // Everything the form needs is already on this row, so nothing has to be retyped.
+      cell: ({ row }) =>
+        row.original.registerRecordId !== null ? (
+          <Link className="mono" to={`/register/${encodeURIComponent(row.original.registerRecordId)}`}>
+            {row.original.registerRecordId}
+          </Link>
+        ) : (
+          <Link
+            className="button button--quiet"
+            to={
+              `/register/new?partnership=${encodeURIComponent(partnership)}` +
+              `&cc=${encodeURIComponent(cc)}` +
+              `&personId=${row.original.personId}&requirementId=${row.original.requirementId}`
+            }
+          >
+            Raise
+          </Link>
+        ),
     },
     {
       id: 'notes',
@@ -381,20 +435,67 @@ function GapReport({ partnership, cc }: { partnership: string; cc: string }): Re
   )
 }
 
+/**
+ * Ranked candidates for a slot, and the control that fills it (ADM-2).
+ *
+ * The assign flow has one deliberate wrinkle: a candidate who is committed elsewhere in the
+ * window comes back as a 409 `assignment_clash` rather than a success. That is not an error to
+ * report and forget — §5.4's position is that a clash is *shown*, never hidden, and the
+ * coordinator may still mean it. So the clash is rendered on the row and the button becomes
+ * "Assign anyway", which resends the same request with `acknowledgeClash`. The acknowledgement
+ * lands in the audit event on the server side.
+ */
 function Suggestions({
   partnership,
   cc,
   slotRef,
+  swing,
+  onAssigned,
 }: {
   partnership: string
   cc: string
   slotRef: number
+  swing: SwingEvaluation
+  onAssigned: () => void
 }): React.ReactNode {
   const suggestions = useSuggestions(partnership, cc, slotRef)
+  const canEditRoster = useHasRole(...ROSTER_EDITORS)
+  const assign = useAssign(partnership, cc)
+
+  // The window to assign for. Defaults to the whole swing; narrowing it is how a mid-swing
+  // handover is built, one leg at a time (§4.3).
+  const [from, setFrom] = useState(swing.from)
+  const [to, setTo] = useState(swing.to)
+  const [clash, setClash] = useState<{ personId: number; detail: string } | null>(null)
 
   if (suggestions.isPending) return <Spinner label="Ranking candidates" />
   if (suggestions.error !== null) {
     return <ErrorPanel title="Could not rank candidates" error={suggestions.error} />
+  }
+
+  const wholeSwing = from === swing.from && to === swing.to
+
+  function submit(personId: number, acknowledgeClash: boolean): void {
+    setClash(null)
+    assign.mutate(
+      {
+        slotRef,
+        personId,
+        // Send dates only for a handover leg, so the ordinary case records the server's own
+        // idea of the swing window rather than a copy of it that could drift.
+        from: wholeSwing ? null : from,
+        to: wholeSwing ? null : to,
+        acknowledgeClash,
+      },
+      {
+        onSuccess: onAssigned,
+        onError: (error) => {
+          if (error instanceof ApiError && error.code === 'assignment_clash') {
+            setClash({ personId, detail: error.message })
+          }
+        },
+      },
+    )
   }
 
   const columns: Column<Suggestion>[] = [
@@ -431,12 +532,72 @@ function Suggestions({
     },
   ]
 
+  if (canEditRoster) {
+    columns.push({
+      id: 'assign',
+      header: '',
+      enableSorting: false,
+      accessorFn: () => '',
+      cell: ({ row }) => {
+        const clashed = clash !== null && clash.personId === row.original.personId
+        return (
+          <>
+            <button
+              type="button"
+              className={clashed ? 'button' : 'button button--primary'}
+              disabled={assign.isPending}
+              onClick={() => submit(row.original.personId, clashed)}
+            >
+              {clashed ? 'Assign anyway' : 'Assign'}
+            </button>
+            {clashed && <span className="editor__error">{clash.detail}</span>}
+          </>
+        )
+      },
+    })
+  }
+
   return (
     <>
-      <p className="note">
-        Ranked by the server (§5.4). Assigning from here needs the assignment write path, which is
-        not built yet — see the planner note in <code>admin-web/CLAUDE.md</code>.
-      </p>
+      <p className="note">Ranked by the server (§5.4).</p>
+
+      {canEditRoster && (
+        <div className="editor">
+          <label className="field field--inline">
+            <span className="field__label">Assign from</span>
+            <input
+              className="input"
+              type="date"
+              value={from}
+              min={swing.from}
+              max={swing.to}
+              onChange={(event) => setFrom(event.target.value)}
+            />
+          </label>
+          <label className="field field--inline">
+            <span className="field__label">Assign to</span>
+            <input
+              className="input"
+              type="date"
+              value={to}
+              min={swing.from}
+              max={swing.to}
+              onChange={(event) => setTo(event.target.value)}
+            />
+          </label>
+          <p className="selector__note">
+            {wholeSwing
+              ? 'The whole swing. Narrow the dates to build one leg of a mid-swing handover.'
+              : `A handover leg, ${formatDateRange(from, to)}. The rest of the slot stays open.`}
+          </p>
+        </div>
+      )}
+
+      {assign.error !== null &&
+        !(assign.error instanceof ApiError && assign.error.code === 'assignment_clash') && (
+          <ErrorPanel title="Could not make that assignment" error={assign.error} />
+        )}
+
       <DataTable
         rows={suggestions.data}
         columns={columns}

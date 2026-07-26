@@ -10,6 +10,7 @@ import au.crewcomp.reference.CrewPosition
 import au.crewcomp.reference.Partnership
 import au.crewcomp.reference.PositionSlot
 import au.crewcomp.reference.Requirement
+import au.crewcomp.reference.RequirementUsage
 import java.time.LocalDate
 
 /**
@@ -66,6 +67,47 @@ data class RequirementDto(
     val issuingAuthority: String?,
 )
 
+/**
+ * ADM-6's shape: the catalogue entry plus the two things the editing screen needs and the
+ * lightweight [RequirementDto] deliberately omits — the legacy aliases, and how load-bearing the
+ * entry is. Kept separate so the crew app's sync payload does not carry either.
+ */
+data class RequirementDetailDto(
+    val id: Long,
+    val code: String,
+    val category: String,
+    val title: String,
+    val status: String,
+    val issuingAuthority: String?,
+    val notes: String?,
+    val aliases: List<RequirementAliasDto>,
+    val usage: RequirementUsageDto,
+)
+
+data class RequirementAliasDto(val id: Long, val alias: String)
+
+data class RequirementUsageDto(
+    val holdings: Long,
+    val requirementRules: Long,
+    val quotaRules: Long,
+    val conditionalRules: Long,
+    val registerRecords: Long,
+    val total: Long,
+)
+
+/** Create and update share a body. The code is set once and never changes — see `ReferenceService`. */
+data class SaveRequirementRequest(
+    /** Ignored on update: a catalogue code is a business key, not an editable label. */
+    val code: String? = null,
+    val category: String,
+    val title: String,
+    val issuingAuthority: String? = null,
+    val notes: String? = null,
+    val status: String = "active",
+)
+
+data class AddAliasRequest(val alias: String)
+
 data class PositionDto(val id: Long, val name: String)
 
 data class SlotDto(
@@ -98,6 +140,20 @@ data class AssignmentDto(
     val slotRef: Int,
     val from: LocalDate,
     val to: LocalDate,
+)
+
+/**
+ * ADM-2 assign request. [from]/[to] are omitted for a whole-swing assignment and set only for a
+ * handover leg; the server defaults them to the swing window rather than making every caller
+ * restate it.
+ */
+data class AssignRequest(
+    val slotRef: Int,
+    val personId: Long,
+    val from: LocalDate? = null,
+    val to: LocalDate? = null,
+    /** Proceed despite an overlapping assignment or leave record — recorded in the audit event. */
+    val acknowledgeClash: Boolean = false,
 )
 
 data class LeaveRecordDto(
@@ -145,6 +201,29 @@ fun Requirement.toDto() = RequirementDto(
     title = title,
     status = status,
     issuingAuthority = issuingAuthority,
+)
+
+fun Requirement.toDetailDto(usage: RequirementUsage?) = RequirementDetailDto(
+    id = requiredId,
+    code = code,
+    category = category,
+    title = title,
+    status = status,
+    issuingAuthority = issuingAuthority,
+    notes = notes,
+    aliases = aliases.map { RequirementAliasDto(it.requiredId, it.alias) }.sortedBy { it.alias },
+    // A requirement nobody has used yet has no row in any of the count queries. Zeros are the
+    // right answer there, and the reason the field is not nullable.
+    usage = (usage ?: RequirementUsage(requiredId, 0, 0, 0, 0, 0)).toDto(),
+)
+
+fun RequirementUsage.toDto() = RequirementUsageDto(
+    holdings = holdings,
+    requirementRules = requirementRules,
+    quotaRules = quotaRules,
+    conditionalRules = conditionalRules,
+    registerRecords = registerRecords,
+    total = total,
 )
 
 fun CrewPosition.toDto() = PositionDto(id = requiredId, name = name)

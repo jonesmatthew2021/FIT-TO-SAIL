@@ -386,6 +386,11 @@ a {
   background: var(--critical-bg);
 }
 
+/* Retired catalogue entries stay visible and stay readable — dimmed, never hidden (§4.1). */
+.table__row--retired td {
+  opacity: 0.62;
+}
+
 .table__empty {
   color: var(--ink-muted);
   padding: 1rem 0.6rem;

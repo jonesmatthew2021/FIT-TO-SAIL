@@ -4,9 +4,14 @@ import { ApiError } from './api/client'
 import { SessionProvider } from './api/session'
 import { Layout, NAV_ITEMS } from './components/Layout'
 import { Dashboard } from './screens/Dashboard'
+import { Exceptions } from './screens/Exceptions'
 import { NotBuilt } from './screens/NotBuilt'
 import { People } from './screens/People'
 import { PersonDetail } from './screens/PersonDetail'
+import { Register } from './screens/Register'
+import { RegisterDetail } from './screens/RegisterDetail'
+import { RegisterNew } from './screens/RegisterNew'
+import { Requirements } from './screens/Requirements'
 import { SwingPlanner } from './screens/SwingPlanner'
 
 /**
@@ -36,6 +41,11 @@ export function App(): React.ReactNode {
               <Route path="planner" element={<SwingPlanner />} />
               <Route path="people" element={<People />} />
               <Route path="people/:personId" element={<PersonDetail />} />
+              <Route path="requirements" element={<Requirements />} />
+              <Route path="exceptions" element={<Exceptions />} />
+              <Route path="register" element={<Register />} />
+              <Route path="register/new" element={<RegisterNew />} />
+              <Route path="register/:recordId" element={<RegisterDetail />} />
               {NAV_ITEMS.filter((item) => !item.built).map((item) => (
                 <Route key={item.to} path={item.to.slice(1)} element={<NotBuilt />} />
               ))}

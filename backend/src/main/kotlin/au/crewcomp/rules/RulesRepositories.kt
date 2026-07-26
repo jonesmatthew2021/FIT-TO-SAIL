@@ -3,6 +3,21 @@ package au.crewcomp.rules
 import io.quarkus.hibernate.orm.panache.kotlin.PanacheRepositoryBase
 import jakarta.enterprise.context.ApplicationScoped
 
+/**
+ * `requirement_id → row count`, in one grouped query rather than one query per requirement.
+ *
+ * Shared by the repositories that answer ADM-6's usage counts. Every entity it is used for maps
+ * the association as `requirement`, which is what makes one string parameter enough.
+ */
+private fun PanacheRepositoryBase<*, *>.countGroupedByRequirement(entity: String): Map<Long, Long> =
+    getEntityManager()
+        .createQuery(
+            "select e.requirement.id, count(e) from $entity e group by e.requirement.id",
+            Array<Any>::class.java,
+        )
+        .resultList
+        .associate { (it[0] as Number).toLong() to (it[1] as Number).toLong() }
+
 @ApplicationScoped
 class MatrixVersionRepository : PanacheRepositoryBase<MatrixVersion, Long> {
 
@@ -39,6 +54,13 @@ class RequirementRuleRepository : PanacheRepositoryBase<RequirementRule, Long> {
             matrixVersionId,
         ).list()
 
+    /**
+     * How many rules name each requirement, across **every** matrix version — ADM-6's usage
+     * count. Historic versions count deliberately: the point of the number is "is this
+     * catalogue entry load-bearing anywhere", and a retired version is still audit evidence.
+     */
+    fun countByRequirement(): Map<Long, Long> = countGroupedByRequirement("RequirementRule")
+
     fun find(matrixVersionId: Long, partnershipId: Long?, positionId: Long, requirementId: Long): RequirementRule? =
         if (partnershipId == null) {
             find(
@@ -68,10 +90,33 @@ class ConditionalRuleRepository : PanacheRepositoryBase<ConditionalRule, Long> {
             """.trimIndent(),
             matrixVersionId,
         ).list()
+
+    /**
+     * ADM-6 usage: a requirement counts as used by a conditional rule whether it is the rule's
+     * target (`dependent`) or one of its members (`one_of`, `required_if_holds`, `unless_holds`).
+     *
+     * Two queries returning `(requirement, rule)` pairs rather than one clever grouped one: a
+     * requirement can be both the target *and* a member of the same rule, and counting the pairs
+     * distinctly in Kotlin is the readable way to make that one use rather than two.
+     */
+    fun countByRequirement(): Map<Long, Long> {
+        val pairs = mutableSetOf<Pair<Long, Long>>()
+        listOf(
+            "select c.requirement.id, c.id from ConditionalRule c where c.requirement is not null",
+            "select m.requirement.id, m.conditionalRule.id from ConditionalRuleMember m",
+        ).forEach { query ->
+            getEntityManager().createQuery(query, Array<Any>::class.java).resultList.forEach {
+                pairs += (it[0] as Number).toLong() to (it[1] as Number).toLong()
+            }
+        }
+        return pairs.groupingBy { it.first }.eachCount().mapValues { it.value.toLong() }
+    }
 }
 
 @ApplicationScoped
 class QuotaRuleRepository : PanacheRepositoryBase<QuotaRule, Long> {
+
+    fun countByRequirement(): Map<Long, Long> = countGroupedByRequirement("QuotaRule")
 
     fun forVersion(matrixVersionId: Long): List<QuotaRule> =
         find(
