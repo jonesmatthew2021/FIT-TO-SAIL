@@ -12,8 +12,8 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 
 | Path | Contents | Status |
 |---|---|---|
-| `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST slice, MCP, §10.3 sync, evidence ingest |
-| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **3 of 10 §6 modules** — shell, session, dashboard, swing planner, people & holdings |
+| `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + six §6 modules + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST API, register workflow, catalogue and exception write paths, MCP, §10.3 sync, evidence ingest |
+| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **6 of 10 §6 modules** — shell, session, dashboard, swing planner (with assignment), register, people & holdings, requirements catalogue, exceptions worklist |
 | `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens** — encrypted store, sync, outbox; **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | seeded |
@@ -39,8 +39,8 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 
 ## Current phase
 
-Early P1 across three components. Green: **125 pure-domain tests**, **52 backend integration
-tests** against real PostgreSQL (Colima + Quarkus Dev Services), **25 frontend tests** with a
+Early P1 across three components. Green: **125 pure-domain tests**, **75 backend integration
+tests** against real PostgreSQL (Colima + Quarkus Dev Services), **28 frontend tests** with a
 production bundle that builds, and **43 Flutter tests** including a real encrypted SQLite file.
 `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the component detail —
 including the traps each has already paid for and the spec questions each takes a position on.
@@ -48,13 +48,18 @@ including the traps each has already paid for and the spec questions each takes 
 What exists end to end, verified over real HTTP against a seeded database:
 
 - **Back office** — sign in (development shim), per-partnership swing compliance, a swing planner
-  with slot coverage, quotas, the gap report and ranked suggestions, the crew directory, and an
-  audited holding edit. Seven of the ten §6 modules are named on screen as unbuilt, each with
-  what it is waiting on.
+  that both ranks candidates and fills slots, the register with its full workflow, the crew
+  directory with audited holding edits, the requirement catalogue, and the data-quality worklist.
+  Six of the ten §6 modules; the other four are named on screen as unbuilt with what each is
+  waiting on.
+- **The register closes the compliance loop.** Raising a request turns a `gap` into `pending` on
+  the planner and an approval turns it into `exempt`, through §5.1 step 4's overlay — the gap
+  report links straight to a pre-filled request, and the decision comes back to the same screen.
 - **Crew self-service** — a crew member's device takes a snapshot, applies deltas, survives
   deletions via tombstones, queues read-marks and evidence submissions offline, and uploads a
   2 MB document in chunks that resume after a kill, refuse to leave a hole, ignore replays and
-  verify their digest. The store on disk is encrypted and unreadable without its key.
+  verify their digest. The store on disk is encrypted and unreadable without its key. A roster
+  change now raises a real notification to the crew member's device.
 
 The largest functional gaps, in the order they bite:
 
@@ -64,16 +69,20 @@ The largest functional gaps, in the order they bite:
    (`mobile/CLAUDE.md` §"What the iOS run proved"). There is still no Android SDK, which is a
    parity risk ADR 0002 explicitly cares about. Still unproven anywhere: the camera (MOB-4
    capture), biometric binding, background upload surviving a kill, and code signing.
-2. **No assignment write path**, so the planner ranks candidates but cannot fill a slot (ADM-2).
-3. **No matrix or register write paths** (ADM-3, ADM-4) — the two biggest remaining modules.
-4. **The evidence pipeline stops after ingest.** Documents upload and sit at
+2. **No matrix module** (ADM-3) — the largest remaining one. `MatrixDiff` implements §5.5 and
+   `MatrixSnapshotService` reads the published version; nothing lists, drafts, edits or publishes
+   one, so the matrix can only be changed by a migration.
+3. **The evidence pipeline stops after ingest.** Documents upload and sit at
    `pending_extraction`: no extraction, no matching, no review queue (§8, ADM-9), no `LlmClient`.
-5. **Nothing raises a notification.** The service and the mobile list exist; the §9 expiry scan,
-   fan-out and push delivery (APNs/FCM) do not.
-6. **No login** anywhere. `GET /api/v1/session` is the stable half of the ADR 0003 contract; the
+4. **Notifications have no scheduler and no back-office recipient.** Assignment changes raise
+   them; the §9 expiry scan, cutoff-approaching job, fan-out and push delivery (APNs/FCM) do not
+   exist, and a back-office user cannot receive one at all until the identity spike gives them a
+   UserAccount — which is what ADM-8 is actually waiting on.
+5. **No login** anywhere. `GET /api/v1/session` is the stable half of the ADR 0003 contract; the
    code flow, token store and opaque cookie are the identity spike's.
-7. **No §11 migration.** `DevDataSeeder` is a synthetic development fixture, not the validated
-   CSV load with its 35 ExceptionItems and CC24/CC25 acceptance diff.
+6. **No §11 migration.** `DevDataSeeder` is a synthetic development fixture, not the validated
+   CSV load with its 35 ExceptionItems and CC24/CC25 acceptance diff. ADM-7's worklist is built
+   and seeded with three invented items; the real 35 arrive with that load.
 
 Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended spike sequence"):
 1. Pipeline bootstrap (repo CI, OpenTofu baselines, AI review workflows). Lanes: `./mvnw verify`

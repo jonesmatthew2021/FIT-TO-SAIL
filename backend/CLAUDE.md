@@ -1,9 +1,11 @@
 # backend/ — Kotlin + Quarkus monolith
 
 The P1 spine exists: the §5 compliance engine with its test suite, the §4 baseline schema, the
-persistence and security layers, the compliance service, a slice of the REST API, and the embedded
-MCP server. Feature modules (register workflow, evidence pipeline, notifications, sync) build on
-top of it.
+persistence and security layers, the compliance service, the REST API, and the embedded MCP
+server. On top of it: the assignment write path (ADM-2), the register workflow (ADM-4), the
+catalogue write path (ADM-6), the exceptions worklist (ADM-7), §10.3 sync and §8 stage 1 evidence
+ingest. The matrix versioning service (ADM-3) and the rest of the evidence pipeline are the
+substantial modules still missing.
 
 ## Stack (decided)
 
@@ -107,22 +109,27 @@ these.
 2. **Native-image build still unverified** (no GraalVM locally). ADR 0001 makes this a CI job on
    every merge; reflection registration for the entity and DTO graph is the expected first
    failure.
-3. **Register workflow is schema and enumerations only.** Its write paths follow
-   `HoldingService`'s shape: role check → validate → mutate → audit. The admin SPA names it on
-   screen as unbuilt rather than hiding it.
-3a. **The evidence pipeline stops after ingest.** §8 stage 1 (upload, store, record) is built and
+3. **The evidence pipeline stops after ingest.** §8 stage 1 (upload, store, record) is built and
    tested; extraction, matching and the review queue (ADM-9) are not, and `LlmClient` has no
    implementation. A submitted document sits at `pending_extraction` forever.
-3b. **Notifications are never raised by anything.** `NotificationService.raise` exists and the
-   mobile app renders the list, but no job calls it — the §9 expiry scan and fan-out are P2, and
-   they are what JobRunr lands for. No push delivery either (APNs/FCM, MOB-3).
-4. **Seed/migration loading** (§11, from the POC's seed CSVs) is not written. The acceptance
+4. **Nothing schedules a notification.** `NotificationService.raise` is now called by the
+   assignment write path (`assignment_added` / `assignment_removed`), so the crew app's list is
+   no longer fed only by the fixture — but the §9 expiry scan and cutoff-approaching job still do
+   not exist, and they are what JobRunr lands for. No push delivery either (APNs/FCM, MOB-3). A
+   back-office user cannot be notified at all: notifications are addressed to a `UserAccount`, and
+   back-office users have none until the identity spike creates them (that is ADM-8's real
+   blocker).
+5. **Seed/migration loading** (§11, from the POC's seed CSVs) is not written. The acceptance
    test is a CC24/CC25 diff against the POC rendering, including the known UNI CC24 shortfall —
    which `SwingEvaluatorTest` already encodes as a synthetic scenario. `DevDataSeeder` is a
    development fixture, not a substitute for this.
-5. **No assignment write path.** The planner can rank candidates for an open slot (§5.4) but
-   cannot fill it, which is the largest single gap between the admin SPA and ADM-2.
-6. **Login and logout do not exist.** `GET /api/v1/session` is the half of the ADR 0003 contract
+6. **No matrix versioning service** (ADM-3), the largest remaining module: version list, draft
+   creation from any version, cell editing, the §5.5 diff (`MatrixDiff` already implements it) and
+   publication. `MatrixSnapshotService` reads the published version; nothing writes one.
+7. **The register's list has no free-text predicate.** `search` filters by partnership, CC, type
+   and state; §6 also asks for free text, which the SPA currently does client-side over the rows
+   it fetched. That is fine now and wrong at 445 rows plus years of growth.
+8. **Login and logout do not exist.** `GET /api/v1/session` is the half of the ADR 0003 contract
    that does not depend on how the session was established; the code flow, the token store and
    the opaque cookie are the identity spike's.
 
@@ -203,6 +210,19 @@ must be a constant.** Kotlin compiles defaults into a static `foo$default` bridg
 instance fields directly, bypassing the client proxy, so a default like
 `actor: Actor = actorContext.require()` resolves against a proxy whose fields are all null.
 
+## Acknowledged conflicts, not blocked ones
+
+Two write paths refuse an operation the first time and accept it on a retry that carries an
+acknowledgement, answering 409 in between: [`AssignmentClashException`] when a person is already
+committed in the window, and [`LateSubmissionException`] when a register record is lodged after
+the swing's cutoff (Q17). Both follow the same argument, and it is worth keeping when adding a
+third: the operation may well be what the user intends, so blocking it outright would be wrong —
+but doing it *silently* loses the fact that anyone noticed. The acknowledgement goes into the
+audit event, and for the register onto the record itself as `late_submission_acknowledged`.
+
+Do not "simplify" either into a plain validation failure. A 400 says "you cannot do this", and
+both of these are cases where you can.
+
 ## Spec questions this code has an opinion on
 
 Flagged where the implementation had to choose something the spec leaves open. Each is a comment
@@ -222,3 +242,13 @@ at the relevant code, and each is cheap to change:
   they rank below `ok`, and an all-`na` person rolls up to `ok`.
 - **§5.3 open slots.** Partially covered slots are reported separately from open ones — the input
   ENG-1's per-day evaluation will need, and a real planning signal now.
+- **§4.4 register transitions.** The spec enumerates the statuses but not the graph between them.
+  `RegisterService.defaultStatusFor` encodes the reading the names imply — PW raises and holds its
+  own requests, an MRL query starts with MRL, an OPS request starts with OPS — and `transition`
+  allows any open→open move rather than a fixed chain. A closed record is never reopened; a new
+  one is raised. All three are one map or one `require` away from changing.
+- **§4.1 catalogue codes are immutable.** `updateRequirement` edits everything except the code,
+  because the code is the business key every matrix rule, register row and CSV export is written
+  against; renaming it in place would rewrite history rather than record a change. A miscoded
+  entry is retired and replaced. Retirement itself is permitted whatever the usage counts say —
+  the API reports them so the decision is informed, and retired entries still resolve.

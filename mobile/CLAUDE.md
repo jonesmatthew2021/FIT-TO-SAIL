@@ -172,7 +172,9 @@ Listed plainly because the test count above could otherwise imply more than it s
    there is no login (#6).
 3. **No push notifications.** MOB-3 renders the in-app list, which is the source of truth, but
    APNs/FCM delivery needs a Firebase project and signing identities. `firebase_messaging` is
-   not a dependency yet.
+   not a dependency yet. The list is no longer fixture-only, though: assigning or unassigning a
+   crew member in the admin SPA raises a real `assignment_added` / `assignment_removed`
+   notification, which arrives on the next delta — the easiest way to watch sync work live.
 4. **No camera capture.** MOB-4's submission and upload paths are built and tested; the thing
    that produces the file is not. Needs a device and the doc-scan wrapper from ADR 0002.
 5. **Uploads do not survive backgrounding.** The outbox survives app *restarts* — it is a table —

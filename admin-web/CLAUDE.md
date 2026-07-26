@@ -1,8 +1,10 @@
 # admin-web/ — React + TypeScript admin SPA
 
-The shell, the API layer and three of the ten §6 modules exist: ADM-1 dashboard, ADM-2 swing
-planner, ADM-5 people & holdings. The other seven are routed and named in the navigation, and
-each says what it is waiting on — see `src/screens/NotBuilt.tsx`, which is the honest scope list.
+The shell, the API layer and six of the ten §6 modules exist: ADM-1 dashboard, ADM-2 swing planner
+(now with the assignment write path), ADM-4 register, ADM-5 people & holdings, ADM-6 requirements
+catalogue, ADM-7 exceptions worklist. The remaining four — ADM-3 matrix, ADM-8 notifications
+centre, ADM-9 evidence queue, ADM-10 administration — are routed and named in the navigation, and
+each says what it is waiting on. See `src/screens/NotBuilt.tsx`, which is the honest scope list.
 
 ## Stack (decided)
 
@@ -71,7 +73,7 @@ npm run dev                                                   # :5173
 | `src/api/` | `schema.d.ts` (generated), `client.ts` (typed fetch + dev identity), `queries.ts` (React Query hooks and cache policy), `session.tsx` (session context, role helpers) |
 | `src/domain/` | `dates.ts` calendar-date arithmetic, `enums.ts` Appendix A presentation, `csv.ts` RFC 4180 export |
 | `src/components/` | `Layout`, `DataTable`, `StateChip`, `SwingSelector`, `Spinner`, `ErrorPanel` |
-| `src/screens/` | `Dashboard` (ADM-1), `SwingPlanner` (ADM-2), `People`/`PersonDetail` (ADM-5), `SignIn`, `NotBuilt` |
+| `src/screens/` | `Dashboard` (ADM-1), `SwingPlanner` (ADM-2), `Register`/`RegisterDetail`/`RegisterNew` (ADM-4), `People`/`PersonDetail` (ADM-5), `Requirements` (ADM-6), `Exceptions` (ADM-7), `SignIn`, `NotBuilt` |
 
 ## Development sign-in
 
@@ -89,24 +91,44 @@ npm run build && grep -c "X-Dev-Roles" dist/assets/*.js   # expect 0
 Worth keeping in the CI lane — it is the kind of guarantee that holds until someone moves the
 constant behind a runtime check.
 
+## Two flows worth understanding before changing them
+
+**A 409 is a question, not a failure.** Two writes come back with one — assigning someone already
+committed elsewhere (`assignment_clash`) and lodging a register record after the swing's cutoff
+(`late_submission`). Neither is an error to report and forget: §5.4 says a clash is *shown*, never
+hidden, and Q17 permits a late submission that is acknowledged. So the screen branches on
+`ApiError.code`, renders the server's explanation in place, and offers the same request again with
+`acknowledgeClash` / `acknowledgeLateSubmission` set. The acknowledgement lands in the audit event.
+Treating either as a plain `ErrorPanel` would turn a workflow into a dead end.
+
+**The gap report raises register records.** A gap row with no register record links to
+`/register/new` with the partnership, swing, person and requirement already in the query string —
+§6's "one-click pre-filled exemption request". That link is the join between ADM-2 and ADM-4, and
+it is why `RegisterNew` reads its initial state from `useSearchParams` rather than starting empty.
+
 ## Known follow-ups
 
-1. **Assigning from the planner** is read-only: suggestions rank, but there is no assignment
-   write path in the backend yet. The button is absent rather than disabled, and the panel says
-   so.
-2. **The ADM-5 person list has no compliance roll-up column**, which §6 asks for. A roll-up is
+1. **The ADM-5 person list has no compliance roll-up column**, which §6 asks for. A roll-up is
    only defined against a swing (§5.2), and there is no swing-free evaluation endpoint; a number
    computed against an arbitrarily chosen swing would be worse than none. The roll-up is on the
    person detail page against a swing you pick. Resolving this properly means either a
    denormalised per-person summary or an explicit "as of the current swing" endpoint.
-3. **Requirement category codes are shown raw.** Appendix A enumerates `QL · VS · PS · MS · CS ·
+2. **Requirement category codes are shown raw.** Appendix A enumerates `QL · VS · PS · MS · CS ·
    HR · PT · VI · PI` but nothing says what they expand to, and inventing expansions would put a
-   wrong label in front of people who know the right one. A question for the client.
-4. **No CSV for the matrix or register**, because those modules do not exist yet. The `csv.ts`
-   helpers are ready for them.
-5. **Accessibility has had a first pass, not an audit.** Chips carry text labels, tables use
+   wrong label in front of people who know the right one. A question for the client, and the
+   reason ADM-6's category filter offers bare codes.
+3. **The register's free-text search is client-side.** `DataTable`'s filter searches the rows
+   already fetched; the server takes partnership, CC, type and state but no `q`. Fine for a few
+   hundred records, wrong for the full 445-row history plus years of new ones — the server needs
+   the text predicate before this list is paged.
+4. **No CSV for the matrix**, because ADM-3 does not exist yet. Every other list exports.
+5. **The register enumerations are duplicated** in `domain/enums.ts` — the editor has to offer
+   them before the server can reject a wrong one. `enums.test.ts` pins the copy; the ITs pin the
+   server's. Nothing links the two, so a new status added in Kotlin will not appear here until
+   somebody adds it.
+6. **Accessibility has had a first pass, not an audit.** Chips carry text labels, tables use
    `aria-sort`, the spinner respects `prefers-reduced-motion`. Nobody has driven it with a
    screen reader.
-6. **No E2E test.** The vitest suite covers the date, CSV, enumeration and validation logic plus
+7. **No E2E test.** The vitest suite covers the date, CSV, enumeration and validation logic plus
    `DataTable`; the HTTP contract is covered on the backend side by `ApiIT`. What is untested is
    the two meeting in a browser.
