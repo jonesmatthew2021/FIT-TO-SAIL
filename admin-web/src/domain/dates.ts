@@ -22,6 +22,18 @@ export function epochDay(isoDate: string): number {
   return Date.UTC(Number(year), Number(month) - 1, Number(day)) / 86_400_000
 }
 
+/**
+ * The inverse of `epochDay`: whole days since the epoch back to `YYYY-MM-DD`.
+ *
+ * Constructing a `Date` from a *number* of milliseconds is safe in a way that parsing a date-only
+ * string is not — there is no zone in the input and `toISOString` reads it back in UTC, so the
+ * round trip `dateFromEpochDay(epochDay(d)) === d` holds in every timezone. The ruler needs this
+ * to label its own axis at computed intervals.
+ */
+export function dateFromEpochDay(day: number): string {
+  return new Date(day * 86_400_000).toISOString().slice(0, 10)
+}
+
 /** `to - from` in whole days. Negative when `to` is in the past. */
 export function daysBetween(from: string, to: string): number {
   return epochDay(to) - epochDay(from)
@@ -49,9 +61,25 @@ export function formatDate(isoDate: string | null | undefined): string {
   return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`
 }
 
+/**
+ * `2026-08-16` → `16 Aug`. The year dropped, for axis ticks and window labels where it is either
+ * obvious from context or repeated on every one of a dozen rows.
+ */
+export function formatDayMonth(isoDate: string): string {
+  const match = ISO_DATE.exec(isoDate)
+  if (match === null) return isoDate
+  const [, , month, day] = match
+  return `${Number(day)} ${MONTHS[Number(month) - 1]}`
+}
+
 /** `30 Jun 2027 – 14 Jul 2027`, collapsing a shared month or year. */
 export function formatDateRange(from: string, to: string): string {
   return `${formatDate(from)} – ${formatDate(to)}`
+}
+
+/** `20 Jul – 16 Aug`, for a window whose year the surrounding screen already states. */
+export function formatShortRange(from: string, to: string): string {
+  return `${formatDayMonth(from)} – ${formatDayMonth(to)}`
 }
 
 /**

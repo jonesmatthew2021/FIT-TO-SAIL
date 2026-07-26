@@ -81,7 +81,7 @@ export function DataTable<T>({
         )}
         <span className="table-block__count">
           {visible.length === rows.length
-            ? `${rows.length} rows`
+            ? `${rows.length} ${rows.length === 1 ? 'row' : 'rows'}`
             : `${visible.length} of ${rows.length} rows`}
         </span>
         {csv !== undefined && (

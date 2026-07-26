@@ -39,17 +39,17 @@ export function Layout(): React.ReactNode {
     <div className="shell">
       <header className="shell__header">
         <div className="shell__brand">
-          CREWCOMP
+          Crewcomp
           <span className="shell__env">admin</span>
         </div>
 
         <div className="shell__session">
           <span className="shell__today" title="The server's business date in the operating timezone">
             {formatDate(session.today)}
-            {session.dateOverridden && <span className="shell__pinned">pinned</span>}
           </span>
-          <span className="shell__actor">{session.label}</span>
+          {session.dateOverridden && <span className="shell__pinned">Date pinned</span>}
           <span className="shell__roles">{session.roles.map(roleLabel).join(' · ')}</span>
+          <span className="shell__actor">{session.label}</span>
           {import.meta.env.DEV && (
             <button
               type="button"
@@ -66,22 +66,11 @@ export function Layout(): React.ReactNode {
       </header>
 
       <div className="shell__body">
+        {/* Grouped rather than interleaved: a reader should be able to see at a glance how much of
+            §6 exists, without reading the marker on every row. */}
         <nav className="shell__nav" aria-label="Modules">
-          {NAV_ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) =>
-                ['nav__item', isActive ? 'nav__item--active' : '', item.built ? '' : 'nav__item--unbuilt']
-                  .filter(Boolean)
-                  .join(' ')
-              }
-            >
-              <span className="nav__label">{item.label}</span>
-              <span className="nav__module">{item.module}</span>
-            </NavLink>
-          ))}
+          <NavGroup label="Built" items={NAV_ITEMS.filter((item) => item.built)} />
+          <NavGroup label="Not built" items={NAV_ITEMS.filter((item) => !item.built)} later />
         </nav>
 
         <main className="shell__main">
@@ -89,5 +78,37 @@ export function Layout(): React.ReactNode {
         </main>
       </div>
     </div>
+  )
+}
+
+function NavGroup({
+  label,
+  items,
+  later = false,
+}: {
+  label: string
+  items: readonly NavItem[]
+  later?: boolean
+}): React.ReactNode {
+  return (
+    <>
+      <p className={later ? 'nav__group nav__group--later' : 'nav__group'}>{label}</p>
+      {items.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.to === '/'}
+          className={({ isActive }) =>
+            ['nav__item', isActive ? 'nav__item--active' : '', item.built ? '' : 'nav__item--unbuilt']
+              .filter(Boolean)
+              .join(' ')
+          }
+        >
+          <i className="nav__mark" aria-hidden="true" />
+          <span className="nav__label">{item.label}</span>
+          <span className="nav__module">{item.module}</span>
+        </NavLink>
+      ))}
+    </>
   )
 }

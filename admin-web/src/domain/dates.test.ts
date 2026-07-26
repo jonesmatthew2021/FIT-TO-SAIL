@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { daysBetween, epochDay, formatDate, formatDateRange, relativeDays } from './dates'
+import {
+  dateFromEpochDay,
+  daysBetween,
+  epochDay,
+  formatDate,
+  formatDateRange,
+  formatDayMonth,
+  formatShortRange,
+  relativeDays,
+} from './dates'
 
 /**
  * NFR-5 / O-11. These tests exist because the natural JavaScript spelling of every one of these
@@ -44,6 +53,20 @@ describe('calendar dates', () => {
 
   it('formats a range', () => {
     expect(formatDateRange('2026-07-26', '2026-08-09')).toBe('26 Jul 2026 – 9 Aug 2026')
+  })
+
+  it('round-trips epoch days back to a calendar date', () => {
+    // The ruler labels its own axis at computed intervals, so this inverse has to be exact — an
+    // off-by-one here would put every tick a day out and nothing would look obviously wrong.
+    for (const date of ['2026-01-01', '2026-07-26', '2026-12-31', '2028-02-29']) {
+      expect(dateFromEpochDay(epochDay(date))).toBe(date)
+    }
+  })
+
+  it('formats a day and month without the year', () => {
+    expect(formatDayMonth('2026-08-16')).toBe('16 Aug')
+    expect(formatDayMonth('2026-01-05')).toBe('5 Jan')
+    expect(formatShortRange('2026-07-20', '2026-08-16')).toBe('20 Jul – 16 Aug')
   })
 
   it('describes days remaining against the business date, not the browser clock', () => {
