@@ -12,8 +12,8 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 
 | Path | Contents | Status |
 |---|---|---|
-| `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + six §6 modules + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST API, register workflow, catalogue and exception write paths, MCP, §10.3 sync, evidence ingest |
-| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **6 of 10 §6 modules** — shell, session, dashboard, swing planner (with assignment), register, people & holdings, requirements catalogue, exceptions worklist |
+| `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync |
+| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, notifications centre, evidence queue, administration |
 | `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens** — encrypted store, sync, outbox; **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | seeded |
@@ -35,54 +35,76 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 - **Client types are generated from the backend's OpenAPI schema** (DEV-2), never hand-written, and CI fails when the committed types drift from it.
 - **Development-only code is removed at build time**, not disabled at runtime: the auth shim and data fixture are absent from a production artefact, and additionally refuse to start under `prod`. On the clients the same rule holds through compile-time constants — `import.meta.env.DEV` in the SPA, `kDebugMode` in Flutter.
 - **Sync change tracking is maintained by database triggers**, never by application code (ADR 0009). A cursor a write path can forget is a cursor that silently stops replicating a row to a crew member's device, with no error anywhere.
+- **A published matrix version is immutable** (§5.5). It is what makes a past evaluation reproducible, so a correction is a new draft published over the top, never an edit in place. The same rule, one layer down: a decided evidence document is terminal, and a holding recorded in error is corrected on the holding.
+- **Every scheduled job is an idempotent scan** that recomputes what is due and dedupes what it raises. That property is why there is no job store; check it before adding a job. A job that needs retries, a queue, or to survive a restart mid-run does not belong in `JobRegistry`.
 - **The mobile app is told its compliance answers, never left to compute them** (AUTH-1). The server's §5.2 evaluation travels in the sync payload; the device may count days against it (§7.6) and nothing more.
 
 ## Current phase
 
-Early P1 across three components. Green: **125 pure-domain tests**, **75 backend integration
-tests** against real PostgreSQL (Colima + Quarkus Dev Services), **41 frontend tests** with a
-production bundle that builds, and **43 Flutter tests** including a real encrypted SQLite file.
-`backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the component detail —
-including the traps each has already paid for and the spec questions each takes a position on.
+Early P1 across three components, with **the whole of §6 now built**. Green: **125 pure-domain
+tests**, **143 backend integration tests** against real PostgreSQL (Colima + Quarkus Dev Services),
+**64 frontend tests** with a production bundle that builds, and **43 Flutter tests** including a real
+encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
+component detail — including the traps each has already paid for and the spec questions each takes a
+position on.
 
-What exists end to end, verified over real HTTP against a seeded database:
+What exists end to end, verified over real HTTP against a seeded database and driven in a browser:
 
-- **Back office** — sign in (development shim), per-partnership swing compliance, a swing planner
-  that both ranks candidates and fills slots, the register with its full workflow, the crew
-  directory with audited holding edits, the requirement catalogue, and the data-quality worklist.
-  Six of the ten §6 modules; the other four are named on screen as unbuilt with what each is
-  waiting on.
+- **The back office is complete as a set of screens.** All ten §6 modules: sign in (development
+  shim), per-partnership swing compliance, a swing planner that both ranks candidates and fills
+  slots, the matrix with its version lifecycle, the register with its full workflow, the crew
+  directory with audited holding edits, the requirement catalogue, the data-quality worklist, the
+  notifications centre, the evidence verification queue, and administration.
 - **The register closes the compliance loop.** Raising a request turns a `gap` into `pending` on
   the planner and an approval turns it into `exempt`, through §5.1 step 4's overlay — the gap
   report links straight to a pre-filled request, and the decision comes back to the same screen.
+- **The matrix is versioned, and a published one cannot be edited.** Draft from any version, edit
+  cells and partnership overrides, read the §5.5 diff, publish under an advisory lock that supersedes
+  the previous version. Publishing changes what every swing evaluates to, immediately, and the
+  superseded version stays evaluable — which is what makes a historical swing reconstructible.
+- **The evidence pipeline runs all five §8 stages** and, with no LLM provider chosen, correctly
+  extracts nothing and sends every document to a human. Auto-acceptance is off by default and cannot
+  be switched on by accident: the threshold has no default, refuses to be set to 0, and the
+  unconfigured extractor reports zero confidence — three independent facts have to change first. A
+  Data Steward accepts, corrects or rejects; the holding moves through the same service the admin API
+  uses, and the audit event carries both what was read and what was accepted.
+- **Notifications are per recipient, routed per role, and idempotent.** Register events, matrix
+  publication, exceptions and pipeline outcomes raise them; three scheduled scans find what no event
+  knows about — expiries, approaching cutoffs, quota shortfalls and unfilled slots. Every scan carries
+  a dedupe key, so running one twice produces exactly what running it once did.
 - **Crew self-service** — a crew member's device takes a snapshot, applies deltas, survives
   deletions via tombstones, queues read-marks and evidence submissions offline, and uploads a
   2 MB document in chunks that resume after a kill, refuse to leave a hole, ignore replays and
   verify their digest. The store on disk is encrypted and unreadable without its key. A roster
-  change now raises a real notification to the crew member's device.
+  change raises a real notification to the crew member's device.
 
 The largest functional gaps, in the order they bite:
 
-1. **Android has never been built, and no physical device has run either app.** iOS is now real —
-   Xcode 26.6 is installed, `flutter build ios` succeeds, and the app runs on a simulator against
-   the live backend with a genuinely encrypted Keychain-keyed store and a working offline mode
-   (`mobile/CLAUDE.md` §"What the iOS run proved"). There is still no Android SDK, which is a
-   parity risk ADR 0002 explicitly cares about. Still unproven anywhere: the camera (MOB-4
-   capture), biometric binding, background upload surviving a kill, and code signing.
-2. **No matrix module** (ADM-3) — the largest remaining one. `MatrixDiff` implements §5.5 and
-   `MatrixSnapshotService` reads the published version; nothing lists, drafts, edits or publishes
-   one, so the matrix can only be changed by a migration.
-3. **The evidence pipeline stops after ingest.** Documents upload and sit at
-   `pending_extraction`: no extraction, no matching, no review queue (§8, ADM-9), no `LlmClient`.
-4. **Notifications have no scheduler and no back-office recipient.** Assignment changes raise
-   them; the §9 expiry scan, cutoff-approaching job, fan-out and push delivery (APNs/FCM) do not
-   exist, and a back-office user cannot receive one at all until the identity spike gives them a
-   UserAccount — which is what ADM-8 is actually waiting on.
-5. **No login** anywhere. `GET /api/v1/session` is the stable half of the ADR 0003 contract; the
-   code flow, token store and opaque cookie are the identity spike's.
-6. **No §11 migration.** `DevDataSeeder` is a synthetic development fixture, not the validated
-   CSV load with its 35 ExceptionItems and CC24/CC25 acceptance diff. ADM-7's worklist is built
-   and seeded with three invented items; the real 35 arrive with that load.
+1. **Android has never been built, and no physical device has run either app.** iOS is real — Xcode
+   26.6 is installed, `flutter build ios` succeeds, and the app runs on a simulator against the live
+   backend with a genuinely encrypted Keychain-keyed store and a working offline mode
+   (`mobile/CLAUDE.md` §"What the iOS run proved"). There is still no Android SDK, which is a parity
+   risk ADR 0002 explicitly cares about. Still unproven anywhere: the camera (MOB-4 capture),
+   biometric binding, background upload surviving a kill, and code signing.
+2. **No login** anywhere, and it now blocks more than it did. `GET /api/v1/session` is the stable
+   half of the ADR 0003 contract; the code flow, token store and opaque cookie are the identity
+   spike's. Until it lands, back-office users have no real accounts — so §9's per-role fan-out has
+   nowhere to deliver in production, ADM-10 creates SEC-1b `local_test` accounts instead (refused
+   under `prod`), and ADM-8 reads through a dev-only role proxy. Every one of those is a scaffold
+   with a removal date rather than a design.
+3. **No LLM provider (§14.5).** The pipeline is complete around a `LlmClient` that returns nothing.
+   Choosing a provider is an adapter implementation plus a prompt; the privacy assessment (O-9,
+   LLM-4) is the actual gate. Until then ADM-9's queue works with empty extractions and a Data
+   Steward types the fields, which is exactly LLM-2's launch posture.
+4. **No push or email delivery** (MOB-3). The in-app record is the source of truth and
+   `notification_delivery` is ready for per-channel records; the unified APNs/FCM sender is the
+   mobile spike's.
+5. **No §11 migration.** `DevDataSeeder` is a synthetic development fixture, not the validated CSV
+   load with its 35 ExceptionItems and CC24/CC25 acceptance diff. ADM-7's worklist is built and
+   seeded with three invented items; the real 35 arrive with that load.
+6. **No E2E test in the repository.** Every screen has been driven in a real Chromium against a live
+   backend — which is how two rendering bugs were found — but making that a committed lane is the
+   pipeline bootstrap's.
 
 Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended spike sequence"):
 1. Pipeline bootstrap (repo CI, OpenTofu baselines, AI review workflows). Lanes: `./mvnw verify`
@@ -97,3 +119,10 @@ Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended s
 4. Mobile device spike — the half of the "upload gauntlet" that needs hardware: camera capture,
    Keychain/Keystore keys, biometric binding, and `background_downloader` surviving a kill while
    backgrounded.
+
+The spike sequence has not changed, but what depends on it has. With §6 built, **three of the four
+spikes are now unblocking finished features rather than enabling unwritten ones**: the identity spike
+replaces ADM-8's and ADM-10's scaffolding, the platform spike replaces ADM-9's byte-streaming preview
+with a signed URL and the in-memory job history with real monitoring, and §14.5's provider choice
+turns the evidence pipeline from a correct empty extractor into a working one. That is a better
+position to be in — each spike now has a screen to verify itself against.

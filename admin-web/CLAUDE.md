@@ -1,10 +1,15 @@
 # admin-web/ — React + TypeScript admin SPA
 
-The shell, the API layer and six of the ten §6 modules exist: ADM-1 dashboard, ADM-2 swing planner
-(now with the assignment write path), ADM-4 register, ADM-5 people & holdings, ADM-6 requirements
-catalogue, ADM-7 exceptions worklist. The remaining four — ADM-3 matrix, ADM-8 notifications
-centre, ADM-9 evidence queue, ADM-10 administration — are routed and named in the navigation, and
-each says what it is waiting on. See `src/screens/NotBuilt.tsx`, which is the honest scope list.
+**All ten §6 modules exist**: ADM-1 dashboard, ADM-2 swing planner, ADM-3 matrix, ADM-4 register,
+ADM-5 people & holdings, ADM-6 requirements catalogue, ADM-7 exceptions worklist, ADM-8 notifications
+centre, ADM-9 evidence verification queue, ADM-10 administration. `NotBuilt.tsx` survives as the
+catch-all route and as the mechanism — a module added to `NAV_ITEMS` with `built: false` routes there
+with its blocker named — which is what kept the remaining scope on screen while four were
+outstanding.
+
+What is *not* here is a login flow (the identity spike's) and any E2E test. Two screens carry a
+visible honesty note rather than a gap: ADM-9 says so when nothing has been extracted, because no LLM
+provider is configured (§14.5); ADM-10 labels the accounts it creates as SEC-1b transitional.
 
 ## Stack (decided)
 
@@ -78,8 +83,8 @@ npm run dev                                                   # :5173
 |---|---|
 | `src/api/` | `schema.d.ts` (generated), `client.ts` (typed fetch + dev identity), `queries.ts` (React Query hooks and cache policy), `session.tsx` (session context, role helpers) |
 | `src/domain/` | `dates.ts` calendar-date arithmetic, `enums.ts` Appendix A presentation, `csv.ts` RFC 4180 export |
-| `src/components/` | `Layout`, `DataTable`, `Ruler`, `StateChip`, `SwingSelector`, `Spinner`, `ErrorPanel` |
-| `src/screens/` | `Dashboard` (ADM-1), `SwingPlanner` (ADM-2), `Register`/`RegisterDetail`/`RegisterNew` (ADM-4), `People`/`PersonDetail` (ADM-5), `Requirements` (ADM-6), `Exceptions` (ADM-7), `SignIn`, `NotBuilt` |
+| `src/components/` | `Layout` (with the unread badge), `DataTable`, `Ruler`, `StateChip`, `SwingSelector`, `Spinner`, `ErrorPanel` |
+| `src/screens/` | `Dashboard` (ADM-1), `SwingPlanner` (ADM-2), `Matrix` (ADM-3), `Register`/`RegisterDetail`/`RegisterNew` (ADM-4), `People`/`PersonDetail` (ADM-5), `Requirements` (ADM-6), `Exceptions` (ADM-7), `Notifications` (ADM-8), `Evidence` (ADM-9), `Administration` (ADM-10), `SignIn`, `NotBuilt` |
 
 ## Development sign-in
 
@@ -131,6 +136,44 @@ Rules it holds to, each of which cost something to learn:
 `Ruler.test.tsx` pins the arithmetic — handover split, lapse extent, clamping past the ends, the
 suppressed tick — because every value is a percentage the eye reads as a date.
 
+## Four screens with a rule you would otherwise have to rediscover
+
+**ADM-3 never offers an edit the server would refuse.** A published matrix version is immutable
+(§5.5) — that is what makes a past evaluation reproducible — so the screen renders levels as chips
+rather than selects, says why, and offers the thing the user actually wants: "Draft from this". The
+server answers 409 either way; a UI that discovered the refusal by trying would be a dead end wearing
+an error message.
+
+**ADM-3's partnership overrides are a separate pass, not a column.** The selector at the top of the
+cell editor switches between the base rules and one partnership's overrides, because the two are
+genuinely different things and only that arrangement makes the difference visible: an override set to
+blank says "this partnership does not require it", and no override at all says "follow the base
+rule". Clearing an override is therefore a different action from blanking it, and the diff renders
+`—` (no rule) apart from `not required` (a blank override). Collapsing those was a real bug in the
+first version of the diff view.
+
+**ADM-3's "generated per swing" is a pivot, not an endpoint.** §6 asks for a generated matrix view
+that replaces the CC sheets: crew × requirements with a cell state in each. It is built from the same
+`/swings/{pt}/{cc}/evaluation` the planner uses, rearranged. Adding an endpoint that re-derived those
+states would be a second implementation of §5.1 in all but name (AUTH-1).
+
+**ADM-9's accept and correct are one form.** The fields are pre-filled from the extraction and are
+entirely editable; submitting accepts *what is in the form*. The server records both what was
+extracted and what was accepted, so a correction is visible as one — and measuring that gap is
+exactly what LLM-2 needs before auto-acceptance can be switched on. A separate "correct" button would
+have made it invisible. Confidence is shown per field, and the colour bands here are presentation
+only: what gates auto-acceptance is a server-side threshold in ADM-10.
+
+**ADM-8 checks a deep link before rendering it as an href.** `deepLink` is a server-provided string
+and is either an app path or the mobile app's `crewcomp://` scheme. `internalLink` accepts only a
+single-slash relative path, so `//evil.example` — which looks relative and is not — comes back null.
+A stored value rendered straight into an `href` is an open redirect.
+
+**ADM-10 shows job schedules read-only, and that is not laziness.** `quarkus-scheduler` resolves its
+cron at start-up from deployment configuration, so a cron editable on this screen would be a setting
+that looks live and does nothing. What the screen offers instead is "run now", which is the control an
+operator reaches for anyway.
+
 ## Two flows worth understanding before changing them
 
 **A 409 is a question, not a failure.** Two writes come back with one — assigning someone already
@@ -161,7 +204,10 @@ it is why `RegisterNew` reads its initial state from `useSearchParams` rather th
    already fetched; the server takes partnership, CC, type and state but no `q`. Fine for a few
    hundred records, wrong for the full 445-row history plus years of new ones — the server needs
    the text predicate before this list is paged.
-4. **No CSV for the matrix**, because ADM-3 does not exist yet. Every other list exports.
+4. **The matrix CSV's shape is a guess at "audit-shaped"** (§6, pending Q26/O-7). It exports one row
+   per rule — requirement, position, partnership-or-`*`, level — rather than a spreadsheet-shaped
+   grid, because a grid loses the base/override distinction. Worth confirming against whatever the
+   client actually audits with.
 5. **The register enumerations are duplicated** in `domain/enums.ts` — the editor has to offer
    them before the server can reject a wrong one. `enums.test.ts` pins the copy; the ITs pin the
    server's. Nothing links the two, so a new status added in Kotlin will not appear here until
@@ -181,6 +227,19 @@ it is why `RegisterNew` reads its initial state from `useSearchParams` rather th
    offers the link for any row with no register record, and a recommended requirement is never a
    gap, so an exemption for one is meaningless. Harmless but noisy — the fixture's seven
    `PS-05 Confined Space Entry` rows all carry the button.
-7. **No E2E test.** The vitest suite covers the date, CSV, enumeration and validation logic plus
-   `DataTable`; the HTTP contract is covered on the backend side by `ApiIT`. What is untested is
-   the two meeting in a browser.
+9. **No E2E test.** The vitest suite covers the date, CSV, enumeration and validation logic plus
+   `DataTable`; the HTTP contract is covered on the backend side by the six `*IT` suites. What is
+   untested *in the repository* is the two meeting in a browser — though every screen has been driven
+   in a real Chromium against a live backend and the seeded fixture, which is how the diff view's
+   blank-level bug and an empty "Not built" nav heading were found. Making that a committed lane is
+   the pipeline bootstrap's.
+10. **ADM-8's role proxy shows other people's copies.** Until the identity spike gives a back-office
+    user their own account, an account-less actor reads the notifications addressed to the accounts
+    holding their roles — so a §9 fan-out to four Workflow Managers reads as four rows. The recipient
+    name on each row distinguishes them and the screen says so when it detects duplicates, but it is
+    a scaffold with a removal date, not the finished behaviour.
+11. **ADM-9's document preview is not yet a signed URL.** SEC-7 wants evidence served from a
+    platform-signed URL; `LocalObjectStorage` returns a `file:` URI, which no browser will fetch. So
+    the bytes are streamed through the API `inline` with `nosniff`, a PDF goes in a `sandbox=""`
+    iframe, and what makes that safe is the ingest allow-list — only PDFs and four image types were
+    ever stored. Replaced in the platform spike.

@@ -46,6 +46,12 @@ dart run build_runner build               # regenerate drift's local_store.g.dar
 PATH may be the standalone Homebrew Dart, a different version from Flutter's bundled one — put
 `/opt/homebrew/share/flutter/bin` first, or `flutter doctor` warns about it.
 
+**When it is the wrong `dart`, the error does not say so.** `dart run tool/generate_api.dart` with
+the standalone Dart fails inside a native build hook with `Can't load Kernel binary: Invalid kernel
+binary format version (expected 127, found 130)` — which reads like a corrupt package, not a version
+mismatch. Use Flutter's own:
+`/opt/homebrew/share/flutter/bin/cache/dart-sdk/bin/dart run tool/generate_api.dart`.
+
 The full local loop needs the backend. Quarkus Dev Services drives Testcontainers, which looks
 for `/var/run/docker.sock` and will **not** find Colima's socket on its own:
 
@@ -111,6 +117,12 @@ test.
 | `lib/src/domain/` | `calendar.dart` calendar-date arithmetic, `states.dart` Appendix A presentation |
 | `lib/src/ui/` | `app_state.dart` (the only thing that talks to the engine), `screens.dart` (`*Screen` wrappers do the streams, `*View` widgets are pure) |
 | `tool/` | `generate_api.dart` — the DEV-2 generator |
+
+`schema.g.dart` is generated from the **whole** backend schema, so it carries types for admin-only
+DTOs the app never uses (ADM-10's configuration, the evidence review queue). That is deliberate: the
+generator mirrors the contract rather than curating it, and a hand-maintained subset is exactly the
+thing DEV-2 exists to prevent. It does mean an admin-side DTO change makes this file stale and the
+`--check` lane fail — which is the intended signal, not noise.
 
 ## Traps this codebase has already paid for
 

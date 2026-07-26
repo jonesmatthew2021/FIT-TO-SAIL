@@ -2,10 +2,16 @@
 
 The P1 spine exists: the §5 compliance engine with its test suite, the §4 baseline schema, the
 persistence and security layers, the compliance service, the REST API, and the embedded MCP
-server. On top of it: the assignment write path (ADM-2), the register workflow (ADM-4), the
-catalogue write path (ADM-6), the exceptions worklist (ADM-7), §10.3 sync and §8 stage 1 evidence
-ingest. The matrix versioning service (ADM-3) and the rest of the evidence pipeline are the
-substantial modules still missing.
+server. On top of it, **every §6 admin module now has a backend**: assignment (ADM-2), matrix
+versioning (ADM-3), the register workflow (ADM-4), the catalogue (ADM-6), the exceptions worklist
+(ADM-7), notifications with the §9 scans (ADM-8), the §8 evidence pipeline and its verification
+queue (ADM-9), and configuration, jobs, users and the SEC-1a allow-list (ADM-10) — plus §10.3 sync.
+
+What is left is not a module but the four spikes: the platform decision, identity, the pipeline, and
+mobile hardware. Two things in this component are honest placeholders rather than gaps, and both are
+waiting on a decision rather than on work: **no LLM provider** is selected (§14.5), so extraction
+returns nothing and every document goes to a human — which is LLM-2's launch posture, not a
+degradation; and **no §11 migration**, so `DevDataSeeder` is still a synthetic fixture.
 
 ## Stack (decided)
 
@@ -16,16 +22,20 @@ quarkus-mcp-server-http 1.13.1, quarkus-smallrye-openapi, quarkus-hibernate-vali
 quarkus-smallrye-health, quarkus-micrometer-registry-prometheus. GraalVM native image for
 deployment; JVM mode for dev.
 
-JobRunr is **not** in the build yet: it wants to own its own tables, and nothing schedules work
-until the notification scan (P2). It lands with the first background job, its tables created by a
-Flyway migration rather than by JobRunr itself.
+Scheduled work is **quarkus-scheduler**, not JobRunr. JobRunr wants to own its own tables, and
+nothing here needs a job store: every scheduled job is an idempotent scan that recomputes what is
+due and dedupes what it raises, so a missed run is caught by the next one and an interrupted run is
+finished by it. The `TaskScheduler` adapter already declares the contract as "run this named job on
+this cadence" and names an in-process scheduler as a valid implementation, so this stays swappable
+for a platform scheduler when ADR 0005 resolves. **Revisit if a job ever needs retries, a queue, or
+to survive a restart mid-run** — that is the property to check before adding one (`JobRegistry`).
 
 ## Build and test
 
 ```bash
 ./mvnw test                        # 125 pure-domain tests — no Docker needed
 ./mvnw verify                      # + package; ITs skipped by default
-./mvnw verify -DskipITs=false      # + 75 integration tests — needs a container runtime
+./mvnw verify -DskipITs=false      # + 143 integration tests — needs a container runtime
 ./mvnw -Dnative verify -DskipITs=false   # native image; CI on every merge (ADR 0001)
 ./mvnw quarkus:dev                 # :8080, dev auth shim + dev data fixture (see below)
 ```
@@ -82,17 +92,17 @@ request recompiles and reports the error — so the working loop is dev mode for
 |---|---|
 | `au.crewcomp.engine` | **The §5 engine. Pure Kotlin — no CDI, no JPA, no framework types.** Cell/person/swing evaluation, rule resolution, quotas, suggestions, gap report, expiry alerts, matrix diff. |
 | `au.crewcomp.reference` | §4.1 partnerships, vessels, positions, slots, crew changes, requirements. `ReferenceService` also carries the ADM-6 catalogue write path and its usage counts |
-| `au.crewcomp.rules` | §4.2 matrix versions, requirement/conditional/quota rules |
-| `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave. `HoldingService` and `AssignmentService` are the two write paths |
+| `au.crewcomp.rules` | §4.2 matrix versions, requirement/conditional/quota rules. `MatrixService` is ADM-3's whole lifecycle: draft → edit → publish |
+| `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave. `HoldingService` and `AssignmentService` are the two write paths; `UserAdminService` is ADM-10's access surface |
 | `au.crewcomp.workflow` | §4.4 register records, conditions, notes, exception items. `RegisterService` is ADM-4's whole lifecycle; `ExceptionService` is ADM-7's worklist |
 | `au.crewcomp.compliance` | Application service around the engine: entity↔engine mapping, matrix snapshots, `ComplianceService` |
 | `au.crewcomp.sync` | §10.3 mobile sync: delta reads, tombstones, `SyncService`. Takes no person id anywhere — it answers for the authenticated crew member only |
-| `au.crewcomp.evidence` | §8 stage 1 / MOB-4: submission, and the MOB-5a resumable chunk upload |
-| `au.crewcomp.notify` | §9 notifications. The in-app record is the source of truth; push and email are channels for it |
+| `au.crewcomp.evidence` | §8 all five stages. `EvidenceService` is ingest and the MOB-5a chunk upload; `EvidencePipeline`/`ExtractionStages` are extract/match/decide; `EvidenceReviewService` is ADM-9's queue |
+| `au.crewcomp.notify` | §9 notifications. The in-app record is the source of truth; push and email are channels for it. `NotificationScans` is the three scheduled scans |
 | `au.crewcomp.api` | JAX-RS resources, DTOs, exception mappers |
 | `au.crewcomp.platform.dev` | Development-only fixtures, removed from a production build |
 | `au.crewcomp.mcp` | §13.1 MCP tools, token authentication, environment gating |
-| `au.crewcomp.platform` | `security/` (actor, roles, `AccessPolicy`, `ScopeGuard`), `audit/`, `time/`, `adapters/`, `persistence/` |
+| `au.crewcomp.platform` | `security/` (actor, roles, `AccessPolicy`, `ScopeGuard`), `audit/`, `time/`, `adapters/`, `persistence/`, `config/` (ADM-10's `app_config` store), `jobs/` (the scheduler and its health view) |
 
 `reference / rules / people / workflow / evidence / sync` are the approved extraction seams
 (§13, §17.5) — keep them package-separated. `sync` and `evidence` are the mobile-facing surface
@@ -132,30 +142,47 @@ these.
    not written blind: it needs a real Postgres to verify, so it belongs in the spike.
 2. **Native-image build still unverified** (no GraalVM locally). ADR 0001 makes this a CI job on
    every merge; reflection registration for the entity and DTO graph is the expected first
-   failure.
-3. **The evidence pipeline stops after ingest.** §8 stage 1 (upload, store, record) is built and
-   tested; extraction, matching and the review queue (ADM-9) are not, and `LlmClient` has no
-   implementation. A submitted document sits at `pending_extraction` forever.
-4. **Nothing schedules a notification.** `NotificationService.raise` is now called by the
-   assignment write path (`assignment_added` / `assignment_removed`), so the crew app's list is
-   no longer fed only by the fixture — but the §9 expiry scan and cutoff-approaching job still do
-   not exist, and they are what JobRunr lands for. No push delivery either (APNs/FCM, MOB-3). A
-   back-office user cannot be notified at all: notifications are addressed to a `UserAccount`, and
-   back-office users have none until the identity spike creates them (that is ADM-8's real
-   blocker).
+   failure. Two new things to expect there: the `jsonb` mappings (`app_config.value`,
+   `evidence_document.extraction`) go through a Jackson `FormatMapper` and will want reflection
+   registration, and `quarkus-scheduler`'s cron expressions are resolved at build time.
+3. **No LLM provider (§14.5).** `UnconfiguredLlmClient` is the default and returns nothing at zero
+   confidence, so every document reaches ADM-9's queue and a Data Steward types the fields. That is
+   LLM-2's stated launch posture rather than a gap — and note the safety property it produces: zero
+   confidence plus a threshold that refuses to be set to 0 means **no configuration of this system
+   lets an unconfigured extractor write a holding**. `DevTextPatternLlmClient` (dev/test only,
+   build-time removed) reads labelled ASCII so stages 3–5 are exercisable without a provider.
+   Choosing a provider is an adapter implementation and a prompt; nothing else moves.
+4. **No push delivery** (APNs/FCM, MOB-3). The in-app record is the source of truth and the
+   `notification_delivery` table is ready for per-channel records; the unified sender is the mobile
+   spike's. Email is in the same position.
 5. **Seed/migration loading** (§11, from the POC's seed CSVs) is not written. The acceptance
    test is a CC24/CC25 diff against the POC rendering, including the known UNI CC24 shortfall —
    which `SwingEvaluatorTest` already encodes as a synthetic scenario. `DevDataSeeder` is a
    development fixture, not a substitute for this.
-6. **No matrix versioning service** (ADM-3), the largest remaining module: version list, draft
-   creation from any version, cell editing, the §5.5 diff (`MatrixDiff` already implements it) and
-   publication. `MatrixSnapshotService` reads the published version; nothing writes one.
+6. **No quota- or conditional-rule editor.** ADM-3 edits requirement-rule *cells*; the quota and
+   conditional rules behind a footnote are read-only on screen. That is deliberate rather than
+   unfinished: a footnote's meaning is a `quota_rule` row and its appearance is a level in the
+   grid, so editing one without the other would let a cell read `M9` with no `M9` quota behind it —
+   which evaluates as an ordinary footnote and silently stops being a quota. They move together, in
+   the pass that resolves O-7.
 7. **The register's list has no free-text predicate.** `search` filters by partnership, CC, type
    and state; §6 also asks for free text, which the SPA currently does client-side over the rows
    it fetched. That is fine now and wrong at 445 rows plus years of growth.
 8. **Login and logout do not exist.** `GET /api/v1/session` is the half of the ADR 0003 contract
    that does not depend on how the session was established; the code flow, the token store and
    the opaque cookie are the identity spike's.
+9. **Back-office accounts are transitional.** §9's per-role fan-out needs a `UserAccount` to address
+   a row to, and ADR 0003 creates a corporate one at first sign-in. Until then `UserAdminService`
+   creates SEC-1b `local_test` accounts, **refused under `prod`** — so in production the fan-out
+   correctly finds no recipients and every write path carries on regardless. `NotificationService`
+   also carries a dev-only *role proxy* for reads (an actor with no account reads the rows addressed
+   to accounts holding their roles); it is unreachable in production because `ActorResolver` refuses
+   an identity with no account, and it is gated so a **crew** actor never takes it — see the trap
+   below. Both disappear with the identity spike.
+10. **Job history is in memory.** `InMemoryTaskScheduler` remembers each job's last run per
+    instance, lost on restart. Enough to answer "is the expiry scan running?" on a single instance
+    and nothing more; a durable history is the platform's monitoring (NFR-6). `JobHealth` says so
+    on screen rather than presenting a table that looks authoritative.
 
 ## Sync mechanics worth knowing before touching them
 
@@ -174,10 +201,10 @@ silently stops replicating a row to a device, with no error anywhere. Consequenc
 - The snapshot reads its cursor *before* the rows, in the same transaction, so the cursor can
   never be ahead of what the client actually received.
 
-## Two advisory locks, and why they are separate
+## Three advisory locks, and why they are separate
 
 Postgres advisory locks are a flat global namespace keyed by a `bigint`, so two unrelated uses of
-one number serialise against each other for no reason. There are two, and they must stay distinct:
+one number serialise against each other for no reason. There are three, and they must stay distinct:
 
 - `AuditWriter.ADVISORY_LOCK_KEY` serialises audit appends so `seq` follows commit order (ADR
   0007). One lock for the whole trail; that is the point.
@@ -186,13 +213,19 @@ one number serialise against each other for no reason. There are two, and they m
   for the same swing at the same instant (§4.4 wants the key monotonic per prefix). Keyed per
   prefix rather than globally, so raising a UNI CC24 request does not wait behind a NOR CC25 one.
 
+- `MatrixService.PUBLISH_ADVISORY_LOCK_KEY` serialises matrix publication, so two simultaneous
+  publishes cannot both supersede the same predecessor and leave two versions published. "Exactly
+  one current published version" is a service-layer invariant; the schema's index only orders
+  defensively.
+
 Both are `pg_advisory_xact_lock`, released on commit — there is no unlock to forget, and a
-rollback cannot strand one. A third use needs a namespace of its own, not a borrowed constant.
+rollback cannot strand one. A fourth use needs a namespace of its own, not a borrowed constant.
 
 ## Local development
 
-Two dev-only beans in `platform/dev/` and `platform/security/dev/` make the stack runnable
-without a corporate IdP or a data load:
+Three dev-only beans make the stack runnable without a corporate IdP, a data load or an LLM
+provider. All three are `@IfBuildProperty` and therefore **absent from a production artefact**
+rather than disabled in it:
 
 - **`DevAuth`** — a `HttpAuthenticationMechanism` that trusts `X-Dev-Roles` (plus optional
   `X-Dev-User`, `X-Dev-Person-Id`, `X-Dev-Partnerships`) and attaches a ready-made `Actor` as a
@@ -201,13 +234,31 @@ without a corporate IdP or a data load:
   trusts a header cannot. Replaced by the BFF session in the identity spike (ADR 0003).
 - **`DevDataSeeder`** — invented crew, vessels, a published matrix and two swings, shaped so that
   every roll-up state appears on one screen: `ok`, `expiring`, `gap`, `unknown`, `quota_only`,
-  `recommended`, an open slot, a mid-swing handover, and an M9 quota short on shift 2. It refuses
-  to run against a database that already holds people. **It is not the §11 migration** — no
-  ExceptionItems, no fix-up rules, no CC24/CC25 acceptance diff.
+  `recommended`, an open slot, a mid-swing handover, and an M9 quota short on shift 2. It also seeds
+  **one back-office account per role**, because §9's fan-out addresses a row to each account holding
+  a role and with none the notifications centre is a correctly-empty screen that cannot be seen to
+  work; and **three evidence documents** in the three shapes a reviewer meets — a clean extraction to
+  confirm, a low-confidence one to correct, and one nothing could be matched to. The documents carry
+  no stored bytes on purpose: ADM-9 renders "no document stored" rather than a broken image, and a
+  fabricated certificate image is the one artefact nobody should be able to mistake for a real one.
+  It refuses to run against a database that already holds people. **It is not the §11 migration** —
+  no fix-up rules, no CC24/CC25 acceptance diff.
+- **`DevTextPatternLlmClient`** — reads labelled ASCII (`Expiry date: 2027-03-01`) out of the
+  uploaded bytes, so §8 stages 3–5 are exercisable without a provider, a bill or a network call. A
+  genuine deterministic extractor rather than a fabricator: it finds the label or reports nothing,
+  and it drops an ambiguous date rather than guessing, because `03/04/2027` is either March or April
+  depending on where the certificate was printed and a pipeline that picks one is how a medical
+  silently expires eleven months early.
 
 The test profile enables the shim with **no** default roles, so a test that does not name them is
 anonymous — which is how `ApiIT` asserts that endpoints really are protected. The dev profile
 defaults to the four back-office roles so `quarkus dev` works out of the box.
+
+The test profile also sets **`quarkus.scheduler.enabled=false`**. A background sweep firing
+mid-assertion would make the evidence tests flaky in the worst way — passing locally and failing on a
+slower CI runner — so the ITs trigger the jobs explicitly through `/administration/jobs/{name}/run`
+instead. That endpoint and the scheduler run the same registered body, so triggering one by hand
+exercises exactly what the clock would.
 
 ## Traps this codebase has already paid for
 
@@ -258,7 +309,39 @@ fail to compile is here because it very nearly did not.
   an `@Embeddable` (`RoleAssignment`) carrying the grant metadata.
 - **A `@Transactional` method called from inside the same class is self-invoked**, bypassing the
   interceptor and running with no transaction. Test helpers that need one go on an injected bean
-  (`FixtureSeeder`), not on the test class.
+  (`FixtureSeeder`), not on the test class. This is why the evidence pipeline is **two** beans:
+  `EvidencePipeline` orchestrates and `ExtractionStages` holds the transactional halves, because the
+  model call must happen with no transaction open (LLM-5 budgets minutes) and a private call would
+  have silently run the database work outside one too. `NotificationService.raiseForRoles` and
+  `EvidenceReviewService.content` avoid the same shape by calling a private helper rather than a
+  sibling `@Transactional` method — in both cases it *would* have worked, because a caller had
+  already opened a transaction, which is exactly what makes the pattern a trap.
+- **A role-proxy read must be gated on the actor not being crew.** `NotificationService` lets an
+  actor with no `UserAccount` read the notifications addressed to accounts holding their roles, so
+  ADM-8 works under the development shim. The first version gated on nothing — and a crew member
+  whose Person record has no account yet holds `crew_member`, so the fallback handed them **every
+  other crew member's notifications**. An IT caught it. A crew-shaped actor now reads their own
+  account's rows or nothing at all, and the fallback drops `CREW_MEMBER` from the roles it queries.
+  The general lesson: a fallback written for one class of actor has to *exclude* the others by name,
+  because "has no account" was true of both.
+- **Quarkus refuses to start with an unconfigured `jsonb` mapping, and it is right to.** Adding the
+  first `@JdbcTypeCode(SqlTypes.JSON)` column fails start-up with a message about the application's
+  REST `ObjectMapper` being customised (MCP registers a customiser; `write-dates-as-timestamps` is
+  off). Sharing it would mean a change to how the API renders JSON changes how the database stores
+  it. `DatabaseJsonFormatMapper` is a `@JsonFormat @PersistenceUnitExtension` bean with a plain
+  `ObjectMapper` of its own — and note what it deliberately does not touch: `audit_event`'s
+  before/after states and `extraction_raw` are `text`, written by explicit `writeValueAsString`, and
+  hashed byte-for-byte. Those must never be routed through a mapper that might normalise them.
+- **Map `jsonb` to a `Map`, not to a `String`.** Hibernate's JSON support serialises through the
+  format mapper, so a `String` attribute would be JSON-*encoded* into the column — quotes and all.
+  `app_config.value` therefore wraps its payload in a single-member object (`{"value": 90}`), which
+  also means a setting that grows from a number into an object changes what is inside `value` rather
+  than the row's shape.
+- **`FixtureSeeder.clear()` has to delete the new global tables too.** `AppConfigEntry` and
+  `IdentityProvider` are global mutable state, and a leaked row changes what a *later* test does
+  rather than failing the test that left it — an auto-accept threshold set by one IT silently
+  changes what every subsequent pipeline decides. Both are now in `clear()`; a test that sets one
+  should still reset it, but the fixture no longer depends on that.
 
 ## Audit byte-fidelity — do not "tidy" these
 
@@ -320,3 +403,41 @@ at the relevant code, and each is cheap to change:
   against; renaming it in place would rewrite history rather than record a change. A miscoded
   entry is retired and replaced. Retirement itself is permitted whatever the usage counts say —
   the API reports them so the decision is informed, and retired entries still resolve.
+- **§5.5 publication is the Compliance Lead's alone.** The spec says "restricted to the Compliance
+  Lead role pending Q3", read literally: `MatrixService.publish` refuses even a System Administrator,
+  where every other write path here accepts one. That is separation of duties on the one act that
+  changes every compliance answer at once — but it is one `require` away from changing, and it is
+  worth confirming, because it also means a locked-out deployment cannot publish its first matrix
+  without granting the role.
+- **A blank level is only meaningful as a partnership override.** `setCell` refuses a blank on a base
+  rule: an absent base rule already means "not required", so a blank base row says nothing and would
+  show up in a §5.5 diff as a change when nothing changed. On an *override* a blank is a positive
+  statement — "this partnership does not require it" — which is why clearing an override is a
+  separate operation from blanking it, and why the diff renders the two differently.
+- **§8 stage 4's "low-risk" is read strictly.** Auto-acceptance requires an existing `held_expiry`
+  holding for the same requirement whose expiry the document *extends*. A first-ever grant, a
+  different holding status, and a date that moves backwards all go to a human — the last most of all,
+  because a superseded or mis-scanned certificate looks exactly like it. The issue date is
+  corroborating rather than critical: a holding is valid without one but never without an expiry, so
+  a low-confidence issue date is dropped rather than blocking the acceptance.
+- **A decided evidence document is terminal.** `verified` and `rejected` are not reopened; a holding
+  recorded in error is corrected on the person's holdings, where the change is audited as what it is.
+  `auto_accepted` *is* still decidable, deliberately — that is what §8's spot-check list is for.
+- **Accept and correct are one operation.** `EvidenceReviewService.accept` takes the values the
+  reviewer decided, and the audit event carries both those and what was extracted, so a correction is
+  visible as one (`evidence.corrected` rather than `evidence.verified`). Measuring that gap is what
+  LLM-2 needs before auto-acceptance can be enabled, and a separate "correct" endpoint would have
+  made it invisible. An extraction that read *nothing* is not counted as corrected, or every
+  acceptance would be one while no provider is configured.
+- **Configuration holds policy; cadence is deployment config.** `app_config` holds lead days,
+  thresholds and weights. Cron expressions live in `application.properties`, because
+  `quarkus-scheduler` resolves them at start-up and a cron in the database would be a setting the
+  scheduler never reads — editable on screen and completely inert. ADM-10 shows the schedules
+  read-only beside a "run now" button, which is the control an operator actually reaches for.
+- **The auto-accept threshold refuses 0.** A threshold of zero would accept every extraction
+  unconditionally, which is not "auto-accept enabled" but "review disabled". Clearing the setting is
+  how "always review" is expressed. If the other thing is ever genuinely wanted it should be a
+  separate, named, loudly audited setting rather than an edge case of this one.
+- **The last System Administrator cannot be revoked or suspended.** Not paternalism about a mistake,
+  but the one mistake nothing inside the application can undo: with no administrator left, nothing
+  can grant the role back and the remedy is hand-written SQL against production.
