@@ -5,16 +5,16 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 ## Source of truth
 
 - **Spec (normative):** `docs/spec/crewcomp-production-spec.md` — V2 draft. §5 (engine semantics) and §4 (domain model) are normative; Appendix A enumerations are canonical. The V1 POC (separate repo, `app/`) is the behavioural reference for the engine.
-- **Decisions:** `docs/decisions/` — ADRs. 0001 backend (Kotlin+Quarkus), 0002 mobile (Flutter), 0003 identity (direct OIDC federation), 0004 pipeline (GitHub Actions), 0005 platform (**deferred**: AWS vs GCP, spike decides).
+- **Decisions:** `docs/decisions/` — ADRs. 0001 backend (Kotlin+Quarkus), 0002 mobile (Flutter — its encrypted-store mechanism is **amended by 0009**), 0003 identity (direct OIDC federation), 0004 pipeline (GitHub Actions), 0005 platform (**deferred**: AWS vs GCP, spike decides), 0006 persistence (Hibernate+Panache), 0007 audit ordering & hash chain, 0008 admin web stack & development auth shim, 0009 mobile sync contract, encrypted local store & resumable upload.
 - **Research:** `docs/research/` — the §14 technology research (July 2026, web-verified) behind the ADRs. `00-recommendations.md` is the synthesis.
 
 ## Layout
 
 | Path | Contents | Status |
 |---|---|---|
-| `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | empty — spike next |
-| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | empty — after backend spike |
-| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | empty — P2, spike first |
+| `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST slice, MCP, §10.3 sync, evidence ingest |
+| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **3 of 10 §6 modules** — shell, session, dashboard, swing planner, people & holdings |
+| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens** — encrypted store, sync, outbox; **never built for either platform** (no Xcode/Android SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | seeded |
 | `docs/` | spec, ADRs, research | current |
@@ -32,11 +32,57 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 - **Business keys are never primary keys** (Sam #, register IDs are unique business keys on surrogate-keyed rows).
 - **Until ADR 0005 resolves:** no cloud-SDK usage outside `infra/`; cloud services (object storage, scheduler, secrets, LLM) go behind thin backend adapters.
 - **Migrations are forward-only** and must be backward-compatible with the previous app revision (expand/contract) — rollback rolls back code, never schema.
+- **Client types are generated from the backend's OpenAPI schema** (DEV-2), never hand-written, and CI fails when the committed types drift from it.
+- **Development-only code is removed at build time**, not disabled at runtime: the auth shim and data fixture are absent from a production artefact, and additionally refuse to start under `prod`. On the clients the same rule holds through compile-time constants — `import.meta.env.DEV` in the SPA, `kDebugMode` in Flutter.
+- **Sync change tracking is maintained by database triggers**, never by application code (ADR 0009). A cursor a write path can forget is a cursor that silently stops replicating a row to a crew member's device, with no error anywhere.
+- **The mobile app is told its compliance answers, never left to compute them** (AUTH-1). The server's §5.2 evaluation travels in the sync payload; the device may count days against it (§7.6) and nothing more.
 
 ## Current phase
 
-Pre-P1. Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended spike sequence"):
-1. Pipeline bootstrap (repo CI, OpenTofu baselines, AI review workflows)
-2. Backend spike (Quarkus native + MCP + OIDC multitenancy) deployed to **both** AWS and GCP → resolves ADR 0005
-3. Identity spike (device-session layer prototype)
-4. Mobile spike (Flutter "upload gauntlet")
+Early P1 across three components. Green: **125 pure-domain tests**, **52 backend integration
+tests** against real PostgreSQL (Colima + Quarkus Dev Services), **25 frontend tests** with a
+production bundle that builds, and **43 Flutter tests** including a real encrypted SQLite file.
+`backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the component detail —
+including the traps each has already paid for and the spec questions each takes a position on.
+
+What exists end to end, verified over real HTTP against a seeded database:
+
+- **Back office** — sign in (development shim), per-partnership swing compliance, a swing planner
+  with slot coverage, quotas, the gap report and ranked suggestions, the crew directory, and an
+  audited holding edit. Seven of the ten §6 modules are named on screen as unbuilt, each with
+  what it is waiting on.
+- **Crew self-service** — a crew member's device takes a snapshot, applies deltas, survives
+  deletions via tombstones, queues read-marks and evidence submissions offline, and uploads a
+  2 MB document in chunks that resume after a kill, refuse to leave a hole, ignore replays and
+  verify their digest. The store on disk is encrypted and unreadable without its key.
+
+The largest functional gaps, in the order they bite:
+
+1. **Neither mobile binary has ever been built.** No Xcode and no Android SDK here, so
+   `flutter build ios` / `build apk` are unrun, and with them the camera (MOB-4 capture),
+   Keychain-backed key storage, biometric binding, and background upload. This is a toolchain
+   gap, not a design gap, but nothing about the app on a device is proven.
+2. **No assignment write path**, so the planner ranks candidates but cannot fill a slot (ADM-2).
+3. **No matrix or register write paths** (ADM-3, ADM-4) — the two biggest remaining modules.
+4. **The evidence pipeline stops after ingest.** Documents upload and sit at
+   `pending_extraction`: no extraction, no matching, no review queue (§8, ADM-9), no `LlmClient`.
+5. **Nothing raises a notification.** The service and the mobile list exist; the §9 expiry scan,
+   fan-out and push delivery (APNs/FCM) do not.
+6. **No login** anywhere. `GET /api/v1/session` is the stable half of the ADR 0003 contract; the
+   code flow, token store and opaque cookie are the identity spike's.
+7. **No §11 migration.** `DevDataSeeder` is a synthetic development fixture, not the validated
+   CSV load with its 35 ExceptionItems and CC24/CC25 acceptance diff.
+
+Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended spike sequence"):
+1. Pipeline bootstrap (repo CI, OpenTofu baselines, AI review workflows) — first thing it must run
+   is the native build, still the largest unverified lane. Alongside it: `npm run verify:api`,
+   `npm run build`, `npm test` and the dev-shim grep for the SPA; `dart run tool/generate_api.dart
+   --check`, `flutter analyze` and `flutter test` for mobile. The iOS and Android build lanes need
+   a macOS runner with Xcode, which CI has and this machine does not.
+2. Backend spike (Quarkus native + MCP + OIDC multitenancy) deployed to **both** AWS and GCP →
+   resolves ADR 0005. Also the place to add Postgres RLS for AUTH-2 against a real database.
+3. Identity spike (BFF session + device-session layer) — replaces the development auth shim in
+   both clients.
+4. Mobile device spike — the half of the "upload gauntlet" that needs hardware: camera capture,
+   Keychain/Keystore keys, biometric binding, and `background_downloader` surviving a kill while
+   backgrounded.
