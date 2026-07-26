@@ -14,6 +14,12 @@ Vite 7 + React 19 + TypeScript 5.9, `strict` plus `noUncheckedIndexedAccess` and
 for the dense grids). No component library and no CSS framework — `src/styles.css` is the whole
 of it.
 
+Two webfonts are **self-hosted** in `public/fonts/` (Inter for everything, Plus Jakarta Sans for
+headings; latin + latin-ext variable woff2, ~180 KB). Self-hosted rather than linked: a CDN font
+is a third party that sees every page view, and `npm` font packages would be two more
+dependencies in a tree this project deliberately keeps short. `latin-ext` is not optional — crew
+names contain it (the fixture has a Kovač).
+
 That small list is deliberate. The §14.3 research rejected React Native partly on npm's 2025–26
 supply-chain record, and the same argument applies to this app's dependency tree: for nine
 table-and-chip screens, a design system is a large transitive surface bought for very little.
@@ -72,7 +78,7 @@ npm run dev                                                   # :5173
 |---|---|
 | `src/api/` | `schema.d.ts` (generated), `client.ts` (typed fetch + dev identity), `queries.ts` (React Query hooks and cache policy), `session.tsx` (session context, role helpers) |
 | `src/domain/` | `dates.ts` calendar-date arithmetic, `enums.ts` Appendix A presentation, `csv.ts` RFC 4180 export |
-| `src/components/` | `Layout`, `DataTable`, `StateChip`, `SwingSelector`, `Spinner`, `ErrorPanel` |
+| `src/components/` | `Layout`, `DataTable`, `Ruler`, `StateChip`, `SwingSelector`, `Spinner`, `ErrorPanel` |
 | `src/screens/` | `Dashboard` (ADM-1), `SwingPlanner` (ADM-2), `Register`/`RegisterDetail`/`RegisterNew` (ADM-4), `People`/`PersonDetail` (ADM-5), `Requirements` (ADM-6), `Exceptions` (ADM-7), `SignIn`, `NotBuilt` |
 
 ## Development sign-in
@@ -90,6 +96,40 @@ npm run build && grep -c "X-Dev-Roles" dist/assets/*.js   # expect 0
 
 Worth keeping in the CI lane — it is the kind of guarantee that holds until someone moves the
 constant behind a runtime check.
+
+## The ruler (`components/Ruler.tsx`)
+
+The dashboard and the planner share one time axis with a single dashed rule — the *datum* — at the
+session's business date. It exists because everything in this domain is "does date range A cover
+date range B": a swing has a window and a cutoff, a handover splits a slot into two legs (§4.3),
+an expiry is a date landing inside or before a window (§5.1). The gap report can only say
+"expiring"; the ruler says the certificate lapses on the 13th and three days of the swing are
+uncovered. It is the one thing on these screens the two source workbooks could not draw.
+
+Rules it holds to, each of which cost something to learn:
+
+- **Only dates sit on the axis.** Counts and states live in the value column. Give a cell count a
+  horizontal position and the axis stops meaning one thing.
+- **No `new Date()`, ever.** Positions come from `epochDay`, and `today` is passed in from the
+  session (NFR-5). `dateFromEpochDay` is its exact inverse, tested by round-trip, because the axis
+  labels itself at computed intervals and an off-by-one there would look like nothing at all.
+- **The datum is anchored to the ruler's box, not to a grid line.** `grid-row: 1 / -1` collapses to
+  a single row when the rows are implicit, which is how the line silently drew nothing at first.
+  `--ruler-at` is today's fraction of the axis; `--ruler-track-x/-w` describe the lane.
+- **Dashed, not solid.** It crosses crew names on the planner, and a solid rule through a name
+  reads as a strikethrough.
+- **A tick within 6% of the datum is dropped**, rather than printed under the "Today" pill.
+- **Nothing animates.** The bars had a clip-path wipe; it is gone. For its first few hundred
+  milliseconds it showed a shorter swing than the one it described, and with
+  `animation-fill-mode: both` a bar that never got its frame stayed invisible. On a screen whose
+  claim is "this bar is these dates", an effect that transiently lies about the dates is not worth
+  having.
+- **Below 900px the geometry goes and the dates stay.** Each row carries its own window in words on
+  `data-dates`, which the stylesheet renders instead of the bars. A 27-day axis in 380px is ~14px a
+  day; geometry you cannot read is geometry that lies.
+
+`Ruler.test.tsx` pins the arithmetic — handover split, lapse extent, clamping past the ends, the
+suppressed tick — because every value is a percentage the eye reads as a date.
 
 ## Two flows worth understanding before changing them
 
@@ -128,7 +168,19 @@ it is why `RegisterNew` reads its initial state from `useSearchParams` rather th
    somebody adds it.
 6. **Accessibility has had a first pass, not an audit.** Chips carry text labels, tables use
    `aria-sort`, the spinner respects `prefers-reduced-motion`. Nobody has driven it with a
-   screen reader.
+   screen reader. The ruler's bars are `aria-hidden` decoration — the value column carries the
+   states as text and each row carries its window on `data-dates` — but that arrangement has not
+   been tested with one either.
+7. **The dashboard's state column lists only what needs attention** (`needsAttention` plus quota
+   shortfalls), so a partnership with nothing outstanding reads "All clear" rather than
+   "28 OK · 4 n/a". The OK, n/a, `quota_only` and `recommended` tallies are no longer on ADM-1 at
+   all; they are on the planner for a given swing. Deliberate — tallying `20 OK` beside `2 Gap`
+   made every row wrap and put the loudest number on the least urgent fact — but it *is* less
+   information than the old cards showed, and worth confirming with the client.
+8. **The gap report offers "Raise request" on `recommended` rows.** Pre-existing: the column
+   offers the link for any row with no register record, and a recommended requirement is never a
+   gap, so an exemption for one is meaningless. Harmless but noisy — the fixture's seven
+   `PS-05 Confined Space Entry` rows all carry the button.
 7. **No E2E test.** The vitest suite covers the date, CSV, enumeration and validation logic plus
    `DataTable`; the HTTP contract is covered on the backend side by `ApiIT`. What is untested is
    the two meeting in a browser.

@@ -40,7 +40,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 ## Current phase
 
 Early P1 across three components. Green: **125 pure-domain tests**, **75 backend integration
-tests** against real PostgreSQL (Colima + Quarkus Dev Services), **28 frontend tests** with a
+tests** against real PostgreSQL (Colima + Quarkus Dev Services), **41 frontend tests** with a
 production bundle that builds, and **43 Flutter tests** including a real encrypted SQLite file.
 `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the component detail —
 including the traps each has already paid for and the spec questions each takes a position on.
