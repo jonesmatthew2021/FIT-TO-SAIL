@@ -1,0 +1,34 @@
+# OS / editors
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Secrets — never committed (SEC-9)
+.env
+.env.*
+*.pem
+*.p12
+*.keystore
+!*.example
+
+# Build outputs (component-level gitignores refine these)
+backend/build/
+backend/.gradle/
+backend/target/
+admin-web/node_modules/
+admin-web/dist/
+mobile/build/
+mobile/.dart_tool/
+
+# OpenTofu / Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl.backup
+
+# Local scratch
+scratch/
+*.local.*
