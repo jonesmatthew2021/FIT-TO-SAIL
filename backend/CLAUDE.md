@@ -25,7 +25,7 @@ Flyway migration rather than by JobRunr itself.
 ```bash
 ./mvnw test                        # 125 pure-domain tests — no Docker needed
 ./mvnw verify                      # + package; ITs skipped by default
-./mvnw verify -DskipITs=false      # + 52 integration tests — needs a container runtime
+./mvnw verify -DskipITs=false      # + 75 integration tests — needs a container runtime
 ./mvnw -Dnative verify -DskipITs=false   # native image; CI on every merge (ADR 0001)
 ./mvnw quarkus:dev                 # :8080, dev auth shim + dev data fixture (see below)
 ```
@@ -52,15 +52,39 @@ DB-backed tests named `*IT`.
 `quarkus dev` needs `CREWCOMP_MCP_TOKEN` set; start-up fails without it while MCP is enabled
 (MCP-4, below).
 
+**`quarkus:dev` and a Maven build fight over `target/`.** Stop the dev server before running
+`verify`, and restart it after. Dev mode is otherwise the fastest compile check there is — any
+request recompiles and reports the error — so the working loop is dev mode for iteration, a full
+`verify` before committing.
+
+### Three things about the IT harness
+
+- **`FixtureSeeder.clear()` must delete children explicitly.** The FKs cascade in the database,
+  but a JPQL bulk delete does not fire them: `delete from RegisterRecord` with notes still
+  attached is a constraint violation, not a cascade. The order in `clear()` is load-bearing at
+  both ends — children first for the FKs, `SyncTombstone` last because every delete above it
+  fires the tombstone triggers.
+- **Pin the business date for anything that depends on "today".** The fixture swing is fixed at
+  2026-08-01..28 with a cutoff of 2026-07-25, and `BusinessClock` returns the real date, so
+  whether a register submission is late depends on when the suite runs. `clock.overrideToday(...)`
+  in a `@BeforeEach` (and `clearOverride()` after) makes both sides of Q17 testable instead of
+  one of them being whichever the calendar allows. The admin date override exists for exactly this
+  (§1). Note the latent fragility this exposes: the older ITs assert against that fixture window
+  with an unpinned clock, so they will start failing once the real date passes it.
+- **RestAssured does not decode a raw path string.** `get("/api/v1/register?type=MRL%20Query")`
+  sends the `%20` literally and the server sees `MRL%20Query`. Use `.queryParam("type", "MRL
+  Query")` for any value with a space in it — which, given Appendix A's register enumerations are
+  human-readable phrases, is most of them.
+
 ## Layout
 
 | Package | Contents |
 |---|---|
 | `au.crewcomp.engine` | **The §5 engine. Pure Kotlin — no CDI, no JPA, no framework types.** Cell/person/swing evaluation, rule resolution, quotas, suggestions, gap report, expiry alerts, matrix diff. |
-| `au.crewcomp.reference` | §4.1 partnerships, vessels, positions, slots, crew changes, requirements |
+| `au.crewcomp.reference` | §4.1 partnerships, vessels, positions, slots, crew changes, requirements. `ReferenceService` also carries the ADM-6 catalogue write path and its usage counts |
 | `au.crewcomp.rules` | §4.2 matrix versions, requirement/conditional/quota rules |
-| `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave |
-| `au.crewcomp.workflow` | §4.4 register records, conditions, notes, exception items |
+| `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave. `HoldingService` and `AssignmentService` are the two write paths |
+| `au.crewcomp.workflow` | §4.4 register records, conditions, notes, exception items. `RegisterService` is ADM-4's whole lifecycle; `ExceptionService` is ADM-7's worklist |
 | `au.crewcomp.compliance` | Application service around the engine: entity↔engine mapping, matrix snapshots, `ComplianceService` |
 | `au.crewcomp.sync` | §10.3 mobile sync: delta reads, tombstones, `SyncService`. Takes no person id anywhere — it answers for the authenticated crew member only |
 | `au.crewcomp.evidence` | §8 stage 1 / MOB-4: submission, and the MOB-5a resumable chunk upload |
@@ -150,6 +174,21 @@ silently stops replicating a row to a device, with no error anywhere. Consequenc
 - The snapshot reads its cursor *before* the rows, in the same transaction, so the cursor can
   never be ahead of what the client actually received.
 
+## Two advisory locks, and why they are separate
+
+Postgres advisory locks are a flat global namespace keyed by a `bigint`, so two unrelated uses of
+one number serialise against each other for no reason. There are two, and they must stay distinct:
+
+- `AuditWriter.ADVISORY_LOCK_KEY` serialises audit appends so `seq` follows commit order (ADR
+  0007). One lock for the whole trail; that is the point.
+- `RegisterRecordRepository.lockPrefix` serialises business-key allocation for one `{PT}{CCnn}-`
+  prefix, because "read the highest, add one" is a race between two coordinators raising a request
+  for the same swing at the same instant (§4.4 wants the key monotonic per prefix). Keyed per
+  prefix rather than globally, so raising a UNI CC24 request does not wait behind a NOR CC25 one.
+
+Both are `pg_advisory_xact_lock`, released on commit — there is no unlock to forget, and a
+rollback cannot strand one. A third use needs a namespace of its own, not a borrowed constant.
+
 ## Local development
 
 Two dev-only beans in `platform/dev/` and `platform/security/dev/` make the stack runnable
@@ -172,7 +211,9 @@ defaults to the four back-office roles so `quarkus dev` works out of the box.
 
 ## Traps this codebase has already paid for
 
-Three defects the first API-level integration run caught, all invisible to a unit test:
+Defects this codebase has actually hit. Most surfaced only against a real database over real HTTP
+— they compiled cleanly, read correctly, and no unit test could have seen them. The one that did
+fail to compile is here because it very nearly did not.
 
 - **Enumerated columns are queried by their `*Value` field.** `Person.status` is a Kotlin
   property over the mapped `statusValue`; only the field is a JPA attribute. HQL naming the
@@ -180,9 +221,36 @@ Three defects the first API-level integration run caught, all invisible to a uni
 - **A scoped read must fetch-join whatever the DTO mapping touches.** Mapping happens after the
   service transaction closes, so a lazy association reached there throws
   `LazyInitializationException` — in production, on a screen, never in a test that has no session.
+  The register module paid for this twice more, in two shapes the original note did not cover:
+  - **A newly created entity is assembled from proxies too.** `RegisterService.create` set
+    `position = person.position`, which is a lazy proxy even though nothing was "loaded" — and
+    `RegisterRecordDto` reads `position.name`. A mutation that returns an entity has to re-read it
+    through the fetch-joining query before returning, which is what `create` now does.
+  - **The list query and the detail query must both cover the whole DTO.** `searchScoped`
+    fetch-joined person, requirement, partnership and crew change but not position, so the detail
+    endpoint worked and the list 500'd on the same mapping function. If two queries feed one DTO,
+    they need the same fetch set.
+- **Fetch-joining two collections in one query is a cartesian product.** Hibernate will build it
+  and de-duplicate in memory: three notes × two conditions × five trail rows is thirty rows off
+  the wire. `detailByRecordId` issues one query per collection instead — and then **touches
+  `.size` on each**, because loading the children into the persistence context is not enough on
+  its own. A collection is only marked initialised when something reads it, and the read resolves
+  from the context rather than causing another round trip.
 - **JAX-RS picks one root resource class by path prefix**, then matches sub-paths only within it.
   Once `PeopleResource` is rooted at `/api/v1/people`, a `/people/{id}/evaluation` method on a
-  class rooted at `/api/v1` is unreachable and answers 404 with no start-up warning.
+  class rooted at `/api/v1` is unreachable and answers 404 with no start-up warning. The
+  *converse* is fine and the API relies on it: five resource classes sit at exactly `/api/v1` and
+  coexist. It is the longer prefix that swallows everything beneath it, which is why the register,
+  exception and assignment resources are all rooted at `/api/v1` rather than at their own paths.
+- **A local name shadows the receiver's property inside `apply`.** In
+  `ApprovalCondition().apply { type = conditionType }`, `type` resolved to the *enclosing
+  function's* `type: RegisterType` parameter, not to the condition's own property — Kotlin
+  resolves a simple name against enclosing locals before an implicit receiver's members. It failed
+  to compile here ("'val' cannot be reassigned"), which was luck: had the outer name been a `var`
+  of a compatible type it would have compiled and assigned the wrong thing. Inside `apply`, write
+  `this.x =` whenever the enclosing scope has a name that could collide. The same rule bites for
+  functions — a private member named `require(id: Long)` sits beside `kotlin.require(Boolean)`
+  and is a coin toss for the next reader.
 - **An `@ElementCollection` must map every non-null column of its collection table.**
   `user_account_role` carries `granted_by not null` (AUTH-4), but the mapping named only `role`,
   so *no* role could ever be assigned — a constraint violation on the first insert. It compiled
