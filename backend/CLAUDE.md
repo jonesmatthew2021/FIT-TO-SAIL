@@ -60,12 +60,17 @@ so simply having one on Surefire's list breaks `mvn test` on a machine without D
 DB-backed tests named `*IT`.
 
 `quarkus dev` needs `CREWCOMP_MCP_TOKEN` set; start-up fails without it while MCP is enabled
-(MCP-4, below).
+(MCP-4, below). **It must be at least 32 characters** — a short token fails start-up exactly as
+hard as a missing one, and the message is an `IllegalStateException` from `McpConfigurationCheck`
+rather than anything that names the length.
+
+`../scripts/dev-start.sh backend` handles that token and Colima's socket for you; see the root
+guide. Nothing below assumes you used it.
 
 **`quarkus:dev` and a Maven build fight over `target/`.** Stop the dev server before running
-`verify`, and restart it after. Dev mode is otherwise the fastest compile check there is — any
-request recompiles and reports the error — so the working loop is dev mode for iteration, a full
-`verify` before committing.
+`verify` (`../scripts/dev-stop.sh backend` leaves the SPA up), and restart it after. Dev mode is
+otherwise the fastest compile check there is — any request recompiles and reports the error — so
+the working loop is dev mode for iteration, a full `verify` before committing.
 
 ### Three things about the IT harness
 

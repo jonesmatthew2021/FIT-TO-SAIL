@@ -42,11 +42,18 @@ npm run generate:api # regenerate src/api/schema.d.ts from the backend's OpenAPI
 npm run verify:api   # fail if the committed types are stale — this is the CI check
 ```
 
-The full local loop needs the backend running:
+The full local loop needs the backend running. From the repository root:
 
 ```bash
-(cd ../backend && CREWCOMP_MCP_TOKEN=… ./mvnw quarkus:dev)   # :8080, seeds a dev fixture
-npm run dev                                                   # :5173
+./scripts/dev-start.sh      # backend on :8080 (seeds a dev fixture) + this app on :5173
+./scripts/dev-stop.sh       # both; `dev-stop.sh backend` leaves this app up
+```
+
+By hand, if you would rather — note the 32-character minimum on the MCP token:
+
+```bash
+(cd ../backend && CREWCOMP_MCP_TOKEN=…32+chars… ./mvnw quarkus:dev)   # :8080
+npm run dev                                                           # :5173
 ```
 
 `generate:api` reads `../backend/target/openapi/openapi.json`, which the backend writes during

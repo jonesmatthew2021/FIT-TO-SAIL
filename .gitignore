@@ -32,3 +32,6 @@ mobile/.dart_tool/
 # Local scratch
 scratch/
 *.local.*
+
+# Development stack runtime state (scripts/dev-start.sh): pidfiles, logs, generated MCP token
+.dev/

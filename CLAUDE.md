@@ -17,8 +17,28 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 | `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens** — encrypted store, sync, outbox; **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
+| `scripts/` | `dev-start.sh` / `dev-stop.sh` — the local development stack | works; see below |
 | `docs/` | spec, ADRs, research | current |
 | `.github/` | workflows + AI review prompts | **verification lanes, AI review and scanning built**; deploy lane and previews wait on ADR 0005 |
+
+## Running it locally
+
+```bash
+./scripts/dev-start.sh              # backend :8080 + admin SPA :5173, waits until both serve
+./scripts/dev-start.sh backend      # or one at a time
+./scripts/dev-stop.sh               # both
+./scripts/dev-stop.sh backend       # before `./mvnw verify` — dev mode fights it over target/
+```
+
+Needs a container runtime (Colima or Docker Desktop) for the PostgreSQL that Dev Services
+starts. The scripts point Testcontainers at Colima's socket, generate and reuse a compliant
+`CREWCOMP_MCP_TOKEN`, and wait on the HTTP endpoint rather than a log line — a ready-line in a
+log is not a contract, and the Testcontainers sidecar's is easy to mistake for the
+application's. Runtime state (pidfiles, logs, the MCP token) lives in a gitignored `.dev/`.
+
+Stopping the backend lets Ryuk reap the database container, so the next start re-migrates and
+re-seeds. Anything you changed through the UI is gone — which is the same cold path CI takes.
+The component guides document running each piece by hand.
 
 ## Hard rules (from the spec — apply to all code)
 
