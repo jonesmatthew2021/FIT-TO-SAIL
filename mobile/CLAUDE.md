@@ -5,10 +5,11 @@ MOB-3 notifications, over an encrypted local store with snapshot + delta sync an
 outbound queue (MOB-5). Evidence submission is half-built: the backend, the queue entry and the
 resumable upload work end to end; the camera does not exist yet.
 
-**Neither platform binary has ever been built.** This machine has no Xcode and no Android SDK, so
-`flutter build ios` and `flutter build apk` are the two lanes nobody has run. Everything below is
-verified by `flutter test` on the host, which is a real Dart VM with the real native SQLite — but
-it is not a device. See "What is unverified" before trusting anything about the app on a phone.
+**iOS builds and runs; Android has never been built.** Xcode 26.6 / iOS 26.5 SDK is installed
+here, so `flutter build ios` and a simulator run are verified (see below for exactly what that
+proved). There is still no Android SDK, so `flutter build apk` is the remaining unrun lane — which
+matters, because ADR 0002 mandates feature parity and nothing enforces it yet. See "What is
+unverified" before trusting anything else about the app on a phone.
 
 ## Stack (decided — ADR 0002, amended by ADR 0009)
 
@@ -45,11 +46,28 @@ dart run build_runner build               # regenerate drift's local_store.g.dar
 PATH may be the standalone Homebrew Dart, a different version from Flutter's bundled one — put
 `/opt/homebrew/share/flutter/bin` first, or `flutter doctor` warns about it.
 
-The full local loop needs the backend:
+The full local loop needs the backend. Quarkus Dev Services drives Testcontainers, which looks
+for `/var/run/docker.sock` and will **not** find Colima's socket on its own:
 
 ```bash
+export DOCKER_HOST=unix:///Users/chrisjones/.colima/default/docker.sock
+export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
 (cd ../backend && CREWCOMP_MCP_TOKEN=<32+ chars> ./mvnw quarkus:dev)
-flutter run --dart-define=CREWCOMP_DEV_PERSON=2      # once a device or simulator exists
+
+xcrun simctl boot 'iPhone 17 Pro'
+open /Applications/Xcode.app/Contents/Developer/Applications/Simulator.app
+flutter run -d <simulator-udid> --dart-define=CREWCOMP_DEV_PERSON=2
+```
+
+Without `DOCKER_HOST` the backend fails at `DevServicesDatasourceProcessor#launchDatabases` and
+every screen shows "Never synced". `open -a Simulator` does not resolve — the app lives inside
+Xcode, at the path above.
+
+To inspect a running app without the `flutter run` console:
+
+```bash
+xcrun simctl io <udid> screenshot /tmp/sim.png
+xcrun simctl get_app_container <udid> au.crewcomp.crewcompCrew data   # the encrypted store
 ```
 
 Person 2 in the dev fixture is Bruno Oyelaran, chosen as the demonstration crew member because
@@ -107,18 +125,51 @@ test.
   compiles under `flutter analyze` in some orders and breaks `build_runner`'s resolver.
 - **drift exports `isNull`/`isNotNull`**, which collide with `matcher`'s. Test files that import
   both need `hide isNull, isNotNull`.
+- **App Transport Security does not apply to this app's HTTP.** The `http` package goes through
+  `dart:io`'s own socket stack, not `NSURLSession`, so iOS never sees the request and cleartext to
+  `127.0.0.1` works with no `Info.plist` exception. Convenient in development and a trap in
+  production: **iOS will not stop a release build talking plain HTTP**, so nothing but our own
+  code can enforce TLS. See "What is unverified" #9.
+- **The iOS system log is loud.** A booting simulator emits hundreds of `Failed to index parameter
+  type …` ActionKit lines into the `flutter run` console. They are Shortcuts indexing, unrelated
+  to this app; filter them out before reading a build log or watching for errors.
+
+## What the iOS run proved (26 July 2026, Xcode 26.6, iPhone 17 Pro simulator)
+
+Recorded because these were the four things nobody could check before, and three of them were
+the ones most likely to be quietly wrong.
+
+- **The `sqlite3mc` build hook produces a correct iOS artefact.** `Runner.app/Frameworks/`
+  contains `sqlite3mc.framework`: `arm64`, `LC_BUILD_VERSION platform IOS`, exporting
+  `_sqlite3mc_version` and `_sqlite3_key_v2`. The running app logs
+  `Local store cipher: SQLite3 Multiple Ciphers 2.3.6`, and `main()` would have refused to start
+  otherwise. Both the device and simulator slices build.
+- **`flutter_secure_storage` works.** Not by a unit test but by consequence: the store cannot open
+  without a Keychain-held key, and it opened. `Security.framework` and
+  `LocalAuthentication.framework` link into `Runner` via SPM; no separate plugin framework and no
+  entitlement file was needed for the simulator.
+- **The store on a device is genuinely encrypted.** The file at
+  `Library/Application Support/crewcomp.db` in the app container begins `a8da e3b9 …` rather than
+  `SQLite format 3`, and `strings | grep Oyelaran` returns nothing while the app displays that
+  name on screen.
+- **Offline works.** With the backend stopped and the app relaunched from cold, every screen
+  rendered from the local replica under an `Offline · last synced 3 min ago` banner. No error
+  state, no blank list. This is the property the whole architecture exists for.
+
+The first iOS build succeeded with no source changes — no signing, CocoaPods, ATS or podspec work
+was needed.
 
 ## What is unverified
 
 Listed plainly because the test count above could otherwise imply more than it should.
 
-1. **No iOS or Android build has run.** No Xcode, no CocoaPods, no Android SDK on this machine.
-   The generated `ios/` and `android/` projects are `flutter create` output, untouched and
-   uncompiled. Expect the first device build to surface: signing, the Keychain entitlement for
-   `flutter_secure_storage`, and whether the `sqlite3mc` hook produces the right artefacts for
-   `arm64` device and simulator slices.
-2. **`flutter_secure_storage` has never run.** `DatabaseKeyStore` is exercised nowhere in the
-   suite — it needs a Keychain/Keystore. The encryption *around* it is tested with a literal key.
+1. **No Android build has run** and no physical iPhone has run this. There is no Android SDK on
+   this machine, so `android/` is still untouched `flutter create` output — a real risk given ADR
+   0002 mandates feature parity. On iOS, everything above was a *simulator*; a physical device
+   additionally needs code signing, and the Keychain behaves differently under a real
+   `first_unlock` accessibility class and a locked screen.
+2. **Nothing verifies the crew's data is wiped on logout** (SEC-12). There is no logout, because
+   there is no login (#6).
 3. **No push notifications.** MOB-3 renders the in-app list, which is the source of truth, but
    APNs/FCM delivery needs a Firebase project and signing identities. `firebase_messaging` is
    not a dependency yet.
@@ -132,3 +183,8 @@ Listed plainly because the test count above could otherwise imply more than it s
    currently Keychain-held with `first_unlock` accessibility and no biometric gate.
 8. **Accessibility has had a first pass, not an audit.** Every chip carries a text label as well
    as a colour; nobody has driven the app with VoiceOver or TalkBack.
+9. **Nothing enforces TLS.** `CREWCOMP_API` defaults to `http://127.0.0.1:8080` and any value is
+   accepted. Because `dart:io` bypasses App Transport Security (see Traps), iOS will not block a
+   release build from talking cleartext — a misconfigured `--dart-define` would ship crew personal
+   data over plain HTTP with nothing complaining. The fix is ours to write: reject a non-`https`
+   base URL unless `kDebugMode`, the same compile-time pattern the dev identity already uses.

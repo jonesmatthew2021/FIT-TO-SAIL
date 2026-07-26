@@ -14,7 +14,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 |---|---|---|
 | `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST slice, MCP, §10.3 sync, evidence ingest |
 | `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **3 of 10 §6 modules** — shell, session, dashboard, swing planner, people & holdings |
-| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens** — encrypted store, sync, outbox; **never built for either platform** (no Xcode/Android SDK) |
+| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens** — encrypted store, sync, outbox; **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | seeded |
 | `docs/` | spec, ADRs, research | current |
@@ -58,10 +58,12 @@ What exists end to end, verified over real HTTP against a seeded database:
 
 The largest functional gaps, in the order they bite:
 
-1. **Neither mobile binary has ever been built.** No Xcode and no Android SDK here, so
-   `flutter build ios` / `build apk` are unrun, and with them the camera (MOB-4 capture),
-   Keychain-backed key storage, biometric binding, and background upload. This is a toolchain
-   gap, not a design gap, but nothing about the app on a device is proven.
+1. **Android has never been built, and no physical device has run either app.** iOS is now real —
+   Xcode 26.6 is installed, `flutter build ios` succeeds, and the app runs on a simulator against
+   the live backend with a genuinely encrypted Keychain-keyed store and a working offline mode
+   (`mobile/CLAUDE.md` §"What the iOS run proved"). There is still no Android SDK, which is a
+   parity risk ADR 0002 explicitly cares about. Still unproven anywhere: the camera (MOB-4
+   capture), biometric binding, background upload surviving a kill, and code signing.
 2. **No assignment write path**, so the planner ranks candidates but cannot fill a slot (ADM-2).
 3. **No matrix or register write paths** (ADM-3, ADM-4) — the two biggest remaining modules.
 4. **The evidence pipeline stops after ingest.** Documents upload and sit at
@@ -74,11 +76,11 @@ The largest functional gaps, in the order they bite:
    CSV load with its 35 ExceptionItems and CC24/CC25 acceptance diff.
 
 Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended spike sequence"):
-1. Pipeline bootstrap (repo CI, OpenTofu baselines, AI review workflows) — first thing it must run
-   is the native build, still the largest unverified lane. Alongside it: `npm run verify:api`,
-   `npm run build`, `npm test` and the dev-shim grep for the SPA; `dart run tool/generate_api.dart
-   --check`, `flutter analyze` and `flutter test` for mobile. The iOS and Android build lanes need
-   a macOS runner with Xcode, which CI has and this machine does not.
+1. Pipeline bootstrap (repo CI, OpenTofu baselines, AI review workflows). Lanes: `./mvnw verify`
+   with ITs; `npm run verify:api`, `npm run build`, `npm test` and the dev-shim grep for the SPA;
+   `dart run tool/generate_api.dart --check`, `flutter analyze`, `flutter test` and now
+   `flutter build ios --no-codesign` for mobile. **Android needs a runner with the SDK** — that
+   lane cannot be run here at all, so CI is the only thing that will ever enforce ADR 0002 parity.
 2. Backend spike (Quarkus native + MCP + OIDC multitenancy) deployed to **both** AWS and GCP →
    resolves ADR 0005. Also the place to add Postgres RLS for AUTH-2 against a real database.
 3. Identity spike (BFF session + device-session layer) — replaces the development auth shim in

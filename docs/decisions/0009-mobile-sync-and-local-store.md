@@ -39,6 +39,12 @@ them — plus a wrong-key open that must fail. This matters more than it looks: 
 sync perfectly, and store everything readable. `main()` refuses to start if
 `sqlite3mc_version()` is unavailable.
 
+**Confirmed on iOS (26 July 2026).** The hook was written before any platform build was possible;
+it has since been validated on Xcode 26.6. `sqlite3mc.framework` builds for the `arm64` device and
+simulator slices exporting `_sqlite3mc_version` and `_sqlite3_key_v2`, and the store written by
+the app in its iOS container is unreadable as SQLite and contains no crew name in plaintext. The
+host test was therefore a good proxy, not a substitute — but it did predict the real result.
+
 Detecting the cipher build is fiddly and two obvious probes do not work: `pragma compile_options`
 is identical to a plain build's (the ciphers are a codec layer, not a compile flag), and
 `pragma cipher_version` returns an empty result set, exactly as any unknown pragma does. The SQL
@@ -122,9 +128,15 @@ roll-up changes when a holding expires overnight, with no row changing at all.
   the widget-test fake-async zone, where the framework's pending-timer invariant fires and the
   run hangs; the split makes the presentation testable and is better structure regardless.
 - **Not yet real:** push delivery (APNs/FCM needs a Firebase project and signing), background
-  upload that survives the app being killed *while backgrounded* (`background_downloader`, needs
-  Xcode to validate), camera capture (MOB-4's capture half), and sign-in (MOB-6 — the same
-  header shim as the admin SPA, compiled out of release builds by `kDebugMode`).
+  upload that survives the app being killed *while backgrounded* (`background_downloader` — Xcode
+  is now available, so this is buildable work rather than a blocked lane), camera capture (MOB-4's
+  capture half), and sign-in (MOB-6 — the same header shim as the admin SPA, compiled out of
+  release builds by `kDebugMode`).
+- **iOS enforces no transport security for us.** `dart:io` bypasses App Transport Security
+  entirely, which is why cleartext to `127.0.0.1` needs no `Info.plist` exception. The corollary
+  is that a release build pointed at an `http://` base URL would ship crew personal data in the
+  clear with nothing objecting, so the `https`-unless-`kDebugMode` check has to be written in
+  Dart. Not yet done.
 
 ## Alternatives considered
 
