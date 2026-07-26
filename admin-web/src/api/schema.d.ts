@@ -10,6 +10,726 @@
  */
 
 export interface paths {
+    "/api/v1/administration/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every setting with its effective value, default, and whether it is overridden */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfigSettingDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/config/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set one setting — Compliance Lead or System Administrator, audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetConfigRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfigSettingDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Clear an override, restoring the built-in default */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfigSettingDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/identity-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The corporate identity backends — this list is the SEC-1a allow-list */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IdentityProviderDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Onboard an identity backend, disabled — enabling it is a separate act */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateIdentityProviderRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IdentityProviderDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/identity-providers/{identityProviderId}/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Allow or stop an identity backend from authenticating anyone (SEC-1a) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    identityProviderId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetEnabledRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IdentityProviderDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The scheduled jobs, their cadence, and the outcome of their last run */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ScheduledJobDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/jobs/{name}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run a job now — System Administrator only */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JobRunDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every account with its roles, scopes and identity linkage */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserAccountDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Create a SEC-1b transitional account — refused in production, where accounts are created at first corporate sign-in (ADR 0003) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateTransitionalAccountRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserAccountDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/users/{userAccountId}/roles/{role}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grant a role — audited with the granting actor (AUTH-4) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    role: string;
+                    userAccountId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserAccountDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** Revoke a role — refuses to remove the last System Administrator */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    role: string;
+                    userAccountId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserAccountDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/users/{userAccountId}/scopes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the partnerships a Vessel Master is scoped to (§3) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userAccountId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetScopesRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserAccountDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/administration/users/{userAccountId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Suspend or reactivate an account — accounts are never deleted */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    userAccountId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetAccountStatusRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UserAccountDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/assignments/{assignmentId}": {
         parameters: {
             query?: never;
@@ -57,6 +777,340 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Documents awaiting verification, plus the auto-accepted spot-check list */
+        get: {
+            parameters: {
+                query: {
+                    status: string[] | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review/{publicId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One document with its extraction and confidences */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    publicId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review/{publicId}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept or correct — writes the holding, audited with the evidence link */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    publicId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AcceptEvidenceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review/{publicId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The stored document bytes, for the side-by-side review view */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    publicId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review/{publicId}/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run §8 stages 2–4 for this document now */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    publicId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review/{publicId}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject with a reason — the submitter is notified with it */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    publicId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RejectEvidenceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -464,6 +1518,659 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matrix-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every matrix version with its rule counts (ADM-3) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatrixVersionSummaryDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Create a draft, optionally copied from any version — Compliance Lead, audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateMatrixDraftRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatrixVersionDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matrix-versions/{from}/diff/{to}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** §5.5 diff: added / removed / level-changed rules and quotas */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    from: number;
+                    to: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatrixDiffDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matrix-versions/{versionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One version's rules, for the cell editor */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    versionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatrixVersionDetailDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** Rename a draft or edit its notes and tier footnote */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    versionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateMatrixDraftRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatrixVersionDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Discard a draft and everything in it — drafts only */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    versionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matrix-versions/{versionId}/cells": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set one cell's level — base rule or partnership override */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    versionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetMatrixCellRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MatrixRuleDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Clear a cell — removes the base rule, or drops a partnership override */
+        delete: {
+            parameters: {
+                query: {
+                    partnershipId: number | null;
+                    positionId: number;
+                    requirementId: number;
+                };
+                header?: never;
+                path: {
+                    versionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/matrix-versions/{versionId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish a draft, superseding the current version — Compliance Lead only (§5.5) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    versionId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PublishMatrixRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicationResultDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The caller's notifications, newest first */
+        get: {
+            parameters: {
+                query: {
+                    state: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AdminNotificationDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark everything the caller can see as read */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationSummaryDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Total and unread counts for the caller */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationSummaryDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notificationId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark one of the caller's notifications read */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    notificationId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2333,6 +4040,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcceptEvidenceRequest: {
+            /** Format: int64 */
+            requirementId: number;
+            status: string;
+            expiry?: components["schemas"]["LocalDate"] | null;
+            issueDate?: components["schemas"]["LocalDate"] | null;
+            note?: string | null;
+        };
         AddAliasRequest: {
             alias: string;
         };
@@ -2343,6 +4058,19 @@ export interface components {
         AddNoteRequest: {
             party: string;
             body: string;
+        };
+        AdminNotificationDto: {
+            /** Format: int64 */
+            id: number;
+            kind: string;
+            audience: string | null;
+            title: string;
+            body: string | null;
+            deepLink: string | null;
+            createdAt: components["schemas"]["Instant"];
+            readAt: components["schemas"]["Instant"] | null;
+            read: boolean;
+            recipient: string;
         };
         ApprovalConditionDto: {
             /** Format: int64 */
@@ -2403,6 +4131,28 @@ export interface components {
             conditions?: components["schemas"]["AddConditionRequest"][];
             note?: string | null;
         };
+        ConfigSettingDto: {
+            key: string;
+            kind: string;
+            description: string;
+            value: unknown;
+            defaultValue: unknown;
+            overridden: boolean;
+            updatedAt: components["schemas"]["Instant"] | null;
+            updatedBy: string | null;
+        };
+        CreateIdentityProviderRequest: {
+            provider: string;
+            issuer: string;
+            tenantOrDomain: string;
+            displayName: string;
+        };
+        CreateMatrixDraftRequest: {
+            label: string;
+            /** Format: int64 */
+            copyFromVersionId?: number | null;
+            notes?: string | null;
+        };
         CreateRegisterRecordRequest: {
             type: string;
             partnership: string;
@@ -2417,6 +4167,13 @@ export interface components {
             status?: string | null;
             acknowledgeLateSubmission?: boolean;
         };
+        CreateTransitionalAccountRequest: {
+            displayName: string;
+            email?: string | null;
+            roles: string[];
+            /** Format: int64 */
+            personId?: number | null;
+        };
         CrewChangeDto: {
             /** Format: int64 */
             id: number;
@@ -2426,6 +4183,33 @@ export interface components {
             from: components["schemas"]["LocalDate"];
             to: components["schemas"]["LocalDate"];
             cutoff: components["schemas"]["LocalDate"];
+        };
+        EvidenceDocumentDto: {
+            publicId: string;
+            /** Format: int64 */
+            personId: number;
+            sam: string;
+            personName: string;
+            partnershipAbbrev: string;
+            source: string;
+            submittedBy: string;
+            submittedAt: components["schemas"]["Instant"];
+            verificationStatus: string;
+            contentType: string | null;
+            /** Format: int64 */
+            byteSize: number | null;
+            uploadComplete: boolean;
+            hasContent: boolean;
+            /** Format: int64 */
+            requirementHintId: number | null;
+            /** Format: int64 */
+            matchedRequirementId: number | null;
+            extractionModel: string | null;
+            extraction: components["schemas"]["ExtractedFieldDto"][];
+            reviewReason: string | null;
+            rejectionReason: string | null;
+            /** Format: int64 */
+            linkedHoldingId: number | null;
         };
         EvidenceSubmissionDto: {
             publicId: components["schemas"]["UUID"];
@@ -2479,6 +4263,12 @@ export interface components {
             daysRemaining: number;
             impact: string;
         };
+        ExtractedFieldDto: {
+            name: string;
+            value: string | null;
+            /** Format: double */
+            confidence: number;
+        };
         GapReportRowDto: {
             /** Format: int64 */
             personId: number;
@@ -2508,11 +4298,26 @@ export interface components {
             issueDate: components["schemas"]["LocalDate"] | null;
             note: string | null;
         };
+        IdentityProviderDto: {
+            /** Format: int64 */
+            id: number;
+            provider: string;
+            issuer: string;
+            tenantOrDomain: string;
+            displayName: string;
+            enabled: boolean;
+        };
         /**
          * Format: date-time
          * @example 2022-03-10T16:15:50Z
          */
         Instant: string;
+        JobRunDto: {
+            startedAt: components["schemas"]["Instant"];
+            finishedAt: components["schemas"]["Instant"] | null;
+            outcome: string;
+            detail: string | null;
+        };
         LeaveRecordDto: {
             /** Format: int64 */
             id: number;
@@ -2528,6 +4333,82 @@ export interface components {
          * @example 2022-03-10
          */
         LocalDate: string;
+        MatrixConditionalMemberDto: {
+            /** Format: int64 */
+            requirementId: number;
+            role: string;
+            /** Format: int32 */
+            ordinal: number;
+        };
+        MatrixConditionalRuleDto: {
+            /** Format: int64 */
+            id: number;
+            kind: string;
+            /** Format: int64 */
+            positionId: number;
+            /** Format: int64 */
+            requirementId: number | null;
+            label: string | null;
+            members: components["schemas"]["MatrixConditionalMemberDto"][];
+        };
+        MatrixDiffDto: {
+            /** Format: int64 */
+            fromVersionId: number;
+            /** Format: int64 */
+            toVersionId: number;
+            rules: components["schemas"]["RuleDiffEntryDto"][];
+            quotas: components["schemas"]["QuotaDiffEntryDto"][];
+            empty: boolean;
+        };
+        MatrixQuotaRuleDto: {
+            /** Format: int64 */
+            id: number;
+            footnote: string;
+            /** Format: int64 */
+            requirementId: number;
+            /** Format: int32 */
+            minCount: number;
+            scope: string;
+            positionIds: number[];
+        };
+        MatrixRuleDto: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            partnershipId: number | null;
+            /** Format: int64 */
+            positionId: number;
+            /** Format: int64 */
+            requirementId: number;
+            level: string;
+        };
+        MatrixVersionDetailDto: {
+            version: components["schemas"]["MatrixVersionDto"];
+            rules: components["schemas"]["MatrixRuleDto"][];
+            conditionals: components["schemas"]["MatrixConditionalRuleDto"][];
+            quotas: components["schemas"]["MatrixQuotaRuleDto"][];
+        };
+        MatrixVersionDto: {
+            /** Format: int64 */
+            id: number;
+            label: string;
+            status: string;
+            effectiveFrom: components["schemas"]["LocalDate"] | null;
+            publishedBy: string | null;
+            publishedAt: components["schemas"]["Instant"] | null;
+            notes: string | null;
+            tierFootnote: string | null;
+            editable: boolean;
+        };
+        MatrixVersionSummaryDto: {
+            version: components["schemas"]["MatrixVersionDto"];
+            /** Format: int64 */
+            requirementRuleCount: number;
+            /** Format: int64 */
+            conditionalRuleCount: number;
+            /** Format: int64 */
+            quotaRuleCount: number;
+        };
         NextRecordIdDto: {
             recordId: string;
         };
@@ -2540,6 +4421,12 @@ export interface components {
             deepLink: string | null;
             createdAt: components["schemas"]["Instant"];
             readAt: components["schemas"]["Instant"] | null;
+        };
+        NotificationSummaryDto: {
+            /** Format: int32 */
+            total: number;
+            /** Format: int64 */
+            unread: number;
         };
         OpenSlotDto: {
             /** Format: int32 */
@@ -2579,6 +4466,24 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        PublicationResultDto: {
+            published: components["schemas"]["MatrixVersionDto"];
+            superseded: components["schemas"]["MatrixVersionDto"] | null;
+        };
+        PublishMatrixRequest: {
+            effectiveFrom?: components["schemas"]["LocalDate"] | null;
+        };
+        QuotaDiffEntryDto: {
+            footnote: string;
+            /** Format: int64 */
+            requirementId: number;
+            scope: string;
+            /** Format: int32 */
+            fromMin: number | null;
+            /** Format: int32 */
+            toMin: number | null;
+            kind: string;
         };
         QuotaDto: {
             footnote: string;
@@ -2646,6 +4551,9 @@ export interface components {
             actor: string;
             occurredAt: components["schemas"]["Instant"];
         };
+        RejectEvidenceRequest: {
+            reason: string;
+        };
         RequirementAliasDto: {
             /** Format: int64 */
             id: number;
@@ -2689,6 +4597,17 @@ export interface components {
         ResolveExceptionRequest: {
             note: string;
         };
+        RuleDiffEntryDto: {
+            /** Format: int64 */
+            partnershipId: number | null;
+            /** Format: int64 */
+            positionId: number;
+            /** Format: int64 */
+            requirementId: number;
+            from: string | null;
+            to: string | null;
+            kind: string;
+        };
         SaveRequirementRequest: {
             code?: string | null;
             category: string;
@@ -2696,6 +4615,12 @@ export interface components {
             issuingAuthority?: string | null;
             notes?: string | null;
             status?: string;
+        };
+        ScheduledJobDto: {
+            name: string;
+            schedule: string;
+            description: string;
+            lastRun: components["schemas"]["JobRunDto"] | null;
         };
         SessionDto: {
             label: string;
@@ -2706,11 +4631,32 @@ export interface components {
             today: components["schemas"]["LocalDate"];
             dateOverridden: boolean;
         };
+        SetAccountStatusRequest: {
+            status: string;
+        };
+        SetConfigRequest: {
+            value?: unknown;
+        };
+        SetEnabledRequest: {
+            enabled: boolean;
+        };
         SetHoldingRequest: {
             status: string;
             expiry?: components["schemas"]["LocalDate"] | null;
             issueDate?: components["schemas"]["LocalDate"] | null;
             note?: string | null;
+        };
+        SetMatrixCellRequest: {
+            /** Format: int64 */
+            partnershipId?: number | null;
+            /** Format: int64 */
+            positionId: number;
+            /** Format: int64 */
+            requirementId: number;
+            level: string;
+        };
+        SetScopesRequest: {
+            partnershipIds: number[];
         };
         SlotDto: {
             /** Format: int64 */
@@ -2848,12 +4794,31 @@ export interface components {
             code: string;
             title: string;
         };
+        UpdateMatrixDraftRequest: {
+            label: string;
+            notes?: string | null;
+            tierFootnote?: string | null;
+        };
         UploadStateDto: {
             /** Format: int64 */
             offset: number;
             complete: boolean;
             /** Format: int64 */
             declaredSize: number | null;
+        };
+        UserAccountDto: {
+            /** Format: int64 */
+            id: number;
+            displayName: string;
+            email: string | null;
+            kind: string;
+            status: string;
+            roles: string[];
+            scopedPartnershipIds: number[];
+            /** Format: int64 */
+            personId: number | null;
+            lastLoginAt: components["schemas"]["Instant"] | null;
+            identityLinked: boolean;
         };
     };
     responses: never;

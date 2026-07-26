@@ -2,6 +2,8 @@ package au.crewcomp.compliance
 
 import au.crewcomp.engine.ExpiryAlert
 import au.crewcomp.engine.GapReportRow
+import au.crewcomp.engine.MatrixDiff
+import au.crewcomp.engine.MatrixDiffResult
 import au.crewcomp.engine.PersonEvaluation
 import au.crewcomp.engine.PersonEvaluator
 import au.crewcomp.engine.PersonId
@@ -194,6 +196,31 @@ class ComplianceService(
             assignments = assignments.upcomingUnscoped(today).map { it.toView() },
             asOf = today,
             leadDays = leadDays,
+        )
+    }
+
+    // -----------------------------------------------------------------------
+    // Matrix diff (§5.5)
+    // -----------------------------------------------------------------------
+
+    /**
+     * The §5.5 diff between two matrix versions — ADM-3's diff view, and the confirmation a
+     * Compliance Lead reads before publishing.
+     *
+     * It lives here rather than on the matrix write path because the diff *is* engine semantics
+     * ([MatrixDiff]) over two snapshots, and this service is where engine answers come from. The
+     * versions need not be a draft and its parent: diffing any two is how "what changed between
+     * the version that evaluated CC24 and the one that evaluates CC25" gets answered.
+     */
+    @Transactional
+    fun matrixDiff(fromVersionId: Long, toVersionId: Long): MatrixDiffResult {
+        policy.require(
+            Role.CREW_COORDINATOR, Role.WORKFLOW_MANAGER, Role.COMPLIANCE_LEAD,
+            Role.DATA_STEWARD, Role.VESSEL_MASTER, Role.SYSTEM_ADMINISTRATOR,
+        )
+        return MatrixDiff.diff(
+            from = matrixSnapshots.forVersion(fromVersionId),
+            to = matrixSnapshots.forVersion(toVersionId),
         )
     }
 

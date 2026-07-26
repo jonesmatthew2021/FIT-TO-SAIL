@@ -1,6 +1,8 @@
 package au.crewcomp.workflow
 
 import au.crewcomp.people.QualificationHolding
+import au.crewcomp.notify.NotificationKind
+import au.crewcomp.notify.NotificationService
 import au.crewcomp.people.QualificationHoldingRepository
 import au.crewcomp.platform.audit.AuditWriter
 import au.crewcomp.platform.persistence.EntityNotFoundException
@@ -30,6 +32,7 @@ class ExceptionService(
     private val holdings: QualificationHoldingRepository,
     private val policy: AccessPolicy,
     private val audit: AuditWriter,
+    private val notifications: NotificationService,
 ) {
 
     /** @param state `open`, `resolved`, or null for everything. */
@@ -84,6 +87,16 @@ class ExceptionService(
             entityId = item.id,
             businessKey = cleanArea,
             after = snapshot(item),
+        )
+
+        // §9: "new exceptions -> Data Steward". Empty until back-office accounts exist (ADR 0003),
+        // and deliberately not fatal when it is — see `RegisterService.notifyWorkflow`.
+        notifications.raiseForRoles(
+            roles = listOf(Role.DATA_STEWARD),
+            kind = NotificationKind.EXCEPTION_RAISED,
+            title = "A data-quality item has been raised",
+            body = "$cleanArea: $cleanDescription",
+            deepLink = "/exceptions",
         )
         return item
     }

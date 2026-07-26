@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   CELL_STATE_ORDER,
+  QUEUE_STATUSES,
   REGISTER_OPEN_STATUSES,
   REGISTER_OUTCOMES,
   REQUIREMENT_CATEGORIES,
   cellState,
   cellStateRank,
+  confidenceTone,
   needsAttention,
+  notificationKind,
   registerStatusTone,
+  verificationStatus,
 } from './enums'
 
 /** Appendix A is normative; a state the UI does not recognise must still render legibly. */
@@ -86,5 +90,62 @@ describe('catalogue and register enumerations', () => {
     expect(registerStatusTone('Closed - Approved')).toBe('good')
     expect(registerStatusTone('Closed - Not Approved')).toBe('muted')
     expect(registerStatusTone('Complete before joining')).toBe('neutral')
+  })
+})
+
+/**
+ * The §8 and §9 enumerations, added with ADM-8 and ADM-9.
+ *
+ * Same reasoning as above: these are copies of Appendix A and of `NotificationKind`, and the copy is
+ * what lets a filter offer a status before the server has sent one. What is tested is the two places
+ * where the presentation makes a *judgement* rather than a translation — an auto-acceptance still
+ * wanting a human's eye, and a confidence band — because those are the ones a later tidy-up would
+ * quietly get wrong.
+ */
+describe('evidence and notification enumerations', () => {
+  it('labels every verification status Appendix A defines', () => {
+    for (const status of [
+      'pending_extraction',
+      'pending_review',
+      'auto_accepted',
+      'verified',
+      'rejected',
+    ]) {
+      expect(verificationStatus(status).label).not.toBe(status)
+    }
+  })
+
+  it('does not colour an auto-acceptance as finished work', () => {
+    // §8 stage 4 surfaces auto-acceptances "for retrospective spot-checking". Toning one `good`
+    // would tell a reviewer to skip the row the spec put in front of them on purpose.
+    expect(verificationStatus('auto_accepted').tone).toBe('caution')
+    expect(verificationStatus('verified').tone).toBe('good')
+    expect(verificationStatus('rejected').tone).toBe('critical')
+  })
+
+  it('offers the queue filters in the order a reviewer works them', () => {
+    expect(QUEUE_STATUSES[0]).toBe('pending_review')
+    expect([...QUEUE_STATUSES]).toContain('auto_accepted')
+  })
+
+  it('bands confidence, and treats "not read" as absence rather than as low', () => {
+    // Zero is the unconfigured extractor's answer for every field (§14.5). Rendering it as a red
+    // "0%" would read as "the model looked and disagreed", which is the opposite of what happened.
+    expect(confidenceTone(0)).toBe('muted')
+    expect(confidenceTone(0.4)).toBe('critical')
+    expect(confidenceTone(0.8)).toBe('caution')
+    expect(confidenceTone(0.95)).toBe('good')
+  })
+
+  it('labels back-office notification kinds as well as crew ones', () => {
+    expect(notificationKind('expiry_warning').label).toBe('Expiry')
+    expect(notificationKind('quota_shortfall').tone).toBe('critical')
+    expect(notificationKind('matrix_published').tone).toBe('neutral')
+  })
+
+  it('degrades to the raw wire value for a kind this revision does not know', () => {
+    // Both revisions are live during an expand/contract deploy, so a newer kind must not blank a row.
+    expect(notificationKind('something_new_entirely').label).toBe('something_new_entirely')
+    expect(verificationStatus('something_new').label).toBe('something_new')
   })
 })

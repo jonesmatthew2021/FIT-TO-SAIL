@@ -44,6 +44,16 @@ class Notification : CreatedEntity() {
     var deepLink: String? = null
 
     /**
+     * Stable identity for a notification a scheduled scan raises, unique per recipient (V4).
+     *
+     * Null for a domain event: raising a notification because something just happened needs no
+     * key, because it happens once. A daily scan recomputes what is due on every run, so without
+     * this the same warning would arrive every morning until the certificate expired.
+     */
+    @Column(name = "dedupe_key")
+    var dedupeKey: String? = null
+
+    /**
      * The one mutable field, and monotonic by construction: a read-mark only ever moves from
      * null to a timestamp. §7.6 leans on that — it is what makes the mobile outbound queue's
      * read-marks safely replayable without conflict resolution.
@@ -59,23 +69,46 @@ class Notification : CreatedEntity() {
 }
 
 /**
- * The §9 notification kinds a crew member can receive (MOB-3). The wire values are what the
- * mobile app switches on to choose an icon and a deep-link target, so they are a compatibility
- * surface.
+ * The §9 notification kinds.
+ *
+ * The wire values are what the mobile app switches on to choose an icon and a deep-link target
+ * (MOB-3) and what ADM-8 groups by, so they are a compatibility surface.
+ *
+ * [audience] is not access control — the recipient on the row is what decides who sees a
+ * notification. It is routing metadata: it says which kinds a scan is entitled to address to a
+ * crew member and which belong to the back office, and it lets ADM-8 and the mobile list filter
+ * without either of them hard-coding a list of names.
  */
-enum class NotificationKind(val wire: String) {
-    EXPIRY_WARNING("expiry_warning"),
-    ASSIGNMENT_ADDED("assignment_added"),
-    ASSIGNMENT_REMOVED("assignment_removed"),
-    ASSIGNMENT_CHANGED("assignment_changed"),
-    REQUIREMENT_ADDED("requirement_added"),
-    EVIDENCE_RECEIVED("evidence_received"),
-    EVIDENCE_VERIFIED("evidence_verified"),
-    EVIDENCE_REJECTED("evidence_rejected");
+enum class NotificationKind(val wire: String, val audience: NotificationAudience) {
+    // Crew-facing (MOB-3).
+    EXPIRY_WARNING("expiry_warning", NotificationAudience.CREW),
+    ASSIGNMENT_ADDED("assignment_added", NotificationAudience.CREW),
+    ASSIGNMENT_REMOVED("assignment_removed", NotificationAudience.CREW),
+    ASSIGNMENT_CHANGED("assignment_changed", NotificationAudience.CREW),
+    REQUIREMENT_ADDED("requirement_added", NotificationAudience.CREW),
+    EVIDENCE_RECEIVED("evidence_received", NotificationAudience.CREW),
+    EVIDENCE_VERIFIED("evidence_verified", NotificationAudience.CREW),
+    EVIDENCE_REJECTED("evidence_rejected", NotificationAudience.CREW),
+
+    // Back-office, per §9's routing: register events → Workflow Manager; quota shortfalls and
+    // roster gaps → Coordinators; new exceptions → Data Steward.
+    REGISTER_EVENT("register_event", NotificationAudience.BACK_OFFICE),
+    CUTOFF_APPROACHING("cutoff_approaching", NotificationAudience.BACK_OFFICE),
+    QUOTA_SHORTFALL("quota_shortfall", NotificationAudience.BACK_OFFICE),
+    ROSTER_GAP("roster_gap", NotificationAudience.BACK_OFFICE),
+    EXPIRY_AFFECTS_ROSTER("expiry_affects_roster", NotificationAudience.BACK_OFFICE),
+    MATRIX_PUBLISHED("matrix_published", NotificationAudience.BACK_OFFICE),
+    EXCEPTION_RAISED("exception_raised", NotificationAudience.BACK_OFFICE),
+    EVIDENCE_AWAITING_REVIEW("evidence_awaiting_review", NotificationAudience.BACK_OFFICE);
 
     companion object {
         fun fromWire(wire: String): NotificationKind =
             entries.firstOrNull { it.wire == wire }
                 ?: throw IllegalArgumentException("Unknown notification kind: $wire")
+
+        /** Tolerant lookup for a row written by a newer revision — see `NotificationDto`. */
+        fun fromWireOrNull(wire: String): NotificationKind? = entries.firstOrNull { it.wire == wire }
     }
 }
+
+enum class NotificationAudience { CREW, BACK_OFFICE }

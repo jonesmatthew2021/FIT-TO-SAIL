@@ -495,6 +495,13 @@ a:hover {
 
 .counts__item {
   display: inline-flex;
+  /* The value and its noun are separate elements, so the gap is the word space between them. */
+  gap: 0.3rem;
+}
+
+/* Separates the items when several sit on one line (the §5.5 diff's added / removed / changed). */
+.counts__item + .counts__item {
+  margin-left: 0.6rem;
 }
 
 .counts__value {
@@ -1569,4 +1576,348 @@ select.input {
     color: var(--critical-ink);
     font-weight: 500;
   }
+}
+
+/* ===========================================================================
+ * ADM-3, ADM-8, ADM-9, ADM-10
+ *
+ * Everything below follows the three rules at the top of this file. Two of them do real work here:
+ * the dense matrix grid is exactly the place a colour-only encoding would be tempting, so every
+ * level and every state is still a labelled pill; and none of the new chrome — tabs, the unread
+ * badge, section rules — spends a state colour on itself.
+ * ======================================================================== */
+
+/* --- Tabs (ADM-3's three views) ----------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--line);
+  margin: 1.25rem 0 0;
+}
+
+.tabs__tab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink-3);
+  cursor: pointer;
+  /* The underline is the only affordance, so it must not shift the text when it appears. */
+  margin-bottom: -1px;
+}
+
+.tabs__tab:hover {
+  color: var(--ink-2);
+}
+
+.tabs__tab--active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+/* --- The matrix grid ---------------------------------------------------- */
+
+/*
+ * Requirements down, positions across. The row header is sticky horizontally because the grid
+ * scrolls sideways and a row whose requirement code has scrolled away is a row of levels attached
+ * to nothing.
+ */
+.matrix-grid th[scope='row'] {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 1;
+  white-space: nowrap;
+  font-weight: 500;
+  text-align: left;
+  box-shadow: 1px 0 0 var(--line);
+}
+
+.matrix-grid thead th {
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.matrix-grid td {
+  text-align: center;
+  padding: 0.3rem 0.4rem;
+}
+
+.input--level {
+  width: 5.5rem;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/*
+ * A partnership override, marked structurally rather than by colour: the state palette is reserved
+ * for compliance states, and "this cell is an override" is a fact about the rule, not about anyone's
+ * compliance. A left edge reads as "differs from the base" without competing with a gap chip.
+ */
+.input--overridden {
+  border-left: 3px solid var(--neutral-ink);
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+/* --- Checkbox groups (queue filters, role pickers) ---------------------- */
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  align-items: center;
+}
+
+.checkbox-group__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* A chip that is also a control (the role toggles). Same pill, plus a pointer and a focus ring. */
+.chip--toggle {
+  appearance: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.chip--toggle:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+/* --- ADM-8, the notifications centre ----------------------------------- */
+
+.shell__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.4rem;
+  border-radius: var(--r-pill);
+  background: var(--critical-ink);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+
+.notifications {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.notification {
+  display: grid;
+  grid-template-columns: 3px 1fr auto;
+  gap: 0.9rem;
+  align-items: start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--sh);
+}
+
+/*
+ * Unread is carried by weight and by the marker rail, not by a wash. A list where every unread row
+ * is tinted becomes a wall of colour on the day a scan runs, and then nothing in it stands out.
+ */
+.notification__mark {
+  align-self: stretch;
+  border-radius: var(--r-pill);
+  background: transparent;
+}
+
+.notification--unread .notification__mark {
+  background: var(--neutral-ink);
+}
+
+.notification--unread .notification__title {
+  font-weight: 600;
+}
+
+.notification__title {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  color: var(--ink);
+}
+
+.notification__detail {
+  margin: 0.35rem 0 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.notification__meta {
+  margin: 0.4rem 0 0;
+  color: var(--ink-3);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- ADM-9, the review panel ------------------------------------------- */
+
+/*
+ * Side by side, because §6 asks for it and because the whole job is comparing one against the other.
+ * It collapses below 1000px: a certificate photograph and a form of seven fields sharing 400px is
+ * two things neither of which can be read.
+ */
+.review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.review__image,
+.review__frame {
+  width: 100%;
+  max-height: 32rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-bar);
+  background: var(--surface-2);
+}
+
+.review__image {
+  object-fit: contain;
+}
+
+.review__frame {
+  height: 32rem;
+}
+
+.extraction {
+  list-style: none;
+  margin: 0.5rem 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.extraction__field {
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+
+.extraction__name {
+  color: var(--ink-3);
+}
+
+.extraction__value {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* --- ADM-10 ------------------------------------------------------------- */
+
+.settings,
+.jobs,
+.accounts,
+.providers {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.settings__item,
+.jobs__item,
+.accounts__item,
+.providers__item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--sh);
+}
+
+.settings__head,
+.jobs__head,
+.accounts__head,
+.providers__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.settings__key,
+.jobs__name,
+.accounts__name,
+.providers__name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.settings__description,
+.jobs__description,
+.providers__tenant {
+  margin: 0 0 0.4rem;
+  color: var(--ink-2);
+  font-size: 0.88rem;
+}
+
+.settings__value,
+.jobs__last,
+.providers__issuer {
+  margin: 0 0 0.5rem;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.jobs__last {
+  font-variant-numeric: tabular-nums;
+}
+
+.accounts__roles,
+.accounts__scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  margin: 0.45rem 0;
+}
+
+.accounts__scopes {
+  font-size: 0.85rem;
 }

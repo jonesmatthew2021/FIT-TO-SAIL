@@ -108,6 +108,22 @@
       <version>${quarkus-mcp-server.version}</version>
     </dependency>
 
+    <!--
+      Scheduled work: the §9 expiry and cutoff scans, and the §8 extraction sweep.
+
+      quarkus-scheduler rather than JobRunr, deliberately. JobRunr wants to own its own tables,
+      and everything scheduled here is periodic and idempotent — a scan that recomputes what is
+      due — so there is nothing for a job store to remember. The TaskScheduler adapter
+      (platform/adapters) already declares "run this named job on this cadence" as the contract
+      and names an in-process scheduler as a valid implementation, so this stays swappable for a
+      platform scheduler (EventBridge / Cloud Scheduler) when ADR 0005 resolves. Revisit if a job
+      ever needs retries, a queue, or to survive a restart mid-run.
+    -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-scheduler</artifactId>
+    </dependency>
+
     <!-- Operability (NFR-6) -->
     <dependency>
       <groupId>io.quarkus</groupId>

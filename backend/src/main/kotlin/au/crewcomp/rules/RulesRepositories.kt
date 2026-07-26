@@ -18,6 +18,19 @@ private fun PanacheRepositoryBase<*, *>.countGroupedByRequirement(entity: String
         .resultList
         .associate { (it[0] as Number).toLong() to (it[1] as Number).toLong() }
 
+/**
+ * `matrix_version_id → row count`, for ADM-3's version list. One grouped query for the whole list
+ * rather than one per version, for the same reason as [countGroupedByRequirement].
+ */
+private fun PanacheRepositoryBase<*, *>.countGroupedByVersion(entity: String): Map<Long, Long> =
+    getEntityManager()
+        .createQuery(
+            "select e.matrixVersion.id, count(e) from $entity e group by e.matrixVersion.id",
+            Array<Any>::class.java,
+        )
+        .resultList
+        .associate { (it[0] as Number).toLong() to (it[1] as Number).toLong() }
+
 @ApplicationScoped
 class MatrixVersionRepository : PanacheRepositoryBase<MatrixVersion, Long> {
 
@@ -37,6 +50,17 @@ class MatrixVersionRepository : PanacheRepositoryBase<MatrixVersion, Long> {
     fun drafts(): List<MatrixVersion> = list("statusValue", MatrixStatus.DRAFT.wire)
 
     fun allOrdered(): List<MatrixVersion> = list("from MatrixVersion order by effectiveFrom desc nulls first, id desc")
+
+    /**
+     * Every published version, newest first — the versions a swing may legitimately be pinned to
+     * for historical reconstruction (§5.5). Supersession does not make a version invalid, it makes
+     * it historical.
+     */
+    fun publishedOrSuperseded(): List<MatrixVersion> =
+        list(
+            "statusValue in ?1 order by effectiveFrom desc, id desc",
+            listOf(MatrixStatus.PUBLISHED.wire, MatrixStatus.SUPERSEDED.wire),
+        )
 }
 
 @ApplicationScoped
@@ -60,6 +84,10 @@ class RequirementRuleRepository : PanacheRepositoryBase<RequirementRule, Long> {
      * catalogue entry load-bearing anywhere", and a retired version is still audit evidence.
      */
     fun countByRequirement(): Map<Long, Long> = countGroupedByRequirement("RequirementRule")
+
+    fun countByVersion(): Map<Long, Long> = countGroupedByVersion("RequirementRule")
+
+    fun deleteForVersion(matrixVersionId: Long): Long = delete("matrixVersion.id", matrixVersionId)
 
     fun find(matrixVersionId: Long, partnershipId: Long?, positionId: Long, requirementId: Long): RequirementRule? =
         if (partnershipId == null) {
@@ -111,12 +139,46 @@ class ConditionalRuleRepository : PanacheRepositoryBase<ConditionalRule, Long> {
         }
         return pairs.groupingBy { it.first }.eachCount().mapValues { it.value.toLong() }
     }
+
+    fun countByVersion(): Map<Long, Long> = countGroupedByVersion("ConditionalRule")
+
+    /**
+     * Deletes a version's conditional rules, **members first**.
+     *
+     * The FK cascades in the database, but a JPQL bulk delete does not fire it: `delete from
+     * ConditionalRule` with members still attached is a constraint violation, not a cascade. The
+     * same trap `FixtureSeeder.clear()` documents.
+     */
+    fun deleteForVersion(matrixVersionId: Long): Long {
+        getEntityManager()
+            .createQuery(
+                "delete from ConditionalRuleMember m where m.conditionalRule.id in " +
+                    "(select c.id from ConditionalRule c where c.matrixVersion.id = :versionId)",
+            )
+            .setParameter("versionId", matrixVersionId)
+            .executeUpdate()
+        return delete("matrixVersion.id", matrixVersionId)
+    }
 }
 
 @ApplicationScoped
 class QuotaRuleRepository : PanacheRepositoryBase<QuotaRule, Long> {
 
     fun countByRequirement(): Map<Long, Long> = countGroupedByRequirement("QuotaRule")
+
+    fun countByVersion(): Map<Long, Long> = countGroupedByVersion("QuotaRule")
+
+    /** Deletes a version's quota rules, **join rows first** — see `ConditionalRuleRepository`. */
+    fun deleteForVersion(matrixVersionId: Long): Long {
+        getEntityManager()
+            .createNativeQuery(
+                "delete from quota_rule_position where quota_rule_id in " +
+                    "(select id from quota_rule where matrix_version_id = :versionId)",
+            )
+            .setParameter("versionId", matrixVersionId)
+            .executeUpdate()
+        return delete("matrixVersion.id", matrixVersionId)
+    }
 
     fun forVersion(matrixVersionId: Long): List<QuotaRule> =
         find(

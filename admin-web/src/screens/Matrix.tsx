@@ -1,0 +1,1271 @@
+import { useState } from 'react'
+import {
+  useClearMatrixCell,
+  useCreateMatrixDraft,
+  useDiscardMatrixDraft,
+  useMatrixDiff,
+  useMatrixVersion,
+  useMatrixVersions,
+  usePartnerships,
+  usePositions,
+  usePublishMatrixVersion,
+  useRequirements,
+  useSetMatrixCell,
+  useSwingEvaluation,
+} from '../api/queries'
+import {
+  ApiError,
+  type MatrixVersionSummary,
+  type Position,
+  type Requirement,
+} from '../api/client'
+import { useHasRole, useToday } from '../api/session'
+import { DataTable, type Column } from '../components/DataTable'
+import { ErrorPanel } from '../components/ErrorPanel'
+import { Spinner } from '../components/Spinner'
+import { StateChip } from '../components/StateChip'
+import { SwingSelector } from '../components/SwingSelector'
+import { downloadCsv, toCsv } from '../domain/csv'
+import { formatDate } from '../domain/dates'
+
+/** §5.5 restricts publication to the Compliance Lead; drafting and editing follow it. */
+const MATRIX_EDITORS = ['compliance_lead', 'system_administrator'] as const
+const MATRIX_PUBLISHERS = ['compliance_lead'] as const
+
+/** The levels the editor offers. Anything else is a footnote label, typed in. */
+const COMMON_LEVELS = ['M', 'R'] as const
+
+type Tab = 'editor' | 'diff' | 'generated'
+
+/**
+ * ADM-3 — the requirements matrix.
+ *
+ * ### The one thing to understand before changing this screen
+ *
+ * **A published version is immutable, and the UI must say so rather than discover it.** §5.5 makes a
+ * matrix version the thing a past evaluation is reproducible against, so editing one in place would
+ * silently rewrite history. The server refuses it with a 409; this screen never offers the edit at
+ * all, and instead offers the thing the user actually wants — "draft from this version".
+ *
+ * ### Three views, because ADM-3 is really three jobs
+ *
+ *  - **Editor** — the version's own rules as positions × requirements, with partnership overrides on
+ *    a separate pass. This is the CC sheet's replacement as an *editable* artefact.
+ *  - **Diff** — §5.5's added / removed / level-changed between any two versions. It is also the
+ *    confirmation step before publishing, because "what am I about to change for everyone" is the
+ *    only question worth asking at that moment.
+ *  - **Generated** — the matrix as *evaluated* for one swing: crew × requirements with cell states.
+ *    This is the view that replaces reading a CC sheet, and every cell in it is the server's answer
+ *    to §5.1 rather than anything computed here (AUTH-1). It is a pivot of the swing evaluation the
+ *    planner already uses — deliberately not a second endpoint, because a second endpoint would be a
+ *    second implementation of the engine in all but name.
+ */
+export function Matrix(): React.ReactNode {
+  const versions = useMatrixVersions()
+  const canEdit = useHasRole(...MATRIX_EDITORS)
+  const canPublish = useHasRole(...MATRIX_PUBLISHERS)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [tab, setTab] = useState<Tab>('editor')
+
+  if (versions.isPending) return <Spinner label="Loading matrix versions" />
+  if (versions.error !== null) {
+    return <ErrorPanel title="Could not load the matrix versions" error={versions.error} />
+  }
+
+  const rows = versions.data
+  // Default to whatever is published: it is the version every compliance answer on every other
+  // screen came from, so it is the one a reader arriving here is asking about.
+  const selected =
+    rows.find((row) => row.version.id === selectedId) ??
+    rows.find((row) => row.version.status === 'published') ??
+    rows[0] ??
+    null
+
+  return (
+    <div className="screen">
+      <header className="screen__header">
+        <h1 className="screen__title">Matrix</h1>
+        <p className="screen__subtitle">
+          ADM-3 — the requirement rules every compliance answer is derived from (§4.2, §5.5).
+        </p>
+      </header>
+
+      <VersionList
+        rows={rows}
+        selectedId={selected?.version.id ?? null}
+        canEdit={canEdit}
+        canPublish={canPublish}
+        onSelect={(id) => setSelectedId(id)}
+      />
+
+      {selected !== null && (
+        <>
+          <nav className="tabs" aria-label="Matrix views">
+            <TabButton current={tab} value="editor" label="Cell editor" onSelect={setTab} />
+            <TabButton current={tab} value="diff" label="Diff" onSelect={setTab} />
+            <TabButton current={tab} value="generated" label="Generated per swing" onSelect={setTab} />
+          </nav>
+
+          {tab === 'editor' && <CellEditor summary={selected} canEdit={canEdit} />}
+          {tab === 'diff' && <DiffView versions={rows} toVersionId={selected.version.id} />}
+          {tab === 'generated' && <GeneratedMatrix />}
+        </>
+      )}
+    </div>
+  )
+}
+
+function TabButton({
+  current,
+  value,
+  label,
+  onSelect,
+}: {
+  current: Tab
+  value: Tab
+  label: string
+  onSelect: (tab: Tab) => void
+}): React.ReactNode {
+  return (
+    <button
+      type="button"
+      className={current === value ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
+      aria-current={current === value}
+      onClick={() => onSelect(value)}
+    >
+      {label}
+    </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// The version list
+// ---------------------------------------------------------------------------
+
+function VersionList({
+  rows,
+  selectedId,
+  canEdit,
+  canPublish,
+  onSelect,
+}: {
+  rows: readonly MatrixVersionSummary[]
+  selectedId: number | null
+  canEdit: boolean
+  canPublish: boolean
+  onSelect: (id: number) => void
+}): React.ReactNode {
+  const createDraft = useCreateMatrixDraft()
+  const discard = useDiscardMatrixDraft()
+  const publish = usePublishMatrixVersion()
+  const today = useToday()
+  const [drafting, setDrafting] = useState<MatrixVersionSummary | null>(null)
+  const [label, setLabel] = useState('')
+  const [publishing, setPublishing] = useState<MatrixVersionSummary | null>(null)
+
+  const columns: Column<MatrixVersionSummary>[] = [
+    {
+      id: 'label',
+      header: 'Version',
+      accessorFn: (row) => row.version.label,
+      cell: ({ row }) => <span className="mono">{row.original.version.label}</span>,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: (row) => row.version.status,
+      cell: ({ row }) => <VersionStatusChip status={row.original.version.status} />,
+    },
+    {
+      id: 'effectiveFrom',
+      header: 'Effective from',
+      accessorFn: (row) => row.version.effectiveFrom ?? '',
+      cell: ({ row }) =>
+        row.original.version.effectiveFrom === null ? (
+          <span className="muted">not published</span>
+        ) : (
+          formatDate(row.original.version.effectiveFrom)
+        ),
+    },
+    { id: 'rules', header: 'Rules', accessorFn: (row) => row.requirementRuleCount },
+    { id: 'quotas', header: 'Quotas', accessorFn: (row) => row.quotaRuleCount },
+    { id: 'conditionals', header: 'Conditional', accessorFn: (row) => row.conditionalRuleCount },
+    {
+      id: 'publishedBy',
+      header: 'Published by',
+      accessorFn: (row) => row.version.publishedBy ?? '',
+      cell: ({ row }) => row.original.version.publishedBy ?? <span className="muted">—</span>,
+    },
+    {
+      id: 'actions',
+      header: '',
+      enableSorting: false,
+      accessorFn: () => '',
+      cell: ({ row }) => (
+        <div className="row-actions">
+          {canEdit && (
+            <button
+              type="button"
+              className="button button--quiet"
+              onClick={(event) => {
+                event.stopPropagation()
+                setDrafting(row.original)
+                setLabel(suggestLabel(row.original.version.label, today))
+              }}
+            >
+              Draft from this
+            </button>
+          )}
+          {canPublish && row.original.version.editable && (
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={(event) => {
+                event.stopPropagation()
+                setPublishing(row.original)
+              }}
+            >
+              Publish
+            </button>
+          )}
+          {canEdit && row.original.version.editable && (
+            <button
+              type="button"
+              className="button button--quiet"
+              disabled={discard.isPending}
+              onClick={(event) => {
+                event.stopPropagation()
+                discard.mutate(row.original.version.id)
+              }}
+            >
+              Discard
+            </button>
+          )}
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <section className="section">
+      <DataTable
+        rows={rows}
+        columns={columns}
+        filterPlaceholder="Filter versions"
+        empty="No matrix versions exist yet. Create a draft to build the first one."
+        onRowClick={(row) => onSelect(row.version.id)}
+        rowClassName={(row) => (row.version.id === selectedId ? 'table__row--attention' : undefined)}
+        csv={{
+          filename: 'matrix-versions.csv',
+          columns: [
+            { header: 'Label', value: (row) => row.version.label },
+            { header: 'Status', value: (row) => row.version.status },
+            { header: 'Effective from', value: (row) => row.version.effectiveFrom },
+            { header: 'Published by', value: (row) => row.version.publishedBy },
+            { header: 'Published at', value: (row) => row.version.publishedAt },
+            { header: 'Requirement rules', value: (row) => row.requirementRuleCount },
+            { header: 'Quota rules', value: (row) => row.quotaRuleCount },
+            { header: 'Conditional rules', value: (row) => row.conditionalRuleCount },
+            { header: 'Notes', value: (row) => row.version.notes },
+          ],
+        }}
+      />
+
+      {canEdit && rows.length === 0 && (
+        <button
+          type="button"
+          className="button button--primary"
+          onClick={() => {
+            setDrafting(null)
+            setLabel(suggestLabel(null, today))
+          }}
+        >
+          Create the first draft
+        </button>
+      )}
+
+      {(drafting !== null || label !== '') && canEdit && (
+        <form
+          className="editor"
+          onSubmit={(event) => {
+            event.preventDefault()
+            createDraft.mutate(
+              {
+                label,
+                copyFromVersionId: drafting?.version.id ?? null,
+                notes: null,
+              },
+              {
+                onSuccess: (created) => {
+                  setDrafting(null)
+                  setLabel('')
+                  onSelect(created.id)
+                },
+              },
+            )
+          }}
+        >
+          <label className="field field--inline field--grow">
+            <span className="field__label">
+              {drafting === null
+                ? 'New empty draft, labelled'
+                : `Draft copied from ${drafting.version.label}, labelled`}
+            </span>
+            <input className="input" value={label} onChange={(event) => setLabel(event.target.value)} />
+          </label>
+          <div className="editor__actions">
+            <button
+              type="submit"
+              className="button button--primary"
+              disabled={createDraft.isPending || label.trim() === ''}
+            >
+              {createDraft.isPending ? 'Creating…' : 'Create draft'}
+            </button>
+            <button
+              type="button"
+              className="button button--quiet"
+              onClick={() => {
+                setDrafting(null)
+                setLabel('')
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+          {createDraft.error !== null && (
+            <p className="editor__error">{errorText(createDraft.error)}</p>
+          )}
+        </form>
+      )}
+
+      {publishing !== null && (
+        <PublishConfirmation
+          summary={publishing}
+          currentlyPublished={rows.find((row) => row.version.status === 'published') ?? null}
+          onCancel={() => setPublishing(null)}
+          onPublish={(effectiveFrom) =>
+            publish.mutate(
+              { versionId: publishing.version.id, effectiveFrom },
+              { onSuccess: () => setPublishing(null) },
+            )
+          }
+          pending={publish.isPending}
+          error={publish.error}
+        />
+      )}
+
+      {discard.error !== null && <p className="editor__error">{errorText(discard.error)}</p>}
+    </section>
+  )
+}
+
+function VersionStatusChip({ status }: { status: string }): React.ReactNode {
+  const tone = status === 'published' ? 'good' : status === 'draft' ? 'caution' : 'muted'
+  return <span className={`chip chip--${tone}`}>{status}</span>
+}
+
+/**
+ * "yesterday's label, plus one" — a starting point, not a scheme.
+ *
+ * Labels are free text and the server only requires uniqueness, so this guesses rather than
+ * enforces: `dev-2026.1` suggests `dev-2026.2`, and anything unrecognised falls back to the date.
+ */
+export function suggestLabel(from: string | null, today: string): string {
+  if (from === null) return `matrix-${today}`
+  const match = /^(.*?)(\d+)$/.exec(from)
+  if (match === null) return `${from}-copy`
+  return `${match[1]}${Number(match[2]) + 1}`
+}
+
+/**
+ * The publish step, with the diff in front of it.
+ *
+ * §6 asks for "publish with confirmation", and the confirmation that means something is not "are you
+ * sure" — it is what is about to change and for whom. Publishing changes the answer to every
+ * compliance question in the system at once, so the diff against the version being superseded is
+ * shown here rather than being one tab away.
+ */
+function PublishConfirmation({
+  summary,
+  currentlyPublished,
+  onCancel,
+  onPublish,
+  pending,
+  error,
+}: {
+  summary: MatrixVersionSummary
+  currentlyPublished: MatrixVersionSummary | null
+  onCancel: () => void
+  onPublish: (effectiveFrom: string) => void
+  pending: boolean
+  error: unknown
+}): React.ReactNode {
+  const today = useToday()
+  const [effectiveFrom, setEffectiveFrom] = useState(today)
+  const diff = useMatrixDiff(currentlyPublished?.version.id ?? null, summary.version.id)
+
+  return (
+    <div className="panel">
+      <p className="panel__title">Publish {summary.version.label}?</p>
+      <p className="panel__detail">
+        {currentlyPublished === null
+          ? 'This will be the first published version. Until it is published, no swing can be evaluated at all.'
+          : `${currentlyPublished.version.label} will be superseded. Every compliance answer in the ` +
+            'system — dashboards, planner, gap reports — will come from this version from its ' +
+            'effective date onward.'}
+      </p>
+
+      {currentlyPublished !== null && (
+        <div className="section">
+          <h3 className="section__title">What changes</h3>
+          {diff.isPending && <Spinner label="Comparing versions" />}
+          {diff.data !== undefined && <DiffSummary diff={diff.data} />}
+        </div>
+      )}
+
+      <form
+        className="editor"
+        onSubmit={(event) => {
+          event.preventDefault()
+          onPublish(effectiveFrom)
+        }}
+      >
+        <label className="field field--inline">
+          <span className="field__label">Effective from</span>
+          <input
+            className="input"
+            type="date"
+            value={effectiveFrom}
+            onChange={(event) => setEffectiveFrom(event.target.value)}
+          />
+        </label>
+        <div className="editor__actions">
+          <button type="submit" className="button button--primary" disabled={pending}>
+            {pending ? 'Publishing…' : 'Publish'}
+          </button>
+          <button type="button" className="button button--quiet" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+        {error !== null && <p className="editor__error">{errorText(error)}</p>}
+      </form>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// The cell editor
+// ---------------------------------------------------------------------------
+
+/**
+ * The version's rules as a grid of requirements × positions.
+ *
+ * Requirements down and positions across, not the other way about: there are nine positions and
+ * several hundred catalogue entries, so this is the orientation that fits on a screen and scrolls in
+ * the direction people scroll.
+ *
+ * The **partnership selector** is the whole of §6's "partnership overrides". Choosing a partnership
+ * shows that partnership's *effective* level with its override marked, and editing then writes an
+ * override rather than the base rule. That is the only arrangement in which the two are visibly
+ * different things, which they are: an override set to blank says "this partnership does not require
+ * it", and no override at all says "follow the base rule".
+ */
+function CellEditor({
+  summary,
+  canEdit,
+}: {
+  summary: MatrixVersionSummary
+  canEdit: boolean
+}): React.ReactNode {
+  const detail = useMatrixVersion(summary.version.id)
+  const requirements = useRequirements()
+  const positions = usePositions()
+  const partnerships = usePartnerships()
+  const setCell = useSetMatrixCell()
+  const clearCell = useClearMatrixCell()
+
+  const [partnershipId, setPartnershipId] = useState<number | null>(null)
+  const [showOnlyUsed, setShowOnlyUsed] = useState(true)
+
+  if (detail.isPending || requirements.isPending || positions.isPending) {
+    return <Spinner label="Loading the matrix" />
+  }
+  if (detail.error !== null) {
+    return <ErrorPanel title="Could not load this version" error={detail.error} />
+  }
+  if (requirements.error !== null || positions.error !== null) {
+    return (
+      <ErrorPanel
+        title="Could not load the catalogue"
+        error={requirements.error ?? positions.error}
+      />
+    )
+  }
+
+  const rules = detail.data.rules
+  const editable = summary.version.editable && canEdit
+
+  /** The base level and the override for one cell, kept apart — see the doc comment above. */
+  function levelsFor(positionId: number, requirementId: number) {
+    const base = rules.find(
+      (rule) =>
+        rule.partnershipId === null &&
+        rule.positionId === positionId &&
+        rule.requirementId === requirementId,
+    )
+    const override =
+      partnershipId === null
+        ? undefined
+        : rules.find(
+            (rule) =>
+              rule.partnershipId === partnershipId &&
+              rule.positionId === positionId &&
+              rule.requirementId === requirementId,
+          )
+    return { base, override }
+  }
+
+  const usedRequirementIds = new Set(rules.map((rule) => rule.requirementId))
+  const visibleRequirements = [...requirements.data]
+    .filter((requirement) => !showOnlyUsed || usedRequirementIds.has(requirement.id))
+    .sort((a, b) => a.code.localeCompare(b.code))
+  const visiblePositions = [...positions.data].sort((a, b) => a.name.localeCompare(b.name))
+
+  return (
+    <section className="section">
+      <div className="selector">
+        <label className="field field--inline">
+          <span className="field__label">Rules for</span>
+          <select
+            className="input"
+            value={partnershipId ?? ''}
+            onChange={(event) =>
+              setPartnershipId(event.target.value === '' ? null : Number(event.target.value))
+            }
+          >
+            <option value="">Base rules (every partnership)</option>
+            {(partnerships.data ?? []).map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.abbrev} — overrides
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="field field--inline">
+          <span className="field__label">
+            <input
+              type="checkbox"
+              className="checkbox"
+              checked={showOnlyUsed}
+              onChange={(event) => setShowOnlyUsed(event.target.checked)}
+            />{' '}
+            Only requirements this version uses
+          </span>
+        </label>
+
+        <button
+          type="button"
+          className="button button--quiet"
+          onClick={() =>
+            downloadCsv(
+              `matrix-${summary.version.label}.csv`,
+              matrixCsv(visibleRequirements, visiblePositions, rules),
+            )
+          }
+        >
+          Export CSV
+        </button>
+      </div>
+
+      {!summary.version.editable && (
+        <p className="note">
+          {summary.version.label} is {summary.version.status} and cannot be edited. A published
+          version is immutable so that a past evaluation stays reproducible (§5.5) — use
+          <strong> Draft from this</strong> above and edit the draft.
+        </p>
+      )}
+
+      {visibleRequirements.length === 0 && (
+        <p className="empty">
+          This version has no rules yet. Turn off the filter above to see the whole catalogue and set
+          a level.
+        </p>
+      )}
+
+      {visibleRequirements.length > 0 && (
+        <div className="table-scroll">
+          <table className="table matrix-grid">
+            <thead>
+              <tr>
+                <th scope="col">Requirement</th>
+                {visiblePositions.map((position) => (
+                  <th key={position.id} scope="col">
+                    {position.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRequirements.map((requirement) => (
+                <tr key={requirement.id}>
+                  <th scope="row">
+                    <span className="mono">{requirement.code}</span>{' '}
+                    <span className="muted">{requirement.title}</span>
+                  </th>
+                  {visiblePositions.map((position) => {
+                    const { base, override } = levelsFor(position.id, requirement.id)
+                    return (
+                      <td key={position.id}>
+                        <LevelCell
+                          base={base?.level ?? null}
+                          override={override === undefined ? undefined : override.level}
+                          editable={editable}
+                          overriding={partnershipId !== null}
+                          onSet={(level) =>
+                            setCell.mutate({
+                              versionId: summary.version.id,
+                              body: {
+                                positionId: position.id,
+                                requirementId: requirement.id,
+                                partnershipId,
+                                level,
+                              },
+                            })
+                          }
+                          onClear={() =>
+                            clearCell.mutate({
+                              versionId: summary.version.id,
+                              cell: {
+                                positionId: position.id,
+                                requirementId: requirement.id,
+                                ...(partnershipId === null ? {} : { partnershipId }),
+                              },
+                            })
+                          }
+                        />
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {setCell.error !== null && <p className="editor__error">{errorText(setCell.error)}</p>}
+      {clearCell.error !== null && <p className="editor__error">{errorText(clearCell.error)}</p>}
+
+      <QuotaAndConditionalSummary summary={summary} />
+    </section>
+  )
+}
+
+/**
+ * One cell: a `select` when editable, a chip when not.
+ *
+ * A free-text option is offered alongside `M` and `R` because footnote labels are **data, not code**
+ * (§4.2) — `M9`, `Mˣ` and whatever the next version invents are all valid levels, and a fixed list
+ * would quietly make the matrix unable to express the thing the source workbook already expresses.
+ */
+function LevelCell({
+  base,
+  override,
+  editable,
+  overriding,
+  onSet,
+  onClear,
+}: {
+  base: string | null
+  /** `undefined` = no override row; `''` = an override that removes the requirement. */
+  override: string | undefined
+  editable: boolean
+  overriding: boolean
+  onSet: (level: string) => void
+  onClear: () => void
+}): React.ReactNode {
+  const [typing, setTyping] = useState(false)
+  const [typed, setTyped] = useState('')
+
+  const effective = overriding && override !== undefined ? override : base
+  const overridden = overriding && override !== undefined
+
+  if (!editable) {
+    return <LevelChip level={effective} overridden={overridden} />
+  }
+
+  if (typing) {
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (typed.trim() !== '') onSet(typed.trim())
+          setTyping(false)
+          setTyped('')
+        }}
+      >
+        <input
+          className="input input--level"
+          autoFocus
+          value={typed}
+          placeholder="M9"
+          aria-label="Footnote label"
+          onChange={(event) => setTyped(event.target.value)}
+          onBlur={() => setTyping(false)}
+        />
+      </form>
+    )
+  }
+
+  const current = effective ?? ''
+  return (
+    <select
+      className={overridden ? 'input input--level input--overridden' : 'input input--level'}
+      value={COMMON_LEVELS.includes(current as (typeof COMMON_LEVELS)[number]) ? current : current === '' ? '' : 'other'}
+      title={overridden ? `Overrides the base rule (${base ?? 'none'})` : undefined}
+      onChange={(event) => {
+        const value = event.target.value
+        if (value === '') {
+          // Clearing a base rule removes it; clearing an override restores the base rule.
+          if (effective !== null) onClear()
+        } else if (value === 'other') {
+          setTyping(true)
+          setTyped(current === '' ? '' : current)
+        } else {
+          onSet(value)
+        }
+      }}
+    >
+      <option value="">{overriding && override === undefined ? '— base —' : '—'}</option>
+      {COMMON_LEVELS.map((level) => (
+        <option key={level} value={level}>
+          {level}
+        </option>
+      ))}
+      <option value="other">{current !== '' && !COMMON_LEVELS.includes(current as never) ? current : 'footnote…'}</option>
+    </select>
+  )
+}
+
+function LevelChip({
+  level,
+  overridden,
+}: {
+  level: string | null
+  overridden: boolean
+}): React.ReactNode {
+  if (level === null) return <span className="muted">—</span>
+  if (level === '') {
+    return (
+      <span className="chip chip--muted" title="An override that removes the requirement">
+        not required
+      </span>
+    )
+  }
+  const tone = level === 'M' ? 'critical' : level === 'R' ? 'muted' : 'caution'
+  return (
+    <span
+      className={`chip chip--${tone}`}
+      title={overridden ? 'Partnership override' : level === 'R' ? 'Recommended — never a gap' : undefined}
+    >
+      {level}
+      {overridden && <span aria-label=" (override)"> ·</span>}
+    </span>
+  )
+}
+
+/**
+ * Quota and conditional rules, read-only.
+ *
+ * §6's ADM-3 asks for the cell editor and not for a quota-rule editor, and there is a reason not to
+ * invent one: a quota footnote's *meaning* is a record in `quota_rule` and its *appearance* is a
+ * level in the grid above, so an editor for one without the other would let the two disagree —
+ * a cell reading `M9` with no `M9` quota behind it evaluates as an ordinary footnote and silently
+ * stops being a quota. Showing them here is what makes that disagreement visible. Editing them is
+ * scope for the same pass that resolves O-7.
+ */
+function QuotaAndConditionalSummary({
+  summary,
+}: {
+  summary: MatrixVersionSummary
+}): React.ReactNode {
+  const detail = useMatrixVersion(summary.version.id)
+  const requirements = useRequirements()
+  const positions = usePositions()
+
+  if (detail.data === undefined) return null
+  const code = (id: number) =>
+    requirements.data?.find((requirement) => requirement.id === id)?.code ?? `#${id}`
+  const positionName = (id: number) =>
+    positions.data?.find((position) => position.id === id)?.name ?? `#${id}`
+
+  return (
+    <>
+      <h3 className="section__title">Quota rules</h3>
+      {detail.data.quotas.length === 0 && <p className="empty">This version defines no quotas.</p>}
+      {detail.data.quotas.length > 0 && (
+        <ul className="crew-list">
+          {detail.data.quotas.map((quota) => (
+            <li key={quota.id} className="crew-list__item">
+              <span>
+                <span className="mono">{quota.footnote}</span> — at least {quota.minCount} with{' '}
+                <span className="mono">{code(quota.requirementId)}</span> per {quota.scope}
+                {quota.positionIds.length > 0 && (
+                  <span className="muted">
+                    {' '}
+                    · counting {quota.positionIds.map(positionName).join(', ')}
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h3 className="section__title">Conditional rules</h3>
+      {detail.data.conditionals.length === 0 && (
+        <p className="empty">This version defines no one-of sets or dependent rules.</p>
+      )}
+      {detail.data.conditionals.length > 0 && (
+        <ul className="crew-list">
+          {detail.data.conditionals.map((rule) => (
+            <li key={rule.id} className="crew-list__item">
+              <span>
+                {rule.label !== null && <span className="mono">{rule.label} </span>}
+                <strong>{rule.kind === 'one_of' ? 'One of' : 'Dependent'}</strong> for{' '}
+                {positionName(rule.positionId)}
+                {rule.kind === 'dependent' && rule.requirementId !== null && (
+                  <> · requires <span className="mono">{code(rule.requirementId)}</span></>
+                )}
+                <span className="muted">
+                  {' '}
+                  · {rule.members.map((member) => `${code(member.requirementId)} (${member.role})`).join(', ')}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+/**
+ * The matrix as an audit-shaped CSV: one row per (requirement, position) with the base level and
+ * every partnership override alongside.
+ *
+ * "Audit-shaped" is §6's word and Q26/O-7's open question, so the shape here is the conservative
+ * reading: one row per rule with everything needed to reconstruct the cell, rather than a
+ * spreadsheet-shaped grid that loses the base/override distinction.
+ */
+function matrixCsv(
+  requirements: readonly Requirement[],
+  positions: readonly Position[],
+  rules: readonly { partnershipId: number | null; positionId: number; requirementId: number; level: string }[],
+): string {
+  const rows = rules.map((rule) => ({
+    code: requirements.find((r) => r.id === rule.requirementId)?.code ?? `#${rule.requirementId}`,
+    title: requirements.find((r) => r.id === rule.requirementId)?.title ?? '',
+    position: positions.find((p) => p.id === rule.positionId)?.name ?? `#${rule.positionId}`,
+    scope: rule.partnershipId === null ? '*' : String(rule.partnershipId),
+    level: rule.level,
+  }))
+  return toCsv(rows, [
+    { header: 'Requirement code', value: (row) => row.code },
+    { header: 'Requirement title', value: (row) => row.title },
+    { header: 'Position', value: (row) => row.position },
+    { header: 'Partnership (* = base rule)', value: (row) => row.scope },
+    { header: 'Level', value: (row) => row.level },
+  ])
+}
+
+// ---------------------------------------------------------------------------
+// The §5.5 diff
+// ---------------------------------------------------------------------------
+
+function DiffView({
+  versions,
+  toVersionId,
+}: {
+  versions: readonly MatrixVersionSummary[]
+  toVersionId: number
+}): React.ReactNode {
+  // Default to comparing against the currently published version: "what does my draft change" is
+  // the question, nearly always.
+  const publishedId = versions.find((row) => row.version.status === 'published')?.version.id ?? null
+  const [fromId, setFromId] = useState<number | null>(
+    publishedId === toVersionId ? (versions.find((row) => row.version.id !== toVersionId)?.version.id ?? null) : publishedId,
+  )
+  const [toId, setToId] = useState<number>(toVersionId)
+  const diff = useMatrixDiff(fromId, toId)
+
+  return (
+    <section className="section">
+      <div className="selector">
+        <label className="field field--inline">
+          <span className="field__label">From</span>
+          <select
+            className="input"
+            value={fromId ?? ''}
+            onChange={(event) => setFromId(event.target.value === '' ? null : Number(event.target.value))}
+          >
+            <option value="">Select…</option>
+            {versions.map((row) => (
+              <option key={row.version.id} value={row.version.id}>
+                {row.version.label} ({row.version.status})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">To</span>
+          <select
+            className="input"
+            value={toId}
+            onChange={(event) => setToId(Number(event.target.value))}
+          >
+            {versions.map((row) => (
+              <option key={row.version.id} value={row.version.id}>
+                {row.version.label} ({row.version.status})
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {fromId === null && <p className="empty">Pick a version to compare against.</p>}
+      {diff.isPending && fromId !== null && <Spinner label="Comparing versions" />}
+      {diff.error !== null && <ErrorPanel title="Could not compare these versions" error={diff.error} />}
+      {diff.data !== undefined && <DiffSummary diff={diff.data} detailed />}
+    </section>
+  )
+}
+
+function DiffSummary({
+  diff,
+  detailed = false,
+}: {
+  diff: {
+    rules: readonly {
+      partnershipId: number | null
+      positionId: number
+      requirementId: number
+      from: string | null
+      to: string | null
+      kind: string
+    }[]
+    quotas: readonly {
+      footnote: string
+      requirementId: number
+      scope: string
+      fromMin: number | null
+      toMin: number | null
+      kind: string
+    }[]
+    empty: boolean
+  }
+  detailed?: boolean
+}): React.ReactNode {
+  const requirements = useRequirements()
+  const positions = usePositions()
+  const partnerships = usePartnerships()
+
+  if (diff.empty) {
+    return <p className="empty">These two versions carry identical rules and quotas.</p>
+  }
+
+  const code = (id: number) =>
+    requirements.data?.find((requirement) => requirement.id === id)?.code ?? `#${id}`
+  const positionName = (id: number) =>
+    positions.data?.find((position) => position.id === id)?.name ?? `#${id}`
+  const scopeName = (id: number | null) =>
+    id === null ? '*' : (partnerships.data?.find((p) => p.id === id)?.abbrev ?? `#${id}`)
+
+  const counts = countByKind(diff.rules.map((rule) => rule.kind))
+
+  return (
+    <>
+      <div className="counts">
+        <span className="counts__item">
+          <span className="counts__value">{counts.added}</span> added
+        </span>
+        <span className="counts__item">
+          <span className="counts__value">{counts.removed}</span> removed
+        </span>
+        <span className="counts__item">
+          <span className="counts__value">{counts.level_changed}</span> level changed
+        </span>
+        {diff.quotas.length > 0 && (
+          <span className="counts__item">
+            <span className="counts__value">{diff.quotas.length}</span> quota changes
+          </span>
+        )}
+      </div>
+
+      {detailed && (
+        <>
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th scope="col">Change</th>
+                  <th scope="col">Scope</th>
+                  <th scope="col">Position</th>
+                  <th scope="col">Requirement</th>
+                  <th scope="col">From</th>
+                  <th scope="col">To</th>
+                </tr>
+              </thead>
+              <tbody>
+                {diff.rules.map((rule, index) => (
+                  <tr key={`${rule.positionId}-${rule.requirementId}-${rule.partnershipId ?? 'base'}-${index}`}>
+                    <td>
+                      <span className={`chip chip--${diffTone(rule.kind)}`}>
+                        {rule.kind.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="mono">{scopeName(rule.partnershipId)}</td>
+                    <td>{positionName(rule.positionId)}</td>
+                    <td className="mono">{code(rule.requirementId)}</td>
+                    <td className="mono">{levelText(rule.from)}</td>
+                    <td className="mono">{levelText(rule.to)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {diff.quotas.length > 0 && (
+            <>
+              <h3 className="section__title">Quota changes</h3>
+              <ul className="crew-list">
+                {diff.quotas.map((quota, index) => (
+                  <li key={`${quota.footnote}-${quota.requirementId}-${index}`} className="crew-list__item">
+                    <span>
+                      <span className={`chip chip--${diffTone(quota.kind)}`}>
+                        {quota.kind.replace('_', ' ')}
+                      </span>{' '}
+                      <span className="mono">{quota.footnote}</span> ·{' '}
+                      <span className="mono">{code(quota.requirementId)}</span> per {quota.scope} ·{' '}
+                      {quota.fromMin ?? '—'} → {quota.toMin ?? '—'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          <button
+            type="button"
+            className="button button--quiet"
+            onClick={() =>
+              downloadCsv(
+                'matrix-diff.csv',
+                toCsv(diff.rules, [
+                  { header: 'Change', value: (row) => row.kind },
+                  { header: 'Partnership (* = base)', value: (row) => scopeName(row.partnershipId) },
+                  { header: 'Position', value: (row) => positionName(row.positionId) },
+                  { header: 'Requirement', value: (row) => code(row.requirementId) },
+                  { header: 'From', value: (row) => row.from },
+                  { header: 'To', value: (row) => row.to },
+                ]),
+              )
+            }
+          >
+            Export CSV
+          </button>
+        </>
+      )}
+    </>
+  )
+}
+
+function countByKind(kinds: readonly string[]): Record<'added' | 'removed' | 'level_changed', number> {
+  return {
+    added: kinds.filter((kind) => kind === 'added').length,
+    removed: kinds.filter((kind) => kind === 'removed').length,
+    level_changed: kinds.filter((kind) => kind === 'level_changed').length,
+  }
+}
+
+/**
+ * A level in the diff's from/to columns.
+ *
+ * The three cases are genuinely different and must not collapse: no rule at all (`null`), a rule
+ * whose level is blank (an override saying "this partnership does not require it"), and an ordinary
+ * level. Rendering the middle one as an em dash — which is what `?? '—'` did — made an override
+ * indistinguishable from an absent rule, which is the one distinction §4.2 turns on.
+ */
+function levelText(level: string | null): string {
+  if (level === null) return '—'
+  if (level === '') return 'not required'
+  return level
+}
+
+function diffTone(kind: string): string {
+  return kind === 'added' ? 'good' : kind === 'removed' ? 'critical' : 'caution'
+}
+
+// ---------------------------------------------------------------------------
+// The generated matrix — the CC sheet's replacement
+// ---------------------------------------------------------------------------
+
+/**
+ * The matrix as **evaluated** for one swing: crew down, requirements across, a cell state in each.
+ *
+ * This is the view the two source workbooks' CC sheets were, and every cell in it is the server's
+ * §5.1 answer rendered as received. Nothing here decides what a state is (AUTH-1) — it is a pivot of
+ * the same `/swings/{pt}/{cc}/evaluation` the planner uses, from crew × cells into a grid.
+ *
+ * Requirement columns are only those the evaluation actually returned cells for, so the grid is as
+ * wide as the matrix makes it rather than as wide as the catalogue.
+ */
+function GeneratedMatrix(): React.ReactNode {
+  const [partnership, setPartnership] = useState<string | null>(null)
+  const [cc, setCc] = useState<string | null>(null)
+  const evaluation = useSwingEvaluation(partnership, cc)
+  const requirements = useRequirements()
+
+  return (
+    <section className="section">
+      <SwingSelector
+        partnership={partnership}
+        cc={cc}
+        onChange={(nextPartnership, nextCc) => {
+          setPartnership(nextPartnership)
+          setCc(nextCc)
+        }}
+      />
+
+      {(partnership === null || cc === null) && (
+        <p className="empty">Choose a partnership and crew change to generate the matrix.</p>
+      )}
+      {evaluation.isPending && partnership !== null && cc !== null && (
+        <Spinner label="Evaluating the swing" />
+      )}
+      {evaluation.error !== null && (
+        <ErrorPanel title="Could not evaluate this swing" error={evaluation.error} />
+      )}
+
+      {evaluation.data !== undefined && (
+        <GeneratedGrid
+          assignments={evaluation.data.assignments}
+          requirements={requirements.data ?? []}
+          filename={`matrix-${partnership}-${cc}.csv`}
+        />
+      )}
+    </section>
+  )
+}
+
+function GeneratedGrid({
+  assignments,
+  requirements,
+  filename,
+}: {
+  assignments: readonly {
+    personId: number
+    sam: string
+    name: string
+    slotRef: number
+    evaluation: { rollUp: string; cells: readonly { requirementId: number; level: string; state: string }[] }
+  }[]
+  requirements: readonly Requirement[]
+  filename: string
+}): React.ReactNode {
+  if (assignments.length === 0) {
+    return <p className="empty">Nobody is assigned to this swing yet.</p>
+  }
+
+  // Column order follows the catalogue's code order, over the requirements the engine returned.
+  const columnIds = [...new Set(assignments.flatMap((a) => a.evaluation.cells.map((c) => c.requirementId)))]
+  const columns = columnIds
+    .map((id) => requirements.find((requirement) => requirement.id === id) ?? null)
+    .filter((requirement): requirement is Requirement => requirement !== null)
+    .sort((a, b) => a.code.localeCompare(b.code))
+
+  return (
+    <>
+      <div className="table-scroll">
+        <table className="table matrix-grid">
+          <thead>
+            <tr>
+              <th scope="col">Crew</th>
+              <th scope="col">Slot</th>
+              <th scope="col">Roll-up</th>
+              {columns.map((requirement) => (
+                <th key={requirement.id} scope="col" title={requirement.title}>
+                  <span className="mono">{requirement.code}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.map((assignment) => (
+              <tr key={`${assignment.personId}-${assignment.slotRef}`}>
+                <th scope="row">
+                  {assignment.name} <span className="muted mono">{assignment.sam}</span>
+                </th>
+                <td>{assignment.slotRef}</td>
+                <td>
+                  <StateChip state={assignment.evaluation.rollUp} />
+                </td>
+                {columns.map((requirement) => {
+                  const cell = assignment.evaluation.cells.find(
+                    (candidate) => candidate.requirementId === requirement.id,
+                  )
+                  return (
+                    <td key={requirement.id}>
+                      {cell === undefined ? (
+                        <span className="muted">—</span>
+                      ) : (
+                        <StateChip state={cell.state} title={`${cell.level} — ${cell.state}`} />
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <button
+        type="button"
+        className="button button--quiet"
+        onClick={() => {
+          const rows = assignments.flatMap((assignment) =>
+            assignment.evaluation.cells.map((cell) => ({
+              sam: assignment.sam,
+              name: assignment.name,
+              slotRef: assignment.slotRef,
+              rollUp: assignment.evaluation.rollUp,
+              code: requirements.find((r) => r.id === cell.requirementId)?.code ?? `#${cell.requirementId}`,
+              level: cell.level,
+              state: cell.state,
+            })),
+          )
+          downloadCsv(
+            filename,
+            toCsv(rows, [
+              { header: 'Sam #', value: (row) => row.sam },
+              { header: 'Name', value: (row) => row.name },
+              { header: 'Slot', value: (row) => row.slotRef },
+              { header: 'Roll-up', value: (row) => row.rollUp },
+              { header: 'Requirement', value: (row) => row.code },
+              { header: 'Level', value: (row) => row.level },
+              { header: 'State', value: (row) => row.state },
+            ]),
+          )
+        }}
+      >
+        Export CSV
+      </button>
+    </>
+  )
+}
+
+function errorText(error: unknown): string {
+  return error instanceof ApiError ? error.message : String(error)
+}

@@ -1,16 +1,28 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import {
   api,
+  type AcceptEvidenceRequest,
   type AddConditionRequest,
   type AssignRequest,
   type Assignment,
   type CloseRegisterRecordRequest,
+  type ConfigSetting,
+  type CreateIdentityProviderRequest,
+  type CreateMatrixDraftRequest,
   type CreateRegisterRecordRequest,
+  type CreateTransitionalAccountRequest,
   type CrewChange,
+  type EvidenceDocument,
   type ExceptionItem,
   type ExpiryAlert,
   type GapReportRow,
   type Holding,
+  type IdentityProvider,
+  type MatrixDiff,
+  type MatrixVersionDetail,
+  type MatrixVersionSummary,
+  type Notification,
+  type NotificationSummary,
   type Partnership,
   type Person,
   type Position,
@@ -21,11 +33,15 @@ import {
   type Requirement,
   type RequirementDetail,
   type SaveRequirementRequest,
+  type ScheduledJob,
   type SetHoldingRequest,
+  type SetMatrixCellRequest,
   type Slot,
   type Suggestion,
   type SwingEvaluation,
   type UnknownHolding,
+  type UpdateMatrixDraftRequest,
+  type UserAccount,
 } from './client'
 
 /**
@@ -63,6 +79,17 @@ export const keys = {
   suggestions: (partnership: string, cc: string, slotRef: number) =>
     ['suggestions', partnership, cc, slotRef] as const,
   expiryAlerts: (leadDays: number) => ['expiry-alerts', leadDays] as const,
+  matrixVersions: ['matrix-versions'] as const,
+  matrixVersion: (versionId: number) => ['matrix-version', versionId] as const,
+  matrixDiff: (from: number, to: number) => ['matrix-diff', from, to] as const,
+  notifications: (state: string) => ['notifications', state] as const,
+  notificationSummary: ['notifications', 'summary'] as const,
+  evidenceQueue: (statuses: readonly string[]) =>
+    ['evidence-queue', [...statuses].sort().join(',')] as const,
+  config: ['config'] as const,
+  jobs: ['jobs'] as const,
+  userAccounts: ['user-accounts'] as const,
+  identityProviders: ['identity-providers'] as const,
 }
 
 export function usePartnerships(): UseQueryResult<Partnership[]> {
@@ -360,6 +387,322 @@ export function useReopenException() {
  * rules this app deliberately does not implement — so the only correct local update is to ask
  * the server again.
  */
+// ---------------------------------------------------------------------------
+// ADM-3 — matrix versions (§5.5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Not under [REFERENCE_CACHE], even though a published matrix changes a handful of times a year.
+ *
+ * This is the *editing* view: a Compliance Lead who sets a cell and sees the old level for an hour
+ * would reasonably conclude the write failed. The long cache stays on `/requirements` and
+ * `/positions`, which this screen joins ids against and which really are static.
+ */
+export function useMatrixVersions(): UseQueryResult<MatrixVersionSummary[]> {
+  return useQuery({ queryKey: keys.matrixVersions, queryFn: api.matrixVersions })
+}
+
+export function useMatrixVersion(versionId: number | null): UseQueryResult<MatrixVersionDetail> {
+  return useQuery({
+    queryKey: keys.matrixVersion(versionId ?? -1),
+    queryFn: () => api.matrixVersion(versionId as number),
+    enabled: versionId !== null,
+  })
+}
+
+export function useMatrixDiff(from: number | null, to: number | null): UseQueryResult<MatrixDiff> {
+  return useQuery({
+    queryKey: keys.matrixDiff(from ?? -1, to ?? -1),
+    queryFn: () => api.matrixDiff(from as number, to as number),
+    enabled: from !== null && to !== null,
+  })
+}
+
+/**
+ * Every matrix write invalidates the evaluations as well as the matrix.
+ *
+ * Editing a *draft* cannot change a compliance answer — only the published version is evaluated
+ * against — but publishing changes every answer in the system at once, and one invalidation set for
+ * both is simpler than two that a later change could get wrong in the dangerous direction.
+ */
+function useMatrixMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['matrix-versions'] })
+      void client.invalidateQueries({ queryKey: ['matrix-version'] })
+      void client.invalidateQueries({ queryKey: ['matrix-diff'] })
+      void client.invalidateQueries({ queryKey: ['swing'] })
+      void client.invalidateQueries({ queryKey: ['gaps'] })
+      void client.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
+
+export function useCreateMatrixDraft() {
+  return useMatrixMutation((body: CreateMatrixDraftRequest) => api.createMatrixDraft(body))
+}
+
+export function useUpdateMatrixDraft() {
+  return useMatrixMutation(
+    ({ versionId, body }: { versionId: number; body: UpdateMatrixDraftRequest }) =>
+      api.updateMatrixDraft(versionId, body),
+  )
+}
+
+export function useDiscardMatrixDraft() {
+  return useMatrixMutation((versionId: number) => api.discardMatrixDraft(versionId))
+}
+
+export function useSetMatrixCell() {
+  return useMatrixMutation(
+    ({ versionId, body }: { versionId: number; body: SetMatrixCellRequest }) =>
+      api.setMatrixCell(versionId, body),
+  )
+}
+
+export function useClearMatrixCell() {
+  return useMatrixMutation(
+    ({
+      versionId,
+      cell,
+    }: {
+      versionId: number
+      cell: { positionId: number; requirementId: number; partnershipId?: number }
+    }) => api.clearMatrixCell(versionId, cell),
+  )
+}
+
+export function usePublishMatrixVersion() {
+  return useMatrixMutation(
+    ({ versionId, effectiveFrom }: { versionId: number; effectiveFrom?: string }) =>
+      api.publishMatrixVersion(versionId, effectiveFrom),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ADM-8 — notifications (§9)
+// ---------------------------------------------------------------------------
+
+/**
+ * The unread badge, polled.
+ *
+ * Notifications arrive from scheduled scans and from other people's actions, so unlike everything
+ * else in this app there is no local event to invalidate on. A minute's refetch is the cheapest
+ * honest answer: the summary is a count query, and nobody needs to learn about a roster gap within
+ * the second.
+ */
+export function useNotificationSummary(): UseQueryResult<NotificationSummary> {
+  return useQuery({
+    queryKey: keys.notificationSummary,
+    queryFn: api.notificationSummary,
+    refetchInterval: 60 * 1000,
+  })
+}
+
+export function useNotifications(
+  state: 'all' | 'unread' | 'read',
+): UseQueryResult<Notification[]> {
+  return useQuery({ queryKey: keys.notifications(state), queryFn: () => api.notifications(state) })
+}
+
+function useNotificationMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
+
+export function useMarkNotificationRead() {
+  return useNotificationMutation((notificationId: number) =>
+    api.markNotificationRead(notificationId),
+  )
+}
+
+export function useMarkAllNotificationsRead() {
+  return useNotificationMutation(() => api.markAllNotificationsRead())
+}
+
+// ---------------------------------------------------------------------------
+// ADM-9 — evidence verification queue (§8)
+// ---------------------------------------------------------------------------
+
+export function useEvidenceQueue(statuses: readonly string[]): UseQueryResult<EvidenceDocument[]> {
+  return useQuery({
+    queryKey: keys.evidenceQueue(statuses),
+    queryFn: () => api.evidenceQueue(statuses),
+  })
+}
+
+/**
+ * A decision writes a holding, so everything derived from holdings goes with it.
+ *
+ * The notification list too: accepting or rejecting tells the submitter, and rejecting raises a
+ * back-office row of its own.
+ */
+function useEvidenceMutation<TArgs>(mutationFn: (args: TArgs) => Promise<EvidenceDocument>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['evidence-queue'] })
+      void client.invalidateQueries({ queryKey: ['holdings'] })
+      void client.invalidateQueries({ queryKey: ['swing'] })
+      void client.invalidateQueries({ queryKey: ['gaps'] })
+      void client.invalidateQueries({ queryKey: ['expiry-alerts'] })
+      void client.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
+
+export function useAcceptEvidence() {
+  return useEvidenceMutation(
+    ({ publicId, body }: { publicId: string; body: AcceptEvidenceRequest }) =>
+      api.acceptEvidence(publicId, body),
+  )
+}
+
+export function useRejectEvidence() {
+  return useEvidenceMutation(({ publicId, reason }: { publicId: string; reason: string }) =>
+    api.rejectEvidence(publicId, reason),
+  )
+}
+
+export function useExtractEvidence() {
+  return useEvidenceMutation((publicId: string) => api.extractEvidence(publicId))
+}
+
+// ---------------------------------------------------------------------------
+// ADM-10 — administration
+// ---------------------------------------------------------------------------
+
+export function useConfig(): UseQueryResult<ConfigSetting[]> {
+  return useQuery({ queryKey: keys.config, queryFn: api.config })
+}
+
+/**
+ * A configuration change can move an engine answer — the expiry lead window and the suggestion
+ * weights both feed §5.4 — so the derived reads go with it.
+ */
+function useConfigMutation<TArgs>(mutationFn: (args: TArgs) => Promise<ConfigSetting>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.config })
+      void client.invalidateQueries({ queryKey: ['expiry-alerts'] })
+      void client.invalidateQueries({ queryKey: ['suggestions'] })
+    },
+  })
+}
+
+export function useSetConfig() {
+  return useConfigMutation(({ key, value }: { key: string; value: unknown }) =>
+    api.setConfig(key, value),
+  )
+}
+
+export function useClearConfig() {
+  return useConfigMutation((key: string) => api.clearConfig(key))
+}
+
+export function useJobs(): UseQueryResult<ScheduledJob[]> {
+  return useQuery({ queryKey: keys.jobs, queryFn: api.jobs })
+}
+
+/**
+ * Running a job invalidates almost everything, because that is what jobs do: the extraction sweep
+ * moves documents through the pipeline and can write holdings, and each scan raises notifications.
+ */
+export function useRunJob() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.runJob(name),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.jobs })
+      void client.invalidateQueries({ queryKey: ['notifications'] })
+      void client.invalidateQueries({ queryKey: ['evidence-queue'] })
+      void client.invalidateQueries({ queryKey: ['holdings'] })
+    },
+  })
+}
+
+export function useUserAccounts(): UseQueryResult<UserAccount[]> {
+  return useQuery({ queryKey: keys.userAccounts, queryFn: api.userAccounts })
+}
+
+function useUserMutation<TArgs>(mutationFn: (args: TArgs) => Promise<UserAccount>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.userAccounts })
+      // A role change alters who §9 fans a notification out to.
+      void client.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
+
+export function useCreateUserAccount() {
+  return useUserMutation((body: CreateTransitionalAccountRequest) => api.createUserAccount(body))
+}
+
+export function useGrantRole() {
+  return useUserMutation(({ userAccountId, role }: { userAccountId: number; role: string }) =>
+    api.grantRole(userAccountId, role),
+  )
+}
+
+export function useRevokeRole() {
+  return useUserMutation(({ userAccountId, role }: { userAccountId: number; role: string }) =>
+    api.revokeRole(userAccountId, role),
+  )
+}
+
+export function useSetUserAccountStatus() {
+  return useUserMutation(({ userAccountId, status }: { userAccountId: number; status: string }) =>
+    api.setUserAccountStatus(userAccountId, status),
+  )
+}
+
+export function useSetUserAccountScopes() {
+  return useUserMutation(
+    ({ userAccountId, partnershipIds }: { userAccountId: number; partnershipIds: number[] }) =>
+      api.setUserAccountScopes(userAccountId, partnershipIds),
+  )
+}
+
+export function useIdentityProviders(): UseQueryResult<IdentityProvider[]> {
+  return useQuery({ queryKey: keys.identityProviders, queryFn: api.identityProviders })
+}
+
+function useIdentityProviderMutation<TArgs>(mutationFn: (args: TArgs) => Promise<IdentityProvider>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.identityProviders })
+    },
+  })
+}
+
+export function useCreateIdentityProvider() {
+  return useIdentityProviderMutation((body: CreateIdentityProviderRequest) =>
+    api.createIdentityProvider(body),
+  )
+}
+
+export function useSetIdentityProviderEnabled() {
+  return useIdentityProviderMutation(
+    ({ identityProviderId, enabled }: { identityProviderId: number; enabled: boolean }) =>
+      api.setIdentityProviderEnabled(identityProviderId, enabled),
+  )
+}
+
 export function useSetHolding(personId: number) {
   const client = useQueryClient()
   return useMutation({

@@ -165,10 +165,41 @@ class UserAccountRepository : PanacheRepositoryBase<UserAccount, Long> {
 
     /** SEC-1b: local/test accounts must stay enumerable so their removal can be verified. */
     fun localTestAccounts(): List<UserAccount> = list("kindValue", UserAccountKind.LOCAL_TEST.wire)
+
+    fun allOrdered(): List<UserAccount> = listAll(Sort.by("displayName"))
+
+    /**
+     * Active accounts holding any of [roles] — §9's back-office routing target.
+     *
+     * Only **active** accounts: fanning a notification out to a suspended account would create an
+     * unread row nobody will ever read, and the unread count is the whole signal ADM-8 carries.
+     *
+     * `distinct` because an account holding two of the named roles joins twice.
+     */
+    fun holdingAnyRole(roles: Collection<au.crewcomp.platform.security.Role>): List<UserAccount> =
+        if (roles.isEmpty()) {
+            emptyList()
+        } else {
+            find(
+                "select distinct a from UserAccount a join a.roleAssignments ra " +
+                    "where ra.role in ?1 and a.status = 'active' order by a.displayName",
+                roles.map { it.wire },
+            ).list()
+        }
 }
 
 @ApplicationScoped
 class IdentityProviderRepository : PanacheRepositoryBase<IdentityProvider, Long> {
+
+    /**
+     * The allow-list row for a key, **enabled or not** — the uniqueness check ADM-10 needs.
+     *
+     * Distinct from [enabledFor] on purpose: authentication must only ever see enabled rows, and a
+     * uniqueness check that used the same query would let a second row be created for a key whose
+     * first row happened to be disabled, violating `identity_provider_key`.
+     */
+    fun byKey(issuer: String, tenantOrDomain: String): IdentityProvider? =
+        find("issuer = ?1 and tenantOrDomain = ?2", issuer, tenantOrDomain).firstResult()
 
     /** SEC-1a: the allow-list lookup performed on **every** token, not just at first login. */
     fun enabledFor(issuer: String, tenantOrDomain: String): IdentityProvider? =

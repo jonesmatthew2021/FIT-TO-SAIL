@@ -68,12 +68,25 @@ class FixtureSeeder(private val em: EntityManager) {
             "delete from RegisterRecord",
             "delete from Notification",
             "delete from EvidenceDocument",
+            // ADM-10 configuration is global mutable state in a table. A test that sets the
+            // auto-accept threshold and did not reset it would silently change what every later
+            // test's pipeline decides — so the fixture resets it, rather than trusting each test to.
+            "delete from AppConfigEntry",
             "delete from LeaveRecord",
             "delete from UserAccount",
+            // After UserAccount, which references it. ADM-10's allow-list tests create rows here and
+            // a leaked one would make the next test's list longer than it seeded.
+            "delete from IdentityProvider",
             "delete from Assignment",
             "delete from QualificationHolding",
             "delete from RequirementRule",
             "delete from QuotaRule",
+            // Members before rules, for the same reason as the register's children: the FK
+            // cascades in the database but a JPQL bulk delete does not fire it. Drafts created by
+            // the ADM-3 tests carry both.
+            "delete from ConditionalRuleMember",
+            "delete from ConditionalRule",
+            "delete from MatrixTierPolicy",
             "delete from Person",
             "delete from CrewChange",
             "delete from MatrixVersion",

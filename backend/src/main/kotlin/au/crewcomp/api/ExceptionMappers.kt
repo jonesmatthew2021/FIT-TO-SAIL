@@ -2,10 +2,12 @@ package au.crewcomp.api
 
 import au.crewcomp.compliance.NoPublishedMatrixException
 import au.crewcomp.evidence.ChunkOutOfOrderException
+import au.crewcomp.evidence.EvidenceAlreadyDecidedException
 import au.crewcomp.people.AssignmentClashException
 import au.crewcomp.platform.persistence.EntityNotFoundException
 import au.crewcomp.platform.security.AccessDeniedException
 import au.crewcomp.platform.security.NotAuthenticatedException
+import au.crewcomp.rules.MatrixNotEditableException
 import au.crewcomp.workflow.LateSubmissionException
 import jakarta.ws.rs.core.Response
 import jakarta.ws.rs.ext.ExceptionMapper
@@ -111,6 +113,36 @@ class LateSubmissionMapper : ExceptionMapper<LateSubmissionException> {
     override fun toResponse(exception: LateSubmissionException): Response =
         Response.status(Response.Status.CONFLICT)
             .entity(ErrorDto("late_submission", exception.message))
+            .build()
+}
+
+/**
+ * ADM-3, §5.5: an edit was attempted on a version that is not a draft.
+ *
+ * 409 rather than 400. The request is well formed and the caller is permitted to make it — the
+ * version is in the wrong state, because a published matrix is immutable so that past evaluations
+ * stay reproducible. The remedy is in the message, and the SPA offers it as a button.
+ */
+@Provider
+class MatrixNotEditableMapper : ExceptionMapper<MatrixNotEditableException> {
+    override fun toResponse(exception: MatrixNotEditableException): Response =
+        Response.status(Response.Status.CONFLICT)
+            .entity(ErrorDto("matrix_not_editable", exception.message))
+            .build()
+}
+
+/**
+ * ADM-9: two reviewers opened the same queue and one of them was second.
+ *
+ * 409 for the same reason as the two above — the request is well formed and the caller is permitted;
+ * the document has moved on. The message says what to do instead (correct the holding, rather than
+ * rewrite the decision), which is the difference between a conflict and a dead end.
+ */
+@Provider
+class EvidenceAlreadyDecidedMapper : ExceptionMapper<EvidenceAlreadyDecidedException> {
+    override fun toResponse(exception: EvidenceAlreadyDecidedException): Response =
+        Response.status(Response.Status.CONFLICT)
+            .entity(ErrorDto("evidence_already_decided", exception.message))
             .build()
 }
 

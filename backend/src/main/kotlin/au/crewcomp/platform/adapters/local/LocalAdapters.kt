@@ -90,9 +90,17 @@ class ConfigSecretsProvider : SecretsProvider {
 }
 
 /**
- * An in-memory registry of scheduled jobs. It records what *would* be scheduled and can run a
- * job on demand, which is what the MCP `run_job` tool and the ADM-10 health view need; the
- * cadence itself is driven by the platform scheduler once ADR 0005 resolves.
+ * An in-memory registry of scheduled jobs.
+ *
+ * It holds what is scheduled, runs a job on demand, and remembers the outcome of each job's last run
+ * — which is what the MCP `run_job` tool and the ADM-10 health view need. `JobRegistry` drives the
+ * cadence with `quarkus-scheduler` and routes *both* scheduled and manual runs through [runNow], so
+ * the recorded history covers both.
+ *
+ * The last-run history is in memory and therefore per-instance and lost on restart. That is stated
+ * out loud on `JobHealth` rather than hidden, because a durable job history is the platform's
+ * monitoring concern (NFR-6) and a table that looked authoritative without being it would be worse
+ * than an honest gap.
  */
 @ApplicationScoped
 @DefaultBean
@@ -100,11 +108,15 @@ class InMemoryTaskScheduler : TaskScheduler {
 
     private val jobs = ConcurrentHashMap<String, ScheduledJob>()
     private val runnables = ConcurrentHashMap<String, () -> String>()
+    private val lastRuns = ConcurrentHashMap<String, JobRun>()
 
     fun register(job: ScheduledJob, body: () -> String) {
         jobs[job.name] = job
         runnables[job.name] = body
     }
+
+    /** The outcome of each job's most recent run in this process. Empty until something has run. */
+    fun lastRuns(): Map<String, JobRun> = lastRuns.toMap()
 
     override fun schedule(job: ScheduledJob) {
         jobs[job.name] = job
@@ -119,14 +131,17 @@ class InMemoryTaskScheduler : TaskScheduler {
 
     override fun runNow(name: String): JobRun {
         val body = runnables[name]
+            // Not recorded: "no such job" is a fact about the caller, not about a job's health, and
+            // storing it under that name would invent a job in the history.
             ?: return JobRun(name, Instant.now(), Instant.now(), "not_found", "No such job")
         val startedAt = Instant.now()
-        return try {
-            val detail = body()
-            JobRun(name, startedAt, Instant.now(), "succeeded", detail)
+        val run = try {
+            JobRun(name, startedAt, Instant.now(), "succeeded", body())
         } catch (e: Exception) {
-            JobRun(name, startedAt, Instant.now(), "failed", e.message)
+            JobRun(name, startedAt, Instant.now(), "failed", e.message ?: e.javaClass.simpleName)
         }
+        lastRuns[name] = run
+        return run
     }
 }
 

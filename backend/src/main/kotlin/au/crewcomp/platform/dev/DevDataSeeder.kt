@@ -5,6 +5,9 @@ import au.crewcomp.engine.PersonStatus
 import au.crewcomp.engine.QuotaScope
 import au.crewcomp.engine.RuleLevel
 import au.crewcomp.engine.Shift
+import au.crewcomp.evidence.EvidenceDocument
+import au.crewcomp.evidence.EvidenceSource
+import au.crewcomp.evidence.VerificationStatus
 import au.crewcomp.notify.Notification
 import au.crewcomp.notify.NotificationKind
 import au.crewcomp.people.Assignment
@@ -43,6 +46,7 @@ import jakarta.transaction.Transactional
 import org.jboss.logging.Logger
 import java.time.Instant
 import java.time.LocalDate
+import java.util.UUID
 
 /**
  * A development fixture, so `quarkus dev` and the admin SPA have something to render.
@@ -394,6 +398,34 @@ class DevDataSeeder(
         crewAccount(gapCrew)
         crewAccount(skipper)
 
+        // -------------------------------------------------------------------
+        // Back-office accounts (ADM-8, ADM-10).
+        //
+        // §9 routes back-office notifications per role, and the fan-out addresses one row to each
+        // account holding the role — so with no back-office account the notifications centre is a
+        // correctly-empty screen and nothing about it can be seen to work. These are SEC-1b
+        // `local_test` accounts, exactly what ADM-10's transitional endpoint creates, and the same
+        // rows the identity spike replaces with corporate ones at first sign-in.
+        //
+        // One account per role rather than one holding all four, deliberately: a single
+        // all-powerful account would make the fan-out untestable by eye, because every notification
+        // would land on the same row.
+        // -------------------------------------------------------------------
+
+        fun backOffice(name: String, email: String, vararg roles: Role) = UserAccount().apply {
+            kind = UserAccountKind.LOCAL_TEST
+            displayName = name
+            this.email = email
+            roles.forEach { this.grantRole(it, actor, now) }
+            stampCreated(actor, now)
+        }.also { em.persist(it) }
+
+        backOffice("Dana Whitlock", "dana.whitlock@example.test", Role.CREW_COORDINATOR)
+        backOffice("Marcus Reid", "marcus.reid@example.test", Role.WORKFLOW_MANAGER)
+        backOffice("Priya Anand", "priya.anand@example.test", Role.DATA_STEWARD)
+        backOffice("Ellen Kovač", "ellen.kovac@example.test", Role.COMPLIANCE_LEAD)
+        backOffice("Ops Admin", "ops.admin@example.test", Role.SYSTEM_ADMINISTRATOR)
+
         fun leave(who: Person, kindName: String, from: LocalDate, days: Long) {
             em.persist(
                 LeaveRecord().apply {
@@ -596,6 +628,96 @@ class DevDataSeeder(
                 },
             )
         }
+
+        // -------------------------------------------------------------------
+        // ADM-9 evidence queue (§8).
+        //
+        // Three documents, chosen so the queue shows the three shapes a reviewer actually meets:
+        // a clean extraction to confirm, a low-confidence one to correct, and one the pipeline
+        // could not match at all. Written straight into `pending_review` rather than run through
+        // the pipeline, because a fixture that depended on the extraction sweep having fired would
+        // seed an empty queue on every start.
+        //
+        // The stored bytes are absent on purpose: `objectKey` is null, so ADM-9 renders "no
+        // document stored" beside the fields rather than a broken image. Uploading real bytes from
+        // a fixture would mean shipping a certificate image in the repository, and a fabricated
+        // certificate is exactly the artefact nobody should be able to mistake for a real one.
+        // -------------------------------------------------------------------
+
+        fun evidence(
+            who: Person,
+            hint: Requirement?,
+            matched: Requirement?,
+            status: VerificationStatus,
+            fields: Map<String, Pair<String?, Double>>,
+            reason: String?,
+            source: EvidenceSource = EvidenceSource.MOBILE_CAMERA,
+        ) {
+            em.persist(
+                EvidenceDocument().apply {
+                    publicId = UUID.randomUUID()
+                    person = who
+                    this.source = source
+                    contentType = "image/jpeg"
+                    submittedBy = who.name
+                    submittedAt = now
+                    verificationStatus = status
+                    requirementHint = hint
+                    matchedRequirement = matched
+                    reviewReason = reason
+                    uploadComplete = true
+                    extractionModel = "dev-fixture/1"
+                    extraction = fields
+                        .mapValues { (_, v) -> mapOf("value" to v.first, "confidence" to v.second) }
+                        .toMutableMap()
+                    extractionRaw = """{"fixture":true}"""
+                    stampCreated(actor, now)
+                },
+            )
+        }
+
+        evidence(
+            who = mate,
+            hint = medical,
+            matched = medical,
+            status = VerificationStatus.PENDING_REVIEW,
+            fields = mapOf(
+                "documentType" to ("Certificate" to 0.97),
+                "holderName" to (mate.name to 0.96),
+                "issuingAuthority" to ("Department of Transport" to 0.94),
+                "qualificationTitle" to ("Seafarer Medical" to 0.95),
+                "issueDate" to (today.minusMonths(2).toString() to 0.93),
+                "expiryDate" to (today.plusYears(2).toString() to 0.95),
+            ),
+            reason = "Auto-acceptance is off; every extraction is reviewed (LLM-2)",
+        )
+        evidence(
+            who = gapCrew,
+            hint = heights,
+            matched = heights,
+            status = VerificationStatus.PENDING_REVIEW,
+            fields = mapOf(
+                "documentType" to ("Statement of Attainment" to 0.71),
+                "holderName" to (gapCrew.name to 0.62),
+                "qualificationTitle" to ("Work at Heights" to 0.68),
+                // The interesting case: the expiry is the one field a holding cannot do without,
+                // and it is the one the photograph did not resolve.
+                "expiryDate" to (null to 0.0),
+            ),
+            reason = "Confidence below 0.9 for expiryDate",
+        )
+        evidence(
+            who = skipper,
+            hint = null,
+            matched = null,
+            status = VerificationStatus.PENDING_REVIEW,
+            fields = mapOf(
+                "documentType" to ("Certificate" to 0.88),
+                "qualificationTitle" to ("Advanced Fire Fighting" to 0.90),
+            ),
+            reason = "'Advanced Fire Fighting' matches no catalogue entry by code, title or alias",
+            source = EvidenceSource.ADMIN_UPLOAD,
+        )
 
         exception(
             area = "people",

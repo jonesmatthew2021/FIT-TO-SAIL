@@ -8,6 +8,206 @@
 
 // ignore_for_file: unnecessary_cast, prefer_const_constructors
 
+class AcceptEvidenceRequest {
+  final int requirementId;
+  final String status;
+  final String? expiry;
+  final String? issueDate;
+  final String? note;
+
+  const AcceptEvidenceRequest({
+    required this.requirementId,
+    required this.status,
+    this.expiry,
+    this.issueDate,
+    this.note,
+  });
+
+  factory AcceptEvidenceRequest.fromJson(Map<String, dynamic> json) => AcceptEvidenceRequest(
+        requirementId: json['requirementId'] as int,
+        status: json['status'] as String,
+        expiry: json['expiry'] == null ? null : json['expiry'] as String,
+        issueDate: json['issueDate'] == null ? null : json['issueDate'] as String,
+        note: json['note'] == null ? null : json['note'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'requirementId': requirementId,
+        'status': status,
+        'expiry': expiry,
+        'issueDate': issueDate,
+        'note': note,
+      };
+}
+
+class AddAliasRequest {
+  final String alias;
+
+  const AddAliasRequest({
+    required this.alias,
+  });
+
+  factory AddAliasRequest.fromJson(Map<String, dynamic> json) => AddAliasRequest(
+        alias: json['alias'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'alias': alias,
+      };
+}
+
+class AddConditionRequest {
+  final String type;
+  final String body;
+
+  const AddConditionRequest({
+    required this.type,
+    required this.body,
+  });
+
+  factory AddConditionRequest.fromJson(Map<String, dynamic> json) => AddConditionRequest(
+        type: json['type'] as String,
+        body: json['body'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'body': body,
+      };
+}
+
+class AddNoteRequest {
+  final String party;
+  final String body;
+
+  const AddNoteRequest({
+    required this.party,
+    required this.body,
+  });
+
+  factory AddNoteRequest.fromJson(Map<String, dynamic> json) => AddNoteRequest(
+        party: json['party'] as String,
+        body: json['body'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'party': party,
+        'body': body,
+      };
+}
+
+class AdminNotificationDto {
+  final int id;
+  final String kind;
+  final String? audience;
+  final String title;
+  final String? body;
+  final String? deepLink;
+  final DateTime createdAt;
+  final DateTime? readAt;
+  final bool read;
+  final String recipient;
+
+  const AdminNotificationDto({
+    required this.id,
+    required this.kind,
+    this.audience,
+    required this.title,
+    this.body,
+    this.deepLink,
+    required this.createdAt,
+    this.readAt,
+    required this.read,
+    required this.recipient,
+  });
+
+  factory AdminNotificationDto.fromJson(Map<String, dynamic> json) => AdminNotificationDto(
+        id: json['id'] as int,
+        kind: json['kind'] as String,
+        audience: json['audience'] == null ? null : json['audience'] as String,
+        title: json['title'] as String,
+        body: json['body'] == null ? null : json['body'] as String,
+        deepLink: json['deepLink'] == null ? null : json['deepLink'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+        readAt: json['readAt'] == null ? null : DateTime.parse(json['readAt'] as String).toUtc(),
+        read: json['read'] as bool,
+        recipient: json['recipient'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'kind': kind,
+        'audience': audience,
+        'title': title,
+        'body': body,
+        'deepLink': deepLink,
+        'createdAt': createdAt.toIso8601String(),
+        'readAt': readAt?.toIso8601String(),
+        'read': read,
+        'recipient': recipient,
+      };
+}
+
+class ApprovalConditionDto {
+  final int id;
+  final String type;
+  final String body;
+  final DateTime createdAt;
+
+  const ApprovalConditionDto({
+    required this.id,
+    required this.type,
+    required this.body,
+    required this.createdAt,
+  });
+
+  factory ApprovalConditionDto.fromJson(Map<String, dynamic> json) => ApprovalConditionDto(
+        id: json['id'] as int,
+        type: json['type'] as String,
+        body: json['body'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type,
+        'body': body,
+        'createdAt': createdAt.toIso8601String(),
+      };
+}
+
+class AssignRequest {
+  final int slotRef;
+  final int personId;
+  final String? from;
+  final String? to;
+  final bool? acknowledgeClash;
+
+  const AssignRequest({
+    required this.slotRef,
+    required this.personId,
+    this.from,
+    this.to,
+    this.acknowledgeClash,
+  });
+
+  factory AssignRequest.fromJson(Map<String, dynamic> json) => AssignRequest(
+        slotRef: json['slotRef'] as int,
+        personId: json['personId'] as int,
+        from: json['from'] == null ? null : json['from'] as String,
+        to: json['to'] == null ? null : json['to'] as String,
+        acknowledgeClash: json['acknowledgeClash'] == null ? null : json['acknowledgeClash'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'slotRef': slotRef,
+        'personId': personId,
+        'from': from,
+        'to': to,
+        'acknowledgeClash': acknowledgeClash,
+      };
+}
+
 class AssignmentDto {
   final int id;
   final int personId;
@@ -132,6 +332,214 @@ class CellDto {
       };
 }
 
+class CloseRegisterRecordRequest {
+  final String outcome;
+  final String? approvalFrom;
+  final String? approvalTo;
+  final List<AddConditionRequest>? conditions;
+  final String? note;
+
+  const CloseRegisterRecordRequest({
+    required this.outcome,
+    this.approvalFrom,
+    this.approvalTo,
+    this.conditions,
+    this.note,
+  });
+
+  factory CloseRegisterRecordRequest.fromJson(Map<String, dynamic> json) => CloseRegisterRecordRequest(
+        outcome: json['outcome'] as String,
+        approvalFrom: json['approvalFrom'] == null ? null : json['approvalFrom'] as String,
+        approvalTo: json['approvalTo'] == null ? null : json['approvalTo'] as String,
+        conditions: json['conditions'] == null ? null : (json['conditions'] as List<dynamic>).map((e) => AddConditionRequest.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        note: json['note'] == null ? null : json['note'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'outcome': outcome,
+        'approvalFrom': approvalFrom,
+        'approvalTo': approvalTo,
+        'conditions': conditions?.map((e) => e.toJson()).toList(growable: false),
+        'note': note,
+      };
+}
+
+class ConfigSettingDto {
+  final String key;
+  final String kind;
+  final String description;
+  final String value;
+  final String defaultValue;
+  final bool overridden;
+  final DateTime? updatedAt;
+  final String? updatedBy;
+
+  const ConfigSettingDto({
+    required this.key,
+    required this.kind,
+    required this.description,
+    required this.value,
+    required this.defaultValue,
+    required this.overridden,
+    this.updatedAt,
+    this.updatedBy,
+  });
+
+  factory ConfigSettingDto.fromJson(Map<String, dynamic> json) => ConfigSettingDto(
+        key: json['key'] as String,
+        kind: json['kind'] as String,
+        description: json['description'] as String,
+        value: json['value'] as String,
+        defaultValue: json['defaultValue'] as String,
+        overridden: json['overridden'] as bool,
+        updatedAt: json['updatedAt'] == null ? null : DateTime.parse(json['updatedAt'] as String).toUtc(),
+        updatedBy: json['updatedBy'] == null ? null : json['updatedBy'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'kind': kind,
+        'description': description,
+        'value': value,
+        'defaultValue': defaultValue,
+        'overridden': overridden,
+        'updatedAt': updatedAt?.toIso8601String(),
+        'updatedBy': updatedBy,
+      };
+}
+
+class CreateIdentityProviderRequest {
+  final String provider;
+  final String issuer;
+  final String tenantOrDomain;
+  final String displayName;
+
+  const CreateIdentityProviderRequest({
+    required this.provider,
+    required this.issuer,
+    required this.tenantOrDomain,
+    required this.displayName,
+  });
+
+  factory CreateIdentityProviderRequest.fromJson(Map<String, dynamic> json) => CreateIdentityProviderRequest(
+        provider: json['provider'] as String,
+        issuer: json['issuer'] as String,
+        tenantOrDomain: json['tenantOrDomain'] as String,
+        displayName: json['displayName'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'provider': provider,
+        'issuer': issuer,
+        'tenantOrDomain': tenantOrDomain,
+        'displayName': displayName,
+      };
+}
+
+class CreateMatrixDraftRequest {
+  final String label;
+  final int? copyFromVersionId;
+  final String? notes;
+
+  const CreateMatrixDraftRequest({
+    required this.label,
+    this.copyFromVersionId,
+    this.notes,
+  });
+
+  factory CreateMatrixDraftRequest.fromJson(Map<String, dynamic> json) => CreateMatrixDraftRequest(
+        label: json['label'] as String,
+        copyFromVersionId: json['copyFromVersionId'] == null ? null : json['copyFromVersionId'] as int,
+        notes: json['notes'] == null ? null : json['notes'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'copyFromVersionId': copyFromVersionId,
+        'notes': notes,
+      };
+}
+
+class CreateRegisterRecordRequest {
+  final String type;
+  final String partnership;
+  final String cc;
+  final int? personId;
+  final int? requirementId;
+  final String? reqRaw;
+  final String? effectiveFrom;
+  final String? effectiveTo;
+  final String? status;
+  final bool? acknowledgeLateSubmission;
+
+  const CreateRegisterRecordRequest({
+    required this.type,
+    required this.partnership,
+    required this.cc,
+    this.personId,
+    this.requirementId,
+    this.reqRaw,
+    this.effectiveFrom,
+    this.effectiveTo,
+    this.status,
+    this.acknowledgeLateSubmission,
+  });
+
+  factory CreateRegisterRecordRequest.fromJson(Map<String, dynamic> json) => CreateRegisterRecordRequest(
+        type: json['type'] as String,
+        partnership: json['partnership'] as String,
+        cc: json['cc'] as String,
+        personId: json['personId'] == null ? null : json['personId'] as int,
+        requirementId: json['requirementId'] == null ? null : json['requirementId'] as int,
+        reqRaw: json['reqRaw'] == null ? null : json['reqRaw'] as String,
+        effectiveFrom: json['effectiveFrom'] == null ? null : json['effectiveFrom'] as String,
+        effectiveTo: json['effectiveTo'] == null ? null : json['effectiveTo'] as String,
+        status: json['status'] == null ? null : json['status'] as String,
+        acknowledgeLateSubmission: json['acknowledgeLateSubmission'] == null ? null : json['acknowledgeLateSubmission'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'partnership': partnership,
+        'cc': cc,
+        'personId': personId,
+        'requirementId': requirementId,
+        'reqRaw': reqRaw,
+        'effectiveFrom': effectiveFrom,
+        'effectiveTo': effectiveTo,
+        'status': status,
+        'acknowledgeLateSubmission': acknowledgeLateSubmission,
+      };
+}
+
+class CreateTransitionalAccountRequest {
+  final String displayName;
+  final String? email;
+  final List<String> roles;
+  final int? personId;
+
+  const CreateTransitionalAccountRequest({
+    required this.displayName,
+    this.email,
+    required this.roles,
+    this.personId,
+  });
+
+  factory CreateTransitionalAccountRequest.fromJson(Map<String, dynamic> json) => CreateTransitionalAccountRequest(
+        displayName: json['displayName'] as String,
+        email: json['email'] == null ? null : json['email'] as String,
+        roles: (json['roles'] as List<dynamic>).map((e) => (e as String)).toList(growable: false),
+        personId: json['personId'] == null ? null : json['personId'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'displayName': displayName,
+        'email': email,
+        'roles': roles,
+        'personId': personId,
+      };
+}
+
 class CrewChangeDto {
   final int id;
   final String ccId;
@@ -165,6 +573,98 @@ class CrewChangeDto {
         'from': from,
         'to': to,
         'cutoff': cutoff,
+      };
+}
+
+class EvidenceDocumentDto {
+  final String publicId;
+  final int personId;
+  final String sam;
+  final String personName;
+  final String partnershipAbbrev;
+  final String source;
+  final String submittedBy;
+  final DateTime submittedAt;
+  final String verificationStatus;
+  final String? contentType;
+  final int? byteSize;
+  final bool uploadComplete;
+  final bool hasContent;
+  final int? requirementHintId;
+  final int? matchedRequirementId;
+  final String? extractionModel;
+  final List<ExtractedFieldDto> extraction;
+  final String? reviewReason;
+  final String? rejectionReason;
+  final int? linkedHoldingId;
+
+  const EvidenceDocumentDto({
+    required this.publicId,
+    required this.personId,
+    required this.sam,
+    required this.personName,
+    required this.partnershipAbbrev,
+    required this.source,
+    required this.submittedBy,
+    required this.submittedAt,
+    required this.verificationStatus,
+    this.contentType,
+    this.byteSize,
+    required this.uploadComplete,
+    required this.hasContent,
+    this.requirementHintId,
+    this.matchedRequirementId,
+    this.extractionModel,
+    required this.extraction,
+    this.reviewReason,
+    this.rejectionReason,
+    this.linkedHoldingId,
+  });
+
+  factory EvidenceDocumentDto.fromJson(Map<String, dynamic> json) => EvidenceDocumentDto(
+        publicId: json['publicId'] as String,
+        personId: json['personId'] as int,
+        sam: json['sam'] as String,
+        personName: json['personName'] as String,
+        partnershipAbbrev: json['partnershipAbbrev'] as String,
+        source: json['source'] as String,
+        submittedBy: json['submittedBy'] as String,
+        submittedAt: DateTime.parse(json['submittedAt'] as String).toUtc(),
+        verificationStatus: json['verificationStatus'] as String,
+        contentType: json['contentType'] == null ? null : json['contentType'] as String,
+        byteSize: json['byteSize'] == null ? null : json['byteSize'] as int,
+        uploadComplete: json['uploadComplete'] as bool,
+        hasContent: json['hasContent'] as bool,
+        requirementHintId: json['requirementHintId'] == null ? null : json['requirementHintId'] as int,
+        matchedRequirementId: json['matchedRequirementId'] == null ? null : json['matchedRequirementId'] as int,
+        extractionModel: json['extractionModel'] == null ? null : json['extractionModel'] as String,
+        extraction: (json['extraction'] as List<dynamic>).map((e) => ExtractedFieldDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        reviewReason: json['reviewReason'] == null ? null : json['reviewReason'] as String,
+        rejectionReason: json['rejectionReason'] == null ? null : json['rejectionReason'] as String,
+        linkedHoldingId: json['linkedHoldingId'] == null ? null : json['linkedHoldingId'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'publicId': publicId,
+        'personId': personId,
+        'sam': sam,
+        'personName': personName,
+        'partnershipAbbrev': partnershipAbbrev,
+        'source': source,
+        'submittedBy': submittedBy,
+        'submittedAt': submittedAt.toIso8601String(),
+        'verificationStatus': verificationStatus,
+        'contentType': contentType,
+        'byteSize': byteSize,
+        'uploadComplete': uploadComplete,
+        'hasContent': hasContent,
+        'requirementHintId': requirementHintId,
+        'matchedRequirementId': matchedRequirementId,
+        'extractionModel': extractionModel,
+        'extraction': extraction.map((e) => e.toJson()).toList(growable: false),
+        'reviewReason': reviewReason,
+        'rejectionReason': rejectionReason,
+        'linkedHoldingId': linkedHoldingId,
       };
 }
 
@@ -256,6 +756,62 @@ class EvidenceSubmitDto {
       };
 }
 
+class ExceptionItemDto {
+  final int id;
+  final String area;
+  final String description;
+  final String state;
+  final String? linkedEntityType;
+  final int? linkedEntityId;
+  final String? resolutionNote;
+  final DateTime? resolvedAt;
+  final String? resolvedBy;
+  final DateTime createdAt;
+  final String createdBy;
+
+  const ExceptionItemDto({
+    required this.id,
+    required this.area,
+    required this.description,
+    required this.state,
+    this.linkedEntityType,
+    this.linkedEntityId,
+    this.resolutionNote,
+    this.resolvedAt,
+    this.resolvedBy,
+    required this.createdAt,
+    required this.createdBy,
+  });
+
+  factory ExceptionItemDto.fromJson(Map<String, dynamic> json) => ExceptionItemDto(
+        id: json['id'] as int,
+        area: json['area'] as String,
+        description: json['description'] as String,
+        state: json['state'] as String,
+        linkedEntityType: json['linkedEntityType'] == null ? null : json['linkedEntityType'] as String,
+        linkedEntityId: json['linkedEntityId'] == null ? null : json['linkedEntityId'] as int,
+        resolutionNote: json['resolutionNote'] == null ? null : json['resolutionNote'] as String,
+        resolvedAt: json['resolvedAt'] == null ? null : DateTime.parse(json['resolvedAt'] as String).toUtc(),
+        resolvedBy: json['resolvedBy'] == null ? null : json['resolvedBy'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+        createdBy: json['createdBy'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'area': area,
+        'description': description,
+        'state': state,
+        'linkedEntityType': linkedEntityType,
+        'linkedEntityId': linkedEntityId,
+        'resolutionNote': resolutionNote,
+        'resolvedAt': resolvedAt?.toIso8601String(),
+        'resolvedBy': resolvedBy,
+        'createdAt': createdAt.toIso8601String(),
+        'createdBy': createdBy,
+      };
+}
+
 class ExpiryAlertDto {
   final int personId;
   final String sam;
@@ -293,6 +849,30 @@ class ExpiryAlertDto {
         'expiry': expiry,
         'daysRemaining': daysRemaining,
         'impact': impact,
+      };
+}
+
+class ExtractedFieldDto {
+  final String name;
+  final String? value;
+  final double confidence;
+
+  const ExtractedFieldDto({
+    required this.name,
+    this.value,
+    required this.confidence,
+  });
+
+  factory ExtractedFieldDto.fromJson(Map<String, dynamic> json) => ExtractedFieldDto(
+        name: json['name'] as String,
+        value: json['value'] == null ? null : json['value'] as String,
+        confidence: json['confidence'] as double,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'value': value,
+        'confidence': confidence,
       };
 }
 
@@ -392,6 +972,70 @@ class HoldingDto {
       };
 }
 
+class IdentityProviderDto {
+  final int id;
+  final String provider;
+  final String issuer;
+  final String tenantOrDomain;
+  final String displayName;
+  final bool enabled;
+
+  const IdentityProviderDto({
+    required this.id,
+    required this.provider,
+    required this.issuer,
+    required this.tenantOrDomain,
+    required this.displayName,
+    required this.enabled,
+  });
+
+  factory IdentityProviderDto.fromJson(Map<String, dynamic> json) => IdentityProviderDto(
+        id: json['id'] as int,
+        provider: json['provider'] as String,
+        issuer: json['issuer'] as String,
+        tenantOrDomain: json['tenantOrDomain'] as String,
+        displayName: json['displayName'] as String,
+        enabled: json['enabled'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'provider': provider,
+        'issuer': issuer,
+        'tenantOrDomain': tenantOrDomain,
+        'displayName': displayName,
+        'enabled': enabled,
+      };
+}
+
+class JobRunDto {
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+  final String outcome;
+  final String? detail;
+
+  const JobRunDto({
+    required this.startedAt,
+    this.finishedAt,
+    required this.outcome,
+    this.detail,
+  });
+
+  factory JobRunDto.fromJson(Map<String, dynamic> json) => JobRunDto(
+        startedAt: DateTime.parse(json['startedAt'] as String).toUtc(),
+        finishedAt: json['finishedAt'] == null ? null : DateTime.parse(json['finishedAt'] as String).toUtc(),
+        outcome: json['outcome'] as String,
+        detail: json['detail'] == null ? null : json['detail'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'startedAt': startedAt.toIso8601String(),
+        'finishedAt': finishedAt?.toIso8601String(),
+        'outcome': outcome,
+        'detail': detail,
+      };
+}
+
 class LeaveRecordDto {
   final int id;
   final int personId;
@@ -425,6 +1069,286 @@ class LeaveRecordDto {
         'from': from,
         'to': to,
         'status': status,
+      };
+}
+
+class MatrixConditionalMemberDto {
+  final int requirementId;
+  final String role;
+  final int ordinal;
+
+  const MatrixConditionalMemberDto({
+    required this.requirementId,
+    required this.role,
+    required this.ordinal,
+  });
+
+  factory MatrixConditionalMemberDto.fromJson(Map<String, dynamic> json) => MatrixConditionalMemberDto(
+        requirementId: json['requirementId'] as int,
+        role: json['role'] as String,
+        ordinal: json['ordinal'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'requirementId': requirementId,
+        'role': role,
+        'ordinal': ordinal,
+      };
+}
+
+class MatrixConditionalRuleDto {
+  final int id;
+  final String kind;
+  final int positionId;
+  final int? requirementId;
+  final String? label;
+  final List<MatrixConditionalMemberDto> members;
+
+  const MatrixConditionalRuleDto({
+    required this.id,
+    required this.kind,
+    required this.positionId,
+    this.requirementId,
+    this.label,
+    required this.members,
+  });
+
+  factory MatrixConditionalRuleDto.fromJson(Map<String, dynamic> json) => MatrixConditionalRuleDto(
+        id: json['id'] as int,
+        kind: json['kind'] as String,
+        positionId: json['positionId'] as int,
+        requirementId: json['requirementId'] == null ? null : json['requirementId'] as int,
+        label: json['label'] == null ? null : json['label'] as String,
+        members: (json['members'] as List<dynamic>).map((e) => MatrixConditionalMemberDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'kind': kind,
+        'positionId': positionId,
+        'requirementId': requirementId,
+        'label': label,
+        'members': members.map((e) => e.toJson()).toList(growable: false),
+      };
+}
+
+class MatrixDiffDto {
+  final int fromVersionId;
+  final int toVersionId;
+  final List<RuleDiffEntryDto> rules;
+  final List<QuotaDiffEntryDto> quotas;
+  final bool empty;
+
+  const MatrixDiffDto({
+    required this.fromVersionId,
+    required this.toVersionId,
+    required this.rules,
+    required this.quotas,
+    required this.empty,
+  });
+
+  factory MatrixDiffDto.fromJson(Map<String, dynamic> json) => MatrixDiffDto(
+        fromVersionId: json['fromVersionId'] as int,
+        toVersionId: json['toVersionId'] as int,
+        rules: (json['rules'] as List<dynamic>).map((e) => RuleDiffEntryDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        quotas: (json['quotas'] as List<dynamic>).map((e) => QuotaDiffEntryDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        empty: json['empty'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'fromVersionId': fromVersionId,
+        'toVersionId': toVersionId,
+        'rules': rules.map((e) => e.toJson()).toList(growable: false),
+        'quotas': quotas.map((e) => e.toJson()).toList(growable: false),
+        'empty': empty,
+      };
+}
+
+class MatrixQuotaRuleDto {
+  final int id;
+  final String footnote;
+  final int requirementId;
+  final int minCount;
+  final String scope;
+  final List<int> positionIds;
+
+  const MatrixQuotaRuleDto({
+    required this.id,
+    required this.footnote,
+    required this.requirementId,
+    required this.minCount,
+    required this.scope,
+    required this.positionIds,
+  });
+
+  factory MatrixQuotaRuleDto.fromJson(Map<String, dynamic> json) => MatrixQuotaRuleDto(
+        id: json['id'] as int,
+        footnote: json['footnote'] as String,
+        requirementId: json['requirementId'] as int,
+        minCount: json['minCount'] as int,
+        scope: json['scope'] as String,
+        positionIds: (json['positionIds'] as List<dynamic>).map((e) => (e as int)).toList(growable: false),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'footnote': footnote,
+        'requirementId': requirementId,
+        'minCount': minCount,
+        'scope': scope,
+        'positionIds': positionIds,
+      };
+}
+
+class MatrixRuleDto {
+  final int id;
+  final int? partnershipId;
+  final int positionId;
+  final int requirementId;
+  final String level;
+
+  const MatrixRuleDto({
+    required this.id,
+    this.partnershipId,
+    required this.positionId,
+    required this.requirementId,
+    required this.level,
+  });
+
+  factory MatrixRuleDto.fromJson(Map<String, dynamic> json) => MatrixRuleDto(
+        id: json['id'] as int,
+        partnershipId: json['partnershipId'] == null ? null : json['partnershipId'] as int,
+        positionId: json['positionId'] as int,
+        requirementId: json['requirementId'] as int,
+        level: json['level'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'partnershipId': partnershipId,
+        'positionId': positionId,
+        'requirementId': requirementId,
+        'level': level,
+      };
+}
+
+class MatrixVersionDetailDto {
+  final MatrixVersionDto version;
+  final List<MatrixRuleDto> rules;
+  final List<MatrixConditionalRuleDto> conditionals;
+  final List<MatrixQuotaRuleDto> quotas;
+
+  const MatrixVersionDetailDto({
+    required this.version,
+    required this.rules,
+    required this.conditionals,
+    required this.quotas,
+  });
+
+  factory MatrixVersionDetailDto.fromJson(Map<String, dynamic> json) => MatrixVersionDetailDto(
+        version: MatrixVersionDto.fromJson(json['version'] as Map<String, dynamic>),
+        rules: (json['rules'] as List<dynamic>).map((e) => MatrixRuleDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        conditionals: (json['conditionals'] as List<dynamic>).map((e) => MatrixConditionalRuleDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        quotas: (json['quotas'] as List<dynamic>).map((e) => MatrixQuotaRuleDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'version': version.toJson(),
+        'rules': rules.map((e) => e.toJson()).toList(growable: false),
+        'conditionals': conditionals.map((e) => e.toJson()).toList(growable: false),
+        'quotas': quotas.map((e) => e.toJson()).toList(growable: false),
+      };
+}
+
+class MatrixVersionDto {
+  final int id;
+  final String label;
+  final String status;
+  final String? effectiveFrom;
+  final String? publishedBy;
+  final DateTime? publishedAt;
+  final String? notes;
+  final String? tierFootnote;
+  final bool editable;
+
+  const MatrixVersionDto({
+    required this.id,
+    required this.label,
+    required this.status,
+    this.effectiveFrom,
+    this.publishedBy,
+    this.publishedAt,
+    this.notes,
+    this.tierFootnote,
+    required this.editable,
+  });
+
+  factory MatrixVersionDto.fromJson(Map<String, dynamic> json) => MatrixVersionDto(
+        id: json['id'] as int,
+        label: json['label'] as String,
+        status: json['status'] as String,
+        effectiveFrom: json['effectiveFrom'] == null ? null : json['effectiveFrom'] as String,
+        publishedBy: json['publishedBy'] == null ? null : json['publishedBy'] as String,
+        publishedAt: json['publishedAt'] == null ? null : DateTime.parse(json['publishedAt'] as String).toUtc(),
+        notes: json['notes'] == null ? null : json['notes'] as String,
+        tierFootnote: json['tierFootnote'] == null ? null : json['tierFootnote'] as String,
+        editable: json['editable'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'label': label,
+        'status': status,
+        'effectiveFrom': effectiveFrom,
+        'publishedBy': publishedBy,
+        'publishedAt': publishedAt?.toIso8601String(),
+        'notes': notes,
+        'tierFootnote': tierFootnote,
+        'editable': editable,
+      };
+}
+
+class MatrixVersionSummaryDto {
+  final MatrixVersionDto version;
+  final int requirementRuleCount;
+  final int conditionalRuleCount;
+  final int quotaRuleCount;
+
+  const MatrixVersionSummaryDto({
+    required this.version,
+    required this.requirementRuleCount,
+    required this.conditionalRuleCount,
+    required this.quotaRuleCount,
+  });
+
+  factory MatrixVersionSummaryDto.fromJson(Map<String, dynamic> json) => MatrixVersionSummaryDto(
+        version: MatrixVersionDto.fromJson(json['version'] as Map<String, dynamic>),
+        requirementRuleCount: json['requirementRuleCount'] as int,
+        conditionalRuleCount: json['conditionalRuleCount'] as int,
+        quotaRuleCount: json['quotaRuleCount'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'version': version.toJson(),
+        'requirementRuleCount': requirementRuleCount,
+        'conditionalRuleCount': conditionalRuleCount,
+        'quotaRuleCount': quotaRuleCount,
+      };
+}
+
+class NextRecordIdDto {
+  final String recordId;
+
+  const NextRecordIdDto({
+    required this.recordId,
+  });
+
+  factory NextRecordIdDto.fromJson(Map<String, dynamic> json) => NextRecordIdDto(
+        recordId: json['recordId'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'recordId': recordId,
       };
 }
 
@@ -465,6 +1389,26 @@ class NotificationDto {
         'deepLink': deepLink,
         'createdAt': createdAt.toIso8601String(),
         'readAt': readAt?.toIso8601String(),
+      };
+}
+
+class NotificationSummaryDto {
+  final int total;
+  final int unread;
+
+  const NotificationSummaryDto({
+    required this.total,
+    required this.unread,
+  });
+
+  factory NotificationSummaryDto.fromJson(Map<String, dynamic> json) => NotificationSummaryDto(
+        total: json['total'] as int,
+        unread: json['unread'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'total': total,
+        'unread': unread,
       };
 }
 
@@ -616,6 +1560,78 @@ class PositionDto {
       };
 }
 
+class PublicationResultDto {
+  final MatrixVersionDto published;
+  final MatrixVersionDto? superseded;
+
+  const PublicationResultDto({
+    required this.published,
+    this.superseded,
+  });
+
+  factory PublicationResultDto.fromJson(Map<String, dynamic> json) => PublicationResultDto(
+        published: MatrixVersionDto.fromJson(json['published'] as Map<String, dynamic>),
+        superseded: json['superseded'] == null ? null : MatrixVersionDto.fromJson(json['superseded'] as Map<String, dynamic>),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'published': published.toJson(),
+        'superseded': superseded?.toJson(),
+      };
+}
+
+class PublishMatrixRequest {
+  final String? effectiveFrom;
+
+  const PublishMatrixRequest({
+    this.effectiveFrom,
+  });
+
+  factory PublishMatrixRequest.fromJson(Map<String, dynamic> json) => PublishMatrixRequest(
+        effectiveFrom: json['effectiveFrom'] == null ? null : json['effectiveFrom'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'effectiveFrom': effectiveFrom,
+      };
+}
+
+class QuotaDiffEntryDto {
+  final String footnote;
+  final int requirementId;
+  final String scope;
+  final int? fromMin;
+  final int? toMin;
+  final String kind;
+
+  const QuotaDiffEntryDto({
+    required this.footnote,
+    required this.requirementId,
+    required this.scope,
+    this.fromMin,
+    this.toMin,
+    required this.kind,
+  });
+
+  factory QuotaDiffEntryDto.fromJson(Map<String, dynamic> json) => QuotaDiffEntryDto(
+        footnote: json['footnote'] as String,
+        requirementId: json['requirementId'] as int,
+        scope: json['scope'] as String,
+        fromMin: json['fromMin'] == null ? null : json['fromMin'] as int,
+        toMin: json['toMin'] == null ? null : json['toMin'] as int,
+        kind: json['kind'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'footnote': footnote,
+        'requirementId': requirementId,
+        'scope': scope,
+        'fromMin': fromMin,
+        'toMin': toMin,
+        'kind': kind,
+      };
+}
+
 class QuotaDto {
   final String footnote;
   final int requirementId;
@@ -660,6 +1676,298 @@ class QuotaDto {
       };
 }
 
+class RaiseExceptionRequest {
+  final String area;
+  final String description;
+  final String? linkedEntityType;
+  final int? linkedEntityId;
+
+  const RaiseExceptionRequest({
+    required this.area,
+    required this.description,
+    this.linkedEntityType,
+    this.linkedEntityId,
+  });
+
+  factory RaiseExceptionRequest.fromJson(Map<String, dynamic> json) => RaiseExceptionRequest(
+        area: json['area'] as String,
+        description: json['description'] as String,
+        linkedEntityType: json['linkedEntityType'] == null ? null : json['linkedEntityType'] as String,
+        linkedEntityId: json['linkedEntityId'] == null ? null : json['linkedEntityId'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'area': area,
+        'description': description,
+        'linkedEntityType': linkedEntityType,
+        'linkedEntityId': linkedEntityId,
+      };
+}
+
+class RegisterNoteDto {
+  final int id;
+  final String party;
+  final String body;
+  final DateTime createdAt;
+  final String createdBy;
+
+  const RegisterNoteDto({
+    required this.id,
+    required this.party,
+    required this.body,
+    required this.createdAt,
+    required this.createdBy,
+  });
+
+  factory RegisterNoteDto.fromJson(Map<String, dynamic> json) => RegisterNoteDto(
+        id: json['id'] as int,
+        party: json['party'] as String,
+        body: json['body'] as String,
+        createdAt: DateTime.parse(json['createdAt'] as String).toUtc(),
+        createdBy: json['createdBy'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'party': party,
+        'body': body,
+        'createdAt': createdAt.toIso8601String(),
+        'createdBy': createdBy,
+      };
+}
+
+class RegisterRecordDetailDto {
+  final RegisterRecordDto record;
+  final List<ApprovalConditionDto> conditions;
+  final List<RegisterNoteDto> notes;
+  final List<RegisterTrailEntryDto> trail;
+
+  const RegisterRecordDetailDto({
+    required this.record,
+    required this.conditions,
+    required this.notes,
+    required this.trail,
+  });
+
+  factory RegisterRecordDetailDto.fromJson(Map<String, dynamic> json) => RegisterRecordDetailDto(
+        record: RegisterRecordDto.fromJson(json['record'] as Map<String, dynamic>),
+        conditions: (json['conditions'] as List<dynamic>).map((e) => ApprovalConditionDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        notes: (json['notes'] as List<dynamic>).map((e) => RegisterNoteDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        trail: (json['trail'] as List<dynamic>).map((e) => RegisterTrailEntryDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'record': record.toJson(),
+        'conditions': conditions.map((e) => e.toJson()).toList(growable: false),
+        'notes': notes.map((e) => e.toJson()).toList(growable: false),
+        'trail': trail.map((e) => e.toJson()).toList(growable: false),
+      };
+}
+
+class RegisterRecordDto {
+  final String recordId;
+  final String type;
+  final String status;
+  final String? outcome;
+  final bool open;
+  final int? personId;
+  final String? sam;
+  final String? personName;
+  final String? positionName;
+  final int? requirementId;
+  final String? requirementCode;
+  final String? reqRaw;
+  final String partnershipAbbrev;
+  final String? ccId;
+  final String? effectiveFrom;
+  final String? effectiveTo;
+  final String? approvalFrom;
+  final String? approvalTo;
+  final String raisedDate;
+  final bool lateSubmissionAcknowledged;
+
+  const RegisterRecordDto({
+    required this.recordId,
+    required this.type,
+    required this.status,
+    this.outcome,
+    required this.open,
+    this.personId,
+    this.sam,
+    this.personName,
+    this.positionName,
+    this.requirementId,
+    this.requirementCode,
+    this.reqRaw,
+    required this.partnershipAbbrev,
+    this.ccId,
+    this.effectiveFrom,
+    this.effectiveTo,
+    this.approvalFrom,
+    this.approvalTo,
+    required this.raisedDate,
+    required this.lateSubmissionAcknowledged,
+  });
+
+  factory RegisterRecordDto.fromJson(Map<String, dynamic> json) => RegisterRecordDto(
+        recordId: json['recordId'] as String,
+        type: json['type'] as String,
+        status: json['status'] as String,
+        outcome: json['outcome'] == null ? null : json['outcome'] as String,
+        open: json['open'] as bool,
+        personId: json['personId'] == null ? null : json['personId'] as int,
+        sam: json['sam'] == null ? null : json['sam'] as String,
+        personName: json['personName'] == null ? null : json['personName'] as String,
+        positionName: json['positionName'] == null ? null : json['positionName'] as String,
+        requirementId: json['requirementId'] == null ? null : json['requirementId'] as int,
+        requirementCode: json['requirementCode'] == null ? null : json['requirementCode'] as String,
+        reqRaw: json['reqRaw'] == null ? null : json['reqRaw'] as String,
+        partnershipAbbrev: json['partnershipAbbrev'] as String,
+        ccId: json['ccId'] == null ? null : json['ccId'] as String,
+        effectiveFrom: json['effectiveFrom'] == null ? null : json['effectiveFrom'] as String,
+        effectiveTo: json['effectiveTo'] == null ? null : json['effectiveTo'] as String,
+        approvalFrom: json['approvalFrom'] == null ? null : json['approvalFrom'] as String,
+        approvalTo: json['approvalTo'] == null ? null : json['approvalTo'] as String,
+        raisedDate: json['raisedDate'] as String,
+        lateSubmissionAcknowledged: json['lateSubmissionAcknowledged'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'recordId': recordId,
+        'type': type,
+        'status': status,
+        'outcome': outcome,
+        'open': open,
+        'personId': personId,
+        'sam': sam,
+        'personName': personName,
+        'positionName': positionName,
+        'requirementId': requirementId,
+        'requirementCode': requirementCode,
+        'reqRaw': reqRaw,
+        'partnershipAbbrev': partnershipAbbrev,
+        'ccId': ccId,
+        'effectiveFrom': effectiveFrom,
+        'effectiveTo': effectiveTo,
+        'approvalFrom': approvalFrom,
+        'approvalTo': approvalTo,
+        'raisedDate': raisedDate,
+        'lateSubmissionAcknowledged': lateSubmissionAcknowledged,
+      };
+}
+
+class RegisterTrailEntryDto {
+  final int ordinal;
+  final String body;
+  final String actor;
+  final DateTime occurredAt;
+
+  const RegisterTrailEntryDto({
+    required this.ordinal,
+    required this.body,
+    required this.actor,
+    required this.occurredAt,
+  });
+
+  factory RegisterTrailEntryDto.fromJson(Map<String, dynamic> json) => RegisterTrailEntryDto(
+        ordinal: json['ordinal'] as int,
+        body: json['body'] as String,
+        actor: json['actor'] as String,
+        occurredAt: DateTime.parse(json['occurredAt'] as String).toUtc(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'ordinal': ordinal,
+        'body': body,
+        'actor': actor,
+        'occurredAt': occurredAt.toIso8601String(),
+      };
+}
+
+class RejectEvidenceRequest {
+  final String reason;
+
+  const RejectEvidenceRequest({
+    required this.reason,
+  });
+
+  factory RejectEvidenceRequest.fromJson(Map<String, dynamic> json) => RejectEvidenceRequest(
+        reason: json['reason'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'reason': reason,
+      };
+}
+
+class RequirementAliasDto {
+  final int id;
+  final String alias;
+
+  const RequirementAliasDto({
+    required this.id,
+    required this.alias,
+  });
+
+  factory RequirementAliasDto.fromJson(Map<String, dynamic> json) => RequirementAliasDto(
+        id: json['id'] as int,
+        alias: json['alias'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'alias': alias,
+      };
+}
+
+class RequirementDetailDto {
+  final int id;
+  final String code;
+  final String category;
+  final String title;
+  final String status;
+  final String? issuingAuthority;
+  final String? notes;
+  final List<RequirementAliasDto> aliases;
+  final RequirementUsageDto usage;
+
+  const RequirementDetailDto({
+    required this.id,
+    required this.code,
+    required this.category,
+    required this.title,
+    required this.status,
+    this.issuingAuthority,
+    this.notes,
+    required this.aliases,
+    required this.usage,
+  });
+
+  factory RequirementDetailDto.fromJson(Map<String, dynamic> json) => RequirementDetailDto(
+        id: json['id'] as int,
+        code: json['code'] as String,
+        category: json['category'] as String,
+        title: json['title'] as String,
+        status: json['status'] as String,
+        issuingAuthority: json['issuingAuthority'] == null ? null : json['issuingAuthority'] as String,
+        notes: json['notes'] == null ? null : json['notes'] as String,
+        aliases: (json['aliases'] as List<dynamic>).map((e) => RequirementAliasDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        usage: RequirementUsageDto.fromJson(json['usage'] as Map<String, dynamic>),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'code': code,
+        'category': category,
+        'title': title,
+        'status': status,
+        'issuingAuthority': issuingAuthority,
+        'notes': notes,
+        'aliases': aliases.map((e) => e.toJson()).toList(growable: false),
+        'usage': usage.toJson(),
+      };
+}
+
 class RequirementDto {
   final int id;
   final String code;
@@ -693,6 +2001,158 @@ class RequirementDto {
         'title': title,
         'status': status,
         'issuingAuthority': issuingAuthority,
+      };
+}
+
+class RequirementUsageDto {
+  final int holdings;
+  final int requirementRules;
+  final int quotaRules;
+  final int conditionalRules;
+  final int registerRecords;
+  final int total;
+
+  const RequirementUsageDto({
+    required this.holdings,
+    required this.requirementRules,
+    required this.quotaRules,
+    required this.conditionalRules,
+    required this.registerRecords,
+    required this.total,
+  });
+
+  factory RequirementUsageDto.fromJson(Map<String, dynamic> json) => RequirementUsageDto(
+        holdings: json['holdings'] as int,
+        requirementRules: json['requirementRules'] as int,
+        quotaRules: json['quotaRules'] as int,
+        conditionalRules: json['conditionalRules'] as int,
+        registerRecords: json['registerRecords'] as int,
+        total: json['total'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'holdings': holdings,
+        'requirementRules': requirementRules,
+        'quotaRules': quotaRules,
+        'conditionalRules': conditionalRules,
+        'registerRecords': registerRecords,
+        'total': total,
+      };
+}
+
+class ResolveExceptionRequest {
+  final String note;
+
+  const ResolveExceptionRequest({
+    required this.note,
+  });
+
+  factory ResolveExceptionRequest.fromJson(Map<String, dynamic> json) => ResolveExceptionRequest(
+        note: json['note'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'note': note,
+      };
+}
+
+class RuleDiffEntryDto {
+  final int? partnershipId;
+  final int positionId;
+  final int requirementId;
+  final String? from;
+  final String? to;
+  final String kind;
+
+  const RuleDiffEntryDto({
+    this.partnershipId,
+    required this.positionId,
+    required this.requirementId,
+    this.from,
+    this.to,
+    required this.kind,
+  });
+
+  factory RuleDiffEntryDto.fromJson(Map<String, dynamic> json) => RuleDiffEntryDto(
+        partnershipId: json['partnershipId'] == null ? null : json['partnershipId'] as int,
+        positionId: json['positionId'] as int,
+        requirementId: json['requirementId'] as int,
+        from: json['from'] == null ? null : json['from'] as String,
+        to: json['to'] == null ? null : json['to'] as String,
+        kind: json['kind'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'partnershipId': partnershipId,
+        'positionId': positionId,
+        'requirementId': requirementId,
+        'from': from,
+        'to': to,
+        'kind': kind,
+      };
+}
+
+class SaveRequirementRequest {
+  final String? code;
+  final String category;
+  final String title;
+  final String? issuingAuthority;
+  final String? notes;
+  final String? status;
+
+  const SaveRequirementRequest({
+    this.code,
+    required this.category,
+    required this.title,
+    this.issuingAuthority,
+    this.notes,
+    this.status,
+  });
+
+  factory SaveRequirementRequest.fromJson(Map<String, dynamic> json) => SaveRequirementRequest(
+        code: json['code'] == null ? null : json['code'] as String,
+        category: json['category'] as String,
+        title: json['title'] as String,
+        issuingAuthority: json['issuingAuthority'] == null ? null : json['issuingAuthority'] as String,
+        notes: json['notes'] == null ? null : json['notes'] as String,
+        status: json['status'] == null ? null : json['status'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'code': code,
+        'category': category,
+        'title': title,
+        'issuingAuthority': issuingAuthority,
+        'notes': notes,
+        'status': status,
+      };
+}
+
+class ScheduledJobDto {
+  final String name;
+  final String schedule;
+  final String description;
+  final JobRunDto? lastRun;
+
+  const ScheduledJobDto({
+    required this.name,
+    required this.schedule,
+    required this.description,
+    this.lastRun,
+  });
+
+  factory ScheduledJobDto.fromJson(Map<String, dynamic> json) => ScheduledJobDto(
+        name: json['name'] as String,
+        schedule: json['schedule'] as String,
+        description: json['description'] as String,
+        lastRun: json['lastRun'] == null ? null : JobRunDto.fromJson(json['lastRun'] as Map<String, dynamic>),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'schedule': schedule,
+        'description': description,
+        'lastRun': lastRun?.toJson(),
       };
 }
 
@@ -732,6 +2192,54 @@ class SessionDto {
       };
 }
 
+class SetAccountStatusRequest {
+  final String status;
+
+  const SetAccountStatusRequest({
+    required this.status,
+  });
+
+  factory SetAccountStatusRequest.fromJson(Map<String, dynamic> json) => SetAccountStatusRequest(
+        status: json['status'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'status': status,
+      };
+}
+
+class SetConfigRequest {
+  final String? value;
+
+  const SetConfigRequest({
+    this.value,
+  });
+
+  factory SetConfigRequest.fromJson(Map<String, dynamic> json) => SetConfigRequest(
+        value: json['value'] == null ? null : json['value'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'value': value,
+      };
+}
+
+class SetEnabledRequest {
+  final bool enabled;
+
+  const SetEnabledRequest({
+    required this.enabled,
+  });
+
+  factory SetEnabledRequest.fromJson(Map<String, dynamic> json) => SetEnabledRequest(
+        enabled: json['enabled'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'enabled': enabled,
+      };
+}
+
 class SetHoldingRequest {
   final String status;
   final String? expiry;
@@ -757,6 +2265,50 @@ class SetHoldingRequest {
         'expiry': expiry,
         'issueDate': issueDate,
         'note': note,
+      };
+}
+
+class SetMatrixCellRequest {
+  final int? partnershipId;
+  final int positionId;
+  final int requirementId;
+  final String level;
+
+  const SetMatrixCellRequest({
+    this.partnershipId,
+    required this.positionId,
+    required this.requirementId,
+    required this.level,
+  });
+
+  factory SetMatrixCellRequest.fromJson(Map<String, dynamic> json) => SetMatrixCellRequest(
+        partnershipId: json['partnershipId'] == null ? null : json['partnershipId'] as int,
+        positionId: json['positionId'] as int,
+        requirementId: json['requirementId'] as int,
+        level: json['level'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'partnershipId': partnershipId,
+        'positionId': positionId,
+        'requirementId': requirementId,
+        'level': level,
+      };
+}
+
+class SetScopesRequest {
+  final List<int> partnershipIds;
+
+  const SetScopesRequest({
+    required this.partnershipIds,
+  });
+
+  factory SetScopesRequest.fromJson(Map<String, dynamic> json) => SetScopesRequest(
+        partnershipIds: (json['partnershipIds'] as List<dynamic>).map((e) => (e as int)).toList(growable: false),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'partnershipIds': partnershipIds,
       };
 }
 
@@ -1208,6 +2760,82 @@ class SyncTombstoneDto {
       };
 }
 
+class TransitionRegisterRecordRequest {
+  final String status;
+
+  const TransitionRegisterRecordRequest({
+    required this.status,
+  });
+
+  factory TransitionRegisterRecordRequest.fromJson(Map<String, dynamic> json) => TransitionRegisterRecordRequest(
+        status: json['status'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'status': status,
+      };
+}
+
+class UnknownHoldingDto {
+  final int personId;
+  final String sam;
+  final String name;
+  final int requirementId;
+  final String code;
+  final String title;
+
+  const UnknownHoldingDto({
+    required this.personId,
+    required this.sam,
+    required this.name,
+    required this.requirementId,
+    required this.code,
+    required this.title,
+  });
+
+  factory UnknownHoldingDto.fromJson(Map<String, dynamic> json) => UnknownHoldingDto(
+        personId: json['personId'] as int,
+        sam: json['sam'] as String,
+        name: json['name'] as String,
+        requirementId: json['requirementId'] as int,
+        code: json['code'] as String,
+        title: json['title'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'personId': personId,
+        'sam': sam,
+        'name': name,
+        'requirementId': requirementId,
+        'code': code,
+        'title': title,
+      };
+}
+
+class UpdateMatrixDraftRequest {
+  final String label;
+  final String? notes;
+  final String? tierFootnote;
+
+  const UpdateMatrixDraftRequest({
+    required this.label,
+    this.notes,
+    this.tierFootnote,
+  });
+
+  factory UpdateMatrixDraftRequest.fromJson(Map<String, dynamic> json) => UpdateMatrixDraftRequest(
+        label: json['label'] as String,
+        notes: json['notes'] == null ? null : json['notes'] as String,
+        tierFootnote: json['tierFootnote'] == null ? null : json['tierFootnote'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'notes': notes,
+        'tierFootnote': tierFootnote,
+      };
+}
+
 class UploadStateDto {
   final int offset;
   final bool complete;
@@ -1229,6 +2857,58 @@ class UploadStateDto {
         'offset': offset,
         'complete': complete,
         'declaredSize': declaredSize,
+      };
+}
+
+class UserAccountDto {
+  final int id;
+  final String displayName;
+  final String? email;
+  final String kind;
+  final String status;
+  final List<String> roles;
+  final List<int> scopedPartnershipIds;
+  final int? personId;
+  final DateTime? lastLoginAt;
+  final bool identityLinked;
+
+  const UserAccountDto({
+    required this.id,
+    required this.displayName,
+    this.email,
+    required this.kind,
+    required this.status,
+    required this.roles,
+    required this.scopedPartnershipIds,
+    this.personId,
+    this.lastLoginAt,
+    required this.identityLinked,
+  });
+
+  factory UserAccountDto.fromJson(Map<String, dynamic> json) => UserAccountDto(
+        id: json['id'] as int,
+        displayName: json['displayName'] as String,
+        email: json['email'] == null ? null : json['email'] as String,
+        kind: json['kind'] as String,
+        status: json['status'] as String,
+        roles: (json['roles'] as List<dynamic>).map((e) => (e as String)).toList(growable: false),
+        scopedPartnershipIds: (json['scopedPartnershipIds'] as List<dynamic>).map((e) => (e as int)).toList(growable: false),
+        personId: json['personId'] == null ? null : json['personId'] as int,
+        lastLoginAt: json['lastLoginAt'] == null ? null : DateTime.parse(json['lastLoginAt'] as String).toUtc(),
+        identityLinked: json['identityLinked'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'displayName': displayName,
+        'email': email,
+        'kind': kind,
+        'status': status,
+        'roles': roles,
+        'scopedPartnershipIds': scopedPartnershipIds,
+        'personId': personId,
+        'lastLoginAt': lastLoginAt?.toIso8601String(),
+        'identityLinked': identityLinked,
       };
 }
 

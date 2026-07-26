@@ -50,6 +50,39 @@ export type CreateRegisterRecordRequest = Schemas['CreateRegisterRecordRequest']
 export type CloseRegisterRecordRequest = Schemas['CloseRegisterRecordRequest']
 export type AddConditionRequest = Schemas['AddConditionRequest']
 
+// ADM-3 — matrix versions (§5.5)
+export type MatrixVersion = Schemas['MatrixVersionDto']
+export type MatrixVersionSummary = Schemas['MatrixVersionSummaryDto']
+export type MatrixVersionDetail = Schemas['MatrixVersionDetailDto']
+export type MatrixRule = Schemas['MatrixRuleDto']
+export type MatrixQuotaRule = Schemas['MatrixQuotaRuleDto']
+export type MatrixConditionalRule = Schemas['MatrixConditionalRuleDto']
+export type MatrixDiff = Schemas['MatrixDiffDto']
+export type RuleDiffEntry = Schemas['RuleDiffEntryDto']
+export type QuotaDiffEntry = Schemas['QuotaDiffEntryDto']
+export type CreateMatrixDraftRequest = Schemas['CreateMatrixDraftRequest']
+export type UpdateMatrixDraftRequest = Schemas['UpdateMatrixDraftRequest']
+export type SetMatrixCellRequest = Schemas['SetMatrixCellRequest']
+export type PublicationResult = Schemas['PublicationResultDto']
+
+// ADM-8 — notifications (§9)
+export type Notification = Schemas['AdminNotificationDto']
+export type NotificationSummary = Schemas['NotificationSummaryDto']
+
+// ADM-9 — evidence verification queue (§8)
+export type EvidenceDocument = Schemas['EvidenceDocumentDto']
+export type ExtractedField = Schemas['ExtractedFieldDto']
+export type AcceptEvidenceRequest = Schemas['AcceptEvidenceRequest']
+
+// ADM-10 — administration
+export type ConfigSetting = Schemas['ConfigSettingDto']
+export type ScheduledJob = Schemas['ScheduledJobDto']
+export type JobRun = Schemas['JobRunDto']
+export type UserAccount = Schemas['UserAccountDto']
+export type IdentityProvider = Schemas['IdentityProviderDto']
+export type CreateTransitionalAccountRequest = Schemas['CreateTransitionalAccountRequest']
+export type CreateIdentityProviderRequest = Schemas['CreateIdentityProviderRequest']
+
 /** ADM-4 list filters. `state` omitted means the whole history, which is the point of the module. */
 export interface RegisterFilters {
   partnership?: string | undefined
@@ -334,5 +367,165 @@ export const api = {
     request(`/api/v1/register/${encodeURIComponent(recordId)}/conditions`, {
       method: 'POST',
       body: JSON.stringify(body),
+    }),
+
+  // --- ADM-3, matrix versions (§5.5) ---------------------------------------
+
+  matrixVersions: (): Promise<MatrixVersionSummary[]> => request('/api/v1/matrix-versions'),
+
+  matrixVersion: (versionId: number): Promise<MatrixVersionDetail> =>
+    request(`/api/v1/matrix-versions/${versionId}`),
+
+  matrixDiff: (from: number, to: number): Promise<MatrixDiff> =>
+    request(`/api/v1/matrix-versions/${from}/diff/${to}`),
+
+  createMatrixDraft: (body: CreateMatrixDraftRequest): Promise<MatrixVersion> =>
+    request('/api/v1/matrix-versions', { method: 'POST', body: JSON.stringify(body) }),
+
+  updateMatrixDraft: (versionId: number, body: UpdateMatrixDraftRequest): Promise<MatrixVersion> =>
+    request(`/api/v1/matrix-versions/${versionId}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  discardMatrixDraft: (versionId: number): Promise<void> =>
+    request(`/api/v1/matrix-versions/${versionId}`, { method: 'DELETE' }),
+
+  setMatrixCell: (versionId: number, body: SetMatrixCellRequest): Promise<MatrixRule> =>
+    request(`/api/v1/matrix-versions/${versionId}/cells`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
+  clearMatrixCell: (
+    versionId: number,
+    cell: { positionId: number; requirementId: number; partnershipId?: number },
+  ): Promise<void> =>
+    request(
+      `/api/v1/matrix-versions/${versionId}/cells` +
+        query({
+          positionId: cell.positionId,
+          requirementId: cell.requirementId,
+          partnershipId: cell.partnershipId,
+        }),
+      { method: 'DELETE' },
+    ),
+
+  publishMatrixVersion: (versionId: number, effectiveFrom?: string): Promise<PublicationResult> =>
+    request(`/api/v1/matrix-versions/${versionId}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ effectiveFrom: effectiveFrom ?? null }),
+    }),
+
+  // --- ADM-8, notifications (§9) ------------------------------------------
+
+  notifications: (state: 'all' | 'unread' | 'read'): Promise<Notification[]> =>
+    request('/api/v1/notifications' + query({ state })),
+
+  notificationSummary: (): Promise<NotificationSummary> =>
+    request('/api/v1/notifications/summary'),
+
+  markNotificationRead: (notificationId: number): Promise<void> =>
+    request(`/api/v1/notifications/${notificationId}/read`, { method: 'POST' }),
+
+  markAllNotificationsRead: (): Promise<NotificationSummary> =>
+    request('/api/v1/notifications/read-all', { method: 'POST' }),
+
+  // --- ADM-9, evidence verification (§8) ----------------------------------
+
+  evidenceQueue: (statuses: readonly string[]): Promise<EvidenceDocument[]> =>
+    request(
+      '/api/v1/evidence-review' +
+        (statuses.length === 0
+          ? ''
+          : '?' + statuses.map((s) => `status=${encodeURIComponent(s)}`).join('&')),
+    ),
+
+  evidenceDocument: (publicId: string): Promise<EvidenceDocument> =>
+    request(`/api/v1/evidence-review/${encodeURIComponent(publicId)}`),
+
+  /**
+   * The URL the side-by-side view points an `<img>` or frame at.
+   *
+   * A URL rather than a fetch: the bytes are megabytes of image and the browser is better at
+   * fetching, caching and decoding them than we are at shuttling them through a blob. It carries
+   * the session cookie the same way every other request does.
+   */
+  evidenceContentUrl: (publicId: string): string =>
+    `/api/v1/evidence-review/${encodeURIComponent(publicId)}/content`,
+
+  acceptEvidence: (publicId: string, body: AcceptEvidenceRequest): Promise<EvidenceDocument> =>
+    request(`/api/v1/evidence-review/${encodeURIComponent(publicId)}/accept`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  rejectEvidence: (publicId: string, reason: string): Promise<EvidenceDocument> =>
+    request(`/api/v1/evidence-review/${encodeURIComponent(publicId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  extractEvidence: (publicId: string): Promise<EvidenceDocument> =>
+    request(`/api/v1/evidence-review/${encodeURIComponent(publicId)}/extract`, { method: 'POST' }),
+
+  // --- ADM-10, administration ---------------------------------------------
+
+  config: (): Promise<ConfigSetting[]> => request('/api/v1/administration/config'),
+
+  setConfig: (key: string, value: unknown): Promise<ConfigSetting> =>
+    request(`/api/v1/administration/config/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    }),
+
+  clearConfig: (key: string): Promise<ConfigSetting> =>
+    request(`/api/v1/administration/config/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+
+  jobs: (): Promise<ScheduledJob[]> => request('/api/v1/administration/jobs'),
+
+  runJob: (name: string): Promise<JobRun> =>
+    request(`/api/v1/administration/jobs/${encodeURIComponent(name)}/run`, { method: 'POST' }),
+
+  userAccounts: (): Promise<UserAccount[]> => request('/api/v1/administration/users'),
+
+  createUserAccount: (body: CreateTransitionalAccountRequest): Promise<UserAccount> =>
+    request('/api/v1/administration/users', { method: 'POST', body: JSON.stringify(body) }),
+
+  grantRole: (userAccountId: number, role: string): Promise<UserAccount> =>
+    request(`/api/v1/administration/users/${userAccountId}/roles/${encodeURIComponent(role)}`, {
+      method: 'POST',
+    }),
+
+  revokeRole: (userAccountId: number, role: string): Promise<UserAccount> =>
+    request(`/api/v1/administration/users/${userAccountId}/roles/${encodeURIComponent(role)}`, {
+      method: 'DELETE',
+    }),
+
+  setUserAccountStatus: (userAccountId: number, status: string): Promise<UserAccount> =>
+    request(`/api/v1/administration/users/${userAccountId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    }),
+
+  setUserAccountScopes: (userAccountId: number, partnershipIds: number[]): Promise<UserAccount> =>
+    request(`/api/v1/administration/users/${userAccountId}/scopes`, {
+      method: 'PUT',
+      body: JSON.stringify({ partnershipIds }),
+    }),
+
+  identityProviders: (): Promise<IdentityProvider[]> =>
+    request('/api/v1/administration/identity-providers'),
+
+  createIdentityProvider: (body: CreateIdentityProviderRequest): Promise<IdentityProvider> =>
+    request('/api/v1/administration/identity-providers', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  setIdentityProviderEnabled: (
+    identityProviderId: number,
+    enabled: boolean,
+  ): Promise<IdentityProvider> =>
+    request(`/api/v1/administration/identity-providers/${identityProviderId}/enabled`, {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
     }),
 }

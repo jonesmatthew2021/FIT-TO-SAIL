@@ -227,6 +227,154 @@ export const CONDITION_TYPES: readonly string[] = [
 export const REGISTER_PARTIES: readonly string[] = ['PW', 'MRL', 'OPS']
 
 /**
+ * §9 notification kinds, for ADM-8's labels and the mobile list's icons.
+ *
+ * Tones follow the same rule as everywhere else in this file: the colour reflects what the reader has
+ * to *do*, not how bad the underlying fact is. A rejected document and an unfilled slot both need
+ * action; a published matrix and an accepted document are information.
+ *
+ * An unrecognised kind degrades to the raw wire value rather than blanking the row — the backend may
+ * add one, and during a deploy both revisions are live.
+ */
+const NOTIFICATION_KINDS: Record<string, StateDisplay> = {
+  expiry_warning: {
+    label: 'Expiry',
+    tone: 'warning',
+    description: 'A qualification is expiring within the alert window (§5.4).',
+  },
+  assignment_added: { label: 'Assigned', tone: 'neutral', description: 'Added to a swing.' },
+  assignment_removed: { label: 'Unassigned', tone: 'neutral', description: 'Removed from a swing.' },
+  assignment_changed: { label: 'Roster change', tone: 'neutral', description: 'An assignment moved.' },
+  requirement_added: {
+    label: 'New requirement',
+    tone: 'caution',
+    description: 'A newly applicable requirement.',
+  },
+  evidence_received: {
+    label: 'Document received',
+    tone: 'muted',
+    description: 'An upload was recorded.',
+  },
+  evidence_verified: {
+    label: 'Document accepted',
+    tone: 'good',
+    description: 'A submitted document updated a holding.',
+  },
+  evidence_rejected: {
+    label: 'Document rejected',
+    tone: 'critical',
+    description: 'A submitted document was not accepted; the reason is in the body.',
+  },
+  register_event: {
+    label: 'Register',
+    tone: 'caution',
+    description: 'A register request was raised, moved or decided (§9).',
+  },
+  cutoff_approaching: {
+    label: 'Cutoff',
+    tone: 'warning',
+    description: "A swing's submission cutoff is approaching (§9).",
+  },
+  quota_shortfall: {
+    label: 'Quota short',
+    tone: 'critical',
+    description: 'An upcoming swing does not meet a quota rule (§5.3).',
+  },
+  roster_gap: {
+    label: 'Unfilled slots',
+    tone: 'critical',
+    description: 'An upcoming swing has slots with nobody in them.',
+  },
+  expiry_affects_roster: {
+    label: 'Expiry on roster',
+    tone: 'warning',
+    description: 'An expiry lands on or inside an upcoming assignment.',
+  },
+  matrix_published: {
+    label: 'Matrix published',
+    tone: 'neutral',
+    description: 'A new requirements matrix is in force (§5.5).',
+  },
+  exception_raised: {
+    label: 'Data quality',
+    tone: 'caution',
+    description: 'A new data-quality item is on the worklist (ADM-7).',
+  },
+  evidence_awaiting_review: {
+    label: 'Awaiting review',
+    tone: 'caution',
+    description: 'A document is in the verification queue (ADM-9).',
+  },
+}
+
+export function notificationKind(kind: string): StateDisplay {
+  return NOTIFICATION_KINDS[kind] ?? { label: kind, tone: 'neutral', description: kind }
+}
+
+/**
+ * Appendix A's `evidence_document.verification_status`, for ADM-9's queue.
+ *
+ * `auto_accepted` is `caution` rather than `good` deliberately: §8 stage 4 surfaces auto-acceptances
+ * "for retrospective spot-checking", so it is a row that still wants a human's eye, and colouring it
+ * as done would defeat the point of listing it.
+ */
+const VERIFICATION_STATUSES: Record<string, StateDisplay> = {
+  pending_extraction: {
+    label: 'Awaiting extraction',
+    tone: 'muted',
+    description: 'Uploaded; the pipeline has not read it yet (§8 stage 2).',
+  },
+  pending_review: {
+    label: 'Needs review',
+    tone: 'caution',
+    description: 'Waiting for a Data Steward to accept, correct or reject it (§8 stage 5).',
+  },
+  auto_accepted: {
+    label: 'Auto-accepted',
+    tone: 'caution',
+    description: 'Accepted by the pipeline, listed here for spot-checking (§8 stage 4).',
+  },
+  verified: {
+    label: 'Verified',
+    tone: 'good',
+    description: 'A human accepted it and the holding was updated.',
+  },
+  rejected: {
+    label: 'Rejected',
+    tone: 'critical',
+    description: 'Not accepted; the submitter was told why.',
+  },
+}
+
+export function verificationStatus(status: string): StateDisplay {
+  return VERIFICATION_STATUSES[status] ?? { label: status, tone: 'neutral', description: status }
+}
+
+/** The statuses ADM-9's queue offers as filters, in the order a reviewer works them. */
+export const QUEUE_STATUSES: readonly string[] = [
+  'pending_review',
+  'pending_extraction',
+  'auto_accepted',
+  'verified',
+  'rejected',
+]
+
+/**
+ * A confidence's tone (§8 stage 2).
+ *
+ * The thresholds here are **presentation only** and are deliberately not the auto-accept threshold:
+ * that one is server-side configuration (ADM-10) and is what decides anything. These three bands
+ * only decide a colour, and a reviewer should be able to see "the model was unsure" without knowing
+ * what the current policy happens to be.
+ */
+export function confidenceTone(confidence: number): Tone {
+  if (confidence <= 0) return 'muted'
+  if (confidence < 0.7) return 'critical'
+  if (confidence < 0.9) return 'caution'
+  return 'good'
+}
+
+/**
  * A register status's tone. Open work needs attention; an approval is good; every other closure
  * is neutral — "Not Approved" is a decision, not a fault, and colouring it red would read as one.
  */

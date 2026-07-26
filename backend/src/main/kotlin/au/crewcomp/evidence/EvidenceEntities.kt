@@ -10,6 +10,8 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.UUID
 
@@ -79,9 +81,36 @@ class EvidenceDocument : AuditedEntity() {
     @Column(name = "extraction_model")
     var extractionModel: String? = null
 
+    /**
+     * The structured extraction: field name → `{value, confidence}` (§8 stage 2).
+     *
+     * `jsonb`, unlike [extractionRaw] beside it, because this is data to query — "how often was
+     * the expiry date below 0.8" is the measurement LLM-2 gates auto-acceptance on — rather than
+     * bytes to attest.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "extraction")
+    var extraction: MutableMap<String, Any?>? = null
+
     /** Verbatim model response, retained for audit (§8 stage 2). Data, never instructions. */
     @Column(name = "extraction_raw")
     var extractionRaw: String? = null
+
+    /**
+     * The requirement the pipeline resolved the document to (§8 stage 3).
+     *
+     * Separate from [requirementHint], which is the crew member's tag, and from
+     * [linkedHolding], which only exists once a holding has actually been written. A document can
+     * be matched and still be waiting for a human, which is the normal case while auto-acceptance
+     * is off (LLM-2).
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "matched_requirement_id")
+    var matchedRequirement: Requirement? = null
+
+    /** Why stage 4 sent this to review rather than accepting it. Shown in ADM-9's queue. */
+    @Column(name = "review_reason")
+    var reviewReason: String? = null
 
     @Column(name = "rejection_reason")
     var rejectionReason: String? = null

@@ -1,6 +1,8 @@
 package au.crewcomp.workflow
 
 import au.crewcomp.engine.RegisterOutcome
+import au.crewcomp.notify.NotificationKind
+import au.crewcomp.notify.NotificationService
 import au.crewcomp.people.PersonRepository
 import au.crewcomp.platform.audit.AuditWriter
 import au.crewcomp.platform.persistence.EntityNotFoundException
@@ -60,6 +62,7 @@ class RegisterService(
     private val scopeGuard: ScopeGuard,
     private val clock: BusinessClock,
     private val audit: AuditWriter,
+    private val notifications: NotificationService,
 ) {
 
     // -----------------------------------------------------------------------
@@ -203,6 +206,16 @@ class RegisterService(
             after = snapshot(record),
         )
 
+        notifyWorkflow(
+            record = record,
+            title = "A register request has been raised",
+            // A record need not name a person — §4.4 permits one raised against a raw title alone,
+            // which is how the 445 rows of history are preserved.
+            body = "${record.recordId}: ${type.wire}" +
+                (person?.let { " for ${it.name} (${it.sam})" } ?: "") +
+                " on ${crewChange.partnership.abbrev} ${crewChange.ccId}.",
+        )
+
         // Re-read through the fetch-joining query before returning. The record was assembled from
         // lazy proxies — `person.position` in particular — and the DTO mapping happens after this
         // transaction closes, where reaching one throws LazyInitializationException. Every other
@@ -244,6 +257,11 @@ class RegisterService(
             businessKey = record.recordId,
             before = before,
             after = snapshot(record),
+        )
+        notifyWorkflow(
+            record = record,
+            title = "A register request has changed hands",
+            body = "${record.recordId} moved from ${from.wire} to ${status.wire}.",
         )
         return record
     }
@@ -311,6 +329,12 @@ class RegisterService(
             businessKey = record.recordId,
             before = before,
             after = snapshot(record),
+        )
+        notifyWorkflow(
+            record = record,
+            title = "A register request has been decided",
+            body = "${record.recordId} closed as ${outcome.wire}" +
+                if (approvalFrom != null) ", approved $approvalFrom to $approvalTo." else ".",
         )
         return record
     }
@@ -463,6 +487,27 @@ class RegisterService(
                 actor = policy.actor().label
                 occurredAt = Instant.now()
             },
+        )
+    }
+
+    /**
+     * §9: "register events → Workflow Manager".
+     *
+     * Fire-and-forget by design. `raiseForRoles` returns an empty list when no back-office account
+     * holds the role — which is every deployment until the identity spike creates them — and this
+     * carries on regardless. A workflow write that failed because nobody could be notified would be
+     * a notification feature holding the register hostage.
+     *
+     * SEC-13: the title names no person and no requirement, because it is the only field a push
+     * payload carries. The record id and the names are in the body, fetched in-app.
+     */
+    private fun notifyWorkflow(record: RegisterRecord, title: String, body: String) {
+        notifications.raiseForRoles(
+            roles = listOf(Role.WORKFLOW_MANAGER),
+            kind = NotificationKind.REGISTER_EVENT,
+            title = title,
+            body = body,
+            deepLink = "/register/${record.recordId}",
         )
     }
 

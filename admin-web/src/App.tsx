@@ -3,9 +3,13 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ApiError } from './api/client'
 import { SessionProvider } from './api/session'
 import { Layout, NAV_ITEMS } from './components/Layout'
+import { Administration } from './screens/Administration'
 import { Dashboard } from './screens/Dashboard'
+import { Evidence } from './screens/Evidence'
 import { Exceptions } from './screens/Exceptions'
+import { Matrix } from './screens/Matrix'
 import { NotBuilt } from './screens/NotBuilt'
+import { Notifications } from './screens/Notifications'
 import { People } from './screens/People'
 import { PersonDetail } from './screens/PersonDetail'
 import { Register } from './screens/Register'
@@ -46,6 +50,13 @@ export function App(): React.ReactNode {
               <Route path="register" element={<Register />} />
               <Route path="register/new" element={<RegisterNew />} />
               <Route path="register/:recordId" element={<RegisterDetail />} />
+              <Route path="matrix" element={<Matrix />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="evidence" element={<Evidence />} />
+              <Route path="evidence/:publicId" element={<Evidence />} />
+              <Route path="administration" element={<Administration />} />
+              {/* Every §6 module is now routed. The mapping stays so that adding an unbuilt module
+                  to NAV_ITEMS routes it to the honest scope page rather than to a 404. */}
               {NAV_ITEMS.filter((item) => !item.built).map((item) => (
                 <Route key={item.to} path={item.to.slice(1)} element={<NotBuilt />} />
               ))}
