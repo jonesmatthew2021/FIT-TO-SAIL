@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 
+import '../data/evidence_capture.dart';
 import '../data/local_store.dart';
 import '../data/sync_engine.dart';
 
@@ -13,10 +14,15 @@ import '../data/sync_engine.dart';
 /// vessel, which is precisely where this app is used. Syncing is a background activity whose
 /// only visible effect is that the local data changes and the "last synced" line moves.
 class AppState extends ChangeNotifier {
-  AppState({required this.store, required this.engine});
+  AppState({required this.store, required this.engine, EvidenceCapture? capture})
+      : capture = capture ?? PlatformEvidenceCapture();
 
   final LocalStore store;
   final SyncEngine engine;
+
+  /// MOB-4's camera and file pickers, behind an interface so the widget tests never touch a
+  /// platform channel.
+  final EvidenceCapture capture;
 
   bool _syncing = false;
   String? _lastError;
@@ -66,6 +72,47 @@ class AppState extends ChangeNotifier {
     unawaited(engine.flushOutbox().catchError((_) => 0));
   }
 
+  /// MOB-4: capture a document and queue it for the §8 pipeline.
+  ///
+  /// Returns null when there is nothing to say — the submission is queued, or the crew member
+  /// backed out of the picker — and a message to show them when there is.
+  ///
+  /// Note what this method does *not* do. It does not upload, and it does not wait for one: the
+  /// row and its outbox entry are durable the moment this returns, so the screen can say
+  /// "Processing" in a dead spot and mean it. The bytes leave on the next sync, which is kicked
+  /// off here only as a courtesy.
+  Future<String?> submitEvidence({
+    required CaptureSource source,
+    int? requirementId,
+  }) async {
+    final CapturedEvidence captured;
+    try {
+      captured = await capture.capture(source);
+    } on CaptureCancelled {
+      return null;
+    } on CaptureRejected catch (e) {
+      return e.message;
+    } on Exception catch (e) {
+      return 'That document could not be read: $e';
+    }
+
+    await engine.queueSubmission(
+      publicId: SyncEngine.newId(),
+      source: captured.source.wire,
+      contentType: captured.contentType,
+      declaredSize: captured.size,
+      declaredSha256: captured.sha256,
+      requirementHintId: requirementId,
+      localPath: captured.path,
+    );
+    notifyListeners();
+
+    // Best-effort, exactly as a read-mark is. Failing is the ordinary offline case and the queue
+    // already holds everything needed to try again.
+    unawaited(sync());
+    return null;
+  }
+
   // --- Queries the screens use. Streams, so an applied delta redraws by itself. ---
 
   Stream<List<LocalNotification>> watchNotifications() =>
@@ -92,6 +139,30 @@ class AppState extends ChangeNotifier {
   Stream<List<LocalSubmission>> watchSubmissions() => (store.select(store.submissions)
         ..orderBy([(t) => OrderingTerm(expression: t.submittedAt, mode: OrderingMode.desc)]))
       .watch();
+
+  /// The submissions the crew member raised against one requirement, newest first.
+  ///
+  /// Hint-matched, not verdict-matched: `requirement_hint_id` is what the *device* said the
+  /// document was for, and §8 stage 3 may well decide otherwise. Showing the hint is honest
+  /// about that — this is "what I sent about this", not "what the system accepted".
+  Stream<List<LocalSubmission>> watchSubmissionsFor(int requirementId) =>
+      (store.select(store.submissions)
+            ..where((t) => t.requirementHintId.equals(requirementId))
+            ..orderBy([(t) => OrderingTerm(expression: t.submittedAt, mode: OrderingMode.desc)]))
+          .watch();
+
+  /// The crew change behind an assignment — where the §5.1 cutoff date lives.
+  Stream<LocalCrewChange?> watchCrewChange(int crewChangeId) =>
+      (store.select(store.crewChanges)..where((t) => t.id.equals(crewChangeId)))
+          .watchSingleOrNull();
+
+  /// One certification, streamed, so the detail screen redraws when a delta lands on it.
+  Stream<CertificationRow?> watchCertification(int requirementId) =>
+      watchCertifications().map(
+        (rows) => rows
+            .where((row) => row.cell.requirementId == requirementId)
+            .firstOrNull,
+      );
 
   /// The certifications view: the server's evaluated cells joined to the requirement catalogue
   /// and to whatever the crew member actually holds.

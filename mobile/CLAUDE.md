@@ -2,8 +2,16 @@
 
 The offline spine and three of §7's screens exist: MOB-1 my certifications, MOB-2 my roster,
 MOB-3 notifications, over an encrypted local store with snapshot + delta sync and a durable
-outbound queue (MOB-5). Evidence submission is half-built: the backend, the queue entry and the
-resumable upload work end to end; the camera does not exist yet.
+outbound queue (MOB-5). Each list drills down: a certification opens its cell, level, holding and
+register overlay; a swing opens its dates, day count and cut-off.
+
+**MOB-4 submission is built end to end** — capture (camera, photo library, PDF/image attachment),
+a staged copy inside the app container, a queue entry, and a resumable chunked upload that asks
+the server for its offset before every attempt. Verified on the simulator against the live
+backend: two chunks, digest accepted, and §8 reporting `Extracted 1: 0 auto-accepted, 1 to review`
+— correctly nothing extracted with no LLM provider configured, and a Data Steward left to type the
+fields. **The camera itself is still unproven**: a simulator has none, so only the library and file
+paths have actually run (see "What is unverified" #4).
 
 **iOS builds and runs; Android has never been built.** Xcode 26.6 / iOS 26.5 SDK is installed
 here, so `flutter build ios` and a simulator run are verified (see below for exactly what that
@@ -14,8 +22,15 @@ unverified" before trusting anything else about the app on a phone.
 ## Stack (decided — ADR 0002, amended by ADR 0009)
 
 Flutter 3.44 stable / Dart 3.12. Runtime dependencies, all of them: `drift` (local store),
-`sqlite3`, `path_provider`, `flutter_secure_storage`, `http`. Dev: `drift_dev`, `build_runner`,
-`flutter_lints`.
+`sqlite3`, `path_provider`, `flutter_secure_storage`, `http`, `image_picker` (MOB-4 camera and
+photo library), `file_picker` (MOB-4 attachments), `crypto` (the SHA-256 a resumed upload is
+verified against). Dev: `drift_dev`, `build_runner`, `flutter_lints`.
+
+Two upload-related things ADR 0002 names are deliberately **not** here yet, and both are the
+device spike's: `background_downloader` (kill-surviving background transfer — the uploader below
+survives an app *restart*, because the queue and the staged file are both on disk, but not a kill
+mid-chunk) and the VisionKit/ML-Kit document scanner (edge detection and deskew; `image_picker`
+returns a plain photo).
 
 The encrypted store is **SQLite3MultipleCiphers selected through a build hook**, not through a
 `*_flutter_libs` package — those are end-of-life since `sqlite3` 3.x bundles its own native
@@ -35,7 +50,7 @@ and `test/encrypted_store_test.dart` fails.
 ## Build and test
 
 ```bash
-flutter test                              # 43 tests
+flutter test                              # 63 tests
 flutter analyze                           # clean
 dart run tool/generate_api.dart           # regenerate lib/src/api/schema.g.dart
 dart run tool/generate_api.dart --check   # fail if committed types are stale — the CI check
@@ -114,9 +129,9 @@ test.
 | Path | Contents |
 |---|---|
 | `lib/src/api/` | `schema.g.dart` (generated from the backend's OpenAPI, committed), `crewcomp_api.dart` (typed HTTP + the dev shim) |
-| `lib/src/data/` | `local_store.dart` drift schema, `database_opener.dart` encryption and key handling, `sync_engine.dart` snapshot/delta/outbox |
+| `lib/src/data/` | `local_store.dart` drift schema, `database_opener.dart` encryption and key handling, `sync_engine.dart` snapshot/delta/outbox, `evidence_capture.dart` MOB-4 pickers and staging, `evidence_uploader.dart` MOB-5a resumable chunk loop |
 | `lib/src/domain/` | `calendar.dart` calendar-date arithmetic, `states.dart` Appendix A presentation |
-| `lib/src/ui/` | `app_state.dart` (the only thing that talks to the engine), `screens.dart` (`*Screen` wrappers do the streams, `*View` widgets are pure) |
+| `lib/src/ui/` | `app_state.dart` (the only thing that talks to the engine), `screens.dart` and `detail_screens.dart` (`*Screen` wrappers do the streams, `*View` widgets are pure), `widgets.dart` (shared pure presentation) |
 | `tool/` | `generate_api.dart` — the DEV-2 generator |
 
 `CREWCOMP_OPENAPI` exists for CI: the backend job publishes the schema as an artefact and both
@@ -148,6 +163,23 @@ thing DEV-2 exists to prevent. It does mean an admin-side DTO change makes this 
   `127.0.0.1` works with no `Info.plist` exception. Convenient in development and a trap in
   production: **iOS will not stop a release build talking plain HTTP**, so nothing but our own
   code can enforce TLS. See "What is unverified" #9.
+- **A snapshot would strand an in-flight submission's bytes.** `local_path` is the one column on
+  `submissions` the server does not own, and `_applySnapshot` replaces every server-owned row
+  wholesale. Dropping it does not fail anything: the row returns from the payload looking like an
+  ordinary in-flight submission, the uploader skips it forever because there is nothing to read,
+  and the crew member waits on a verdict for a document that will never arrive. The paths are
+  captured before the delete and re-applied after. A delta is fine — `insertOnConflictUpdate` with
+  the column absent from the companion leaves it alone.
+- **`drift` exports a `min`**, the SQL aggregate, and it shadows `dart:math`'s inside any file
+  importing both. The error names a `double` argument, which points nowhere near the real cause.
+  `evidence_uploader.dart` imports `dart:math as math` for that reason.
+- **`file_picker` v11 moved `pickFiles` onto the class.** `FilePicker.platform.pickFiles(...)` is
+  the v3–v10 form and every answer on the internet; v11 is `FilePicker.pickFiles(...)`. Worth
+  knowing because `flutter pub add file_picker` resolved **3.0.4** here — five years stale —
+  rather than 11, and the old API would have compiled cleanly against it.
+- **`AccumulatorSink` is in `package:convert`, not `package:crypto`**, though every chunked-hashing
+  example pairs them. `dart:convert`'s own `ChunkedConversionSink.withCallback` does the same job
+  without a fourth dependency.
 - **The iOS system log is loud.** A booting simulator emits hundreds of `Failed to index parameter
   type …` ActionKit lines into the `flutter run` console. They are Shortcuts indexing, unrelated
   to this app; filter them out before reading a build log or watching for errors.
@@ -177,6 +209,13 @@ the ones most likely to be quietly wrong.
 The first iOS build succeeded with no source changes — no signing, CocoaPods, ATS or podspec work
 was needed.
 
+**MOB-4's pickers changed that last part.** Adding `image_picker` and `file_picker` made Flutter
+generate an `ios/Podfile` and integrate CocoaPods into the workspace, where the build had been
+pure SPM. The lockfile resolves to `Flutter (1.0.0)` and nothing else — both plugins ship SPM
+packages and neither contributes a pod — so this is an empty CocoaPods integration that exists
+because the toolchain adds one when any plugin is present. It costs a `pod install` on a clean
+checkout and is worth knowing before someone deletes the Podfile as unused.
+
 ## What is unverified
 
 Listed plainly because the test count above could otherwise imply more than it should.
@@ -193,8 +232,10 @@ Listed plainly because the test count above could otherwise imply more than it s
    not a dependency yet. The list is no longer fixture-only, though: assigning or unassigning a
    crew member in the admin SPA raises a real `assignment_added` / `assignment_removed`
    notification, which arrives on the next delta — the easiest way to watch sync work live.
-4. **No camera capture.** MOB-4's submission and upload paths are built and tested; the thing
-   that produces the file is not. Needs a device and the doc-scan wrapper from ADR 0002.
+4. **The camera has never run.** MOB-4's capture, staging, queue and upload are built and tested,
+   and the photo-library and file-attachment paths work. `ImageSource.camera` cannot be exercised
+   on a simulator, which has no camera, so that branch and its `NSCameraUsageDescription` prompt
+   are unproven — as is the doc-scan wrapper ADR 0002 wants in front of it.
 5. **Uploads do not survive backgrounding.** The outbox survives app *restarts* — it is a table —
    and resumes from the server-held offset. True kill-surviving background transfer is
    `background_downloader` (URLSession/WorkManager), which cannot be validated without Xcode.

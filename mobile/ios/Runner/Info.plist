@@ -24,6 +24,14 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- MOB-4. iOS terminates the app on first access to either of these without a purpose
+	     string, so their absence is a crash rather than a denied permission. Worded to say what
+	     the document is used for, because that sentence is the whole of what the crew member is
+	     told before deciding. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo of a certificate to submit it as evidence of your qualifications.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Choose a photo of a certificate to submit it as evidence of your qualifications.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

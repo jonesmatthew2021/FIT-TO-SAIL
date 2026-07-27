@@ -14,10 +14,10 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 |---|---|---|
 | `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync |
 | `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, notifications centre, evidence queue, administration |
-| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens** — encrypted store, sync, outbox; **iOS builds and runs on a simulator**, Android never built (no SDK) |
+| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens with drill-down + MOB-4 submission** — encrypted store, sync, outbox, resumable evidence upload; **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
-| `scripts/` | `dev-start.sh` / `dev-stop.sh` — the local development stack | works; see below |
+| `scripts/` | `dev-start.sh` / `dev-stop.sh` — the local development stack; `mobile-start.sh` — the crew app on an iOS simulator | works; see below |
 | `docs/` | spec, ADRs, research | current |
 | `.github/` | workflows + AI review prompts | **verification lanes, AI review and scanning built**; deploy lane and previews wait on ADR 0005 |
 
@@ -63,7 +63,7 @@ The component guides document running each piece by hand.
 
 Early P1 across three components, with **the whole of §6 now built**. Green: **125 pure-domain
 tests**, **143 backend integration tests** against real PostgreSQL (Colima + Quarkus Dev Services),
-**64 frontend tests** with a production bundle that builds, and **43 Flutter tests** including a real
+**64 frontend tests** with a production bundle that builds, and **63 Flutter tests** including a real
 encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
 component detail — including the traps each has already paid for and the spec questions each takes a
 position on.
@@ -97,6 +97,14 @@ What exists end to end, verified over real HTTP against a seeded database and dr
   2 MB document in chunks that resume after a kill, refuse to leave a hole, ignore replays and
   verify their digest. The store on disk is encrypted and unreadable without its key. A roster
   change raises a real notification to the crew member's device.
+- **The crew app closes the evidence loop from the phone.** Each list drills down — a
+  certification to its cell, level, holding and register overlay; a swing to its day count and
+  cut-off — and MOB-4 submission runs end to end on a simulator against the live backend: pick a
+  photo or a PDF, stage it in the app container, queue it, and the uploader asks the server for
+  its offset before every attempt, seeks on a 409 rather than restarting, and deletes the staged
+  copy once the digest is accepted. It arrives in the Data Steward's ADM-9 queue as
+  `pending_review` with nothing extracted, which is exactly LLM-2's launch posture. The camera
+  branch is the one part a simulator cannot exercise.
 
 The largest functional gaps, in the order they bite:
 
@@ -104,7 +112,8 @@ The largest functional gaps, in the order they bite:
    26.6 is installed, `flutter build ios` succeeds, and the app runs on a simulator against the live
    backend with a genuinely encrypted Keychain-keyed store and a working offline mode
    (`mobile/CLAUDE.md` §"What the iOS run proved"). There is still no Android SDK, which is a parity
-   risk ADR 0002 explicitly cares about. Still unproven anywhere: the camera (MOB-4 capture),
+   risk ADR 0002 explicitly cares about. Still unproven anywhere: the camera (a simulator has
+   none, so MOB-4's library and file paths have run and its capture branch has not),
    biometric binding, background upload surviving a kill, and code signing.
 2. **No login** anywhere, and it now blocks more than it did. `GET /api/v1/session` is the stable
    half of the ADR 0003 contract; the code flow, token store and opaque cookie are the identity

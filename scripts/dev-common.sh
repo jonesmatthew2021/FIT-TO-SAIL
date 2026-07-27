@@ -12,11 +12,13 @@ run_dir="$root/.dev"
 
 backend_dir="$root/backend"
 web_dir="$root/admin-web"
+mobile_dir="$root/mobile"
 
 backend_log="$run_dir/backend.log"
 web_log="$run_dir/web.log"
 backend_pidfile="$run_dir/backend.pid"
 web_pidfile="$run_dir/web.pid"
+mobile_pidfile="$run_dir/mobile.pid"
 
 # Ports are fixed by the components: Quarkus defaults to 8080, and admin-web's Vite config
 # proxies /api to it from 5173. Changing either means changing vite.config.ts too.

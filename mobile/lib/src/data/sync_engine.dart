@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 
 import '../api/crewcomp_api.dart';
 import '../api/schema.g.dart';
+import 'evidence_uploader.dart';
 import 'local_store.dart';
 
 /// MOB-5: snapshot + delta replication, and the durable outbound queue.
@@ -18,10 +19,18 @@ import 'local_store.dart';
 /// that pulls first would receive rows that predate its own queued writes and then apply them
 /// over the top, so a read-mark made offline would visibly un-tick itself on the next sync.
 class SyncEngine {
-  SyncEngine({required this.api, required this.store, this.now = _systemNow});
+  SyncEngine({
+    required this.api,
+    required this.store,
+    this.now = _systemNow,
+    EvidenceUploader? uploader,
+  }) : uploader = uploader ?? EvidenceUploader(api: api, store: store);
 
   final CrewcompApi api;
   final LocalStore store;
+
+  /// MOB-5a. Separate from the queue because the bytes are: see `evidence_uploader.dart`.
+  final EvidenceUploader uploader;
 
   /// Injected so retry back-off is testable without waiting. Not a source of business dates —
   /// those come from the server's `serverToday`.
@@ -41,10 +50,17 @@ class SyncEngine {
   Future<SyncOutcome> sync() async {
     try {
       final pushed = await flushOutbox();
+
+      // Between the push and the pull, and in that order for two reasons. The flush is what
+      // registers a submission, so nothing can be appended to before it runs; and the pull is
+      // what brings back the verdict, which is only worth asking for once the bytes are there.
+      final uploaded = await uploader.uploadPending();
+
       final pulled = await pull();
       return SyncOutcome(
         succeeded: true,
         operationsPushed: pushed,
+        uploadsCompleted: uploaded,
         resnapshotted: pulled.resnapshotted,
       );
     } on ApiException catch (e) {
@@ -79,6 +95,18 @@ class SyncEngine {
   }
 
   Future<void> _applySnapshot(SyncSnapshotDto snapshot) async {
+    // `local_path` is the one column on a submission the server does not own, and a snapshot
+    // replaces every server-owned row wholesale. Losing it would strand the bytes: the row comes
+    // back from the payload looking like an ordinary in-flight submission, with nothing left to
+    // say where the file is, so the uploader skips it forever and the crew member waits on a
+    // verdict for a document that will never arrive. Carried across the replacement by hand.
+    final stagedPaths = {
+      for (final row in await (store.select(store.submissions)
+                ..where((t) => t.localPath.isNotNull()))
+              .get())
+        row.publicId: row.localPath!,
+    };
+
     await store.transaction(() async {
       // A snapshot is authoritative for everything server-owned, so the replica is replaced
       // rather than merged. The outbox is untouched: those are the device's own writes and the
@@ -107,6 +135,12 @@ class SyncEngine {
       }
       for (final submission in snapshot.submissions) {
         await _upsertSubmission(submission);
+        final staged = stagedPaths[submission.publicId];
+        if (staged != null) {
+          await (store.update(store.submissions)
+                ..where((t) => t.publicId.equals(submission.publicId)))
+              .write(SubmissionsCompanion(localPath: Value(staged)));
+        }
       }
       for (final requirement in snapshot.reference.requirements) {
         await store.into(store.requirements).insertOnConflictUpdate(
@@ -251,7 +285,7 @@ class SyncEngine {
 
   /// Queues a notification read-mark. Monotonic, so replaying it is harmless (§7.6).
   Future<void> queueReadMark(int notificationId) async {
-    final opId = _opId();
+    final opId = newId();
     await store.into(store.outbox).insertOnConflictUpdate(
           OutboxCompanion.insert(
             opId: opId,
@@ -282,7 +316,7 @@ class SyncEngine {
     int? requirementHintId,
     String? localPath,
   }) async {
-    final opId = _opId();
+    final opId = newId();
     await store.transaction(() async {
       await store.into(store.outbox).insertOnConflictUpdate(
             OutboxCompanion.insert(
@@ -429,7 +463,9 @@ class SyncEngine {
     return now().difference(last) > offlineValidity;
   }
 
-  static String _opId() {
+  /// A fresh v4-shaped identifier: outbox idempotency keys, and the `publicId` a submission
+  /// carries from the moment the device mints it (§7.6).
+  static String newId() {
     // A v4-shaped identifier. Uniqueness is what matters — it is an idempotency key, not a
     // security token — and this avoids a dependency for sixteen bytes of randomness.
     final random = Random.secure();
@@ -529,6 +565,7 @@ class SyncOutcome {
   const SyncOutcome({
     required this.succeeded,
     this.operationsPushed = 0,
+    this.uploadsCompleted = 0,
     this.resnapshotted = false,
     this.error,
     this.unauthenticated = false,
@@ -536,6 +573,10 @@ class SyncOutcome {
 
   final bool succeeded;
   final int operationsPushed;
+
+  /// Evidence submissions whose bytes finished uploading during this cycle (MOB-5a).
+  final int uploadsCompleted;
+
   final bool resnapshotted;
   final String? error;
   final bool unauthenticated;

@@ -11,6 +11,8 @@ import '../data/local_store.dart';
 import '../domain/calendar.dart';
 import '../domain/states.dart';
 import 'app_state.dart';
+import 'detail_screens.dart';
+import 'widgets.dart';
 
 class CrewHome extends StatefulWidget {
   const CrewHome({super.key, required this.state});
@@ -219,18 +221,33 @@ class CertificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<List<CertificationRow>>(
       stream: state.watchCertifications(),
-      builder: (context, snapshot) =>
-          CertificationsView(rows: snapshot.data, sync: state.syncState, today: state.serverToday),
+      builder: (context, snapshot) => CertificationsView(
+        rows: snapshot.data,
+        sync: state.syncState,
+        today: state.serverToday,
+        onOpen: (row) => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => CertificationDetailScreen(
+              state: state,
+              requirementId: row.cell.requirementId,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
 class CertificationsView extends StatelessWidget {
-  const CertificationsView({super.key, this.rows, this.sync, this.today});
+  const CertificationsView({super.key, this.rows, this.sync, this.today, this.onOpen});
 
   final List<CertificationRow>? rows;
   final LocalSyncState? sync;
   final String? today;
+
+  /// Navigation is the wrapper's, not the view's: a pure widget that pushed a route would drag
+  /// a Navigator into every test that renders a list.
+  final void Function(CertificationRow row)? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +258,7 @@ class CertificationsView extends StatelessWidget {
 
         final sync = this.sync;
         if (rows.isEmpty) {
-          return _Empty(
+          return EmptyState(
             icon: Icons.sailing_outlined,
             title: sync?.standingCcId == null ? 'No upcoming swing' : 'Nothing to show yet',
             // A person with no assignment has no swing to be evaluated against, so there is no
@@ -267,10 +284,22 @@ class CertificationsView extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 24),
           children: [
             if (sync != null) _StandingHeader(sync: sync),
-            if (attention.isNotEmpty) const _SectionHeader('Needs attention'),
-            ...attention.map((row) => _CertificationTile(row: row, today: today)),
-            if (rest.isNotEmpty) const _SectionHeader('Everything else'),
-            ...rest.map((row) => _CertificationTile(row: row, today: today)),
+            if (attention.isNotEmpty) const SectionHeader('Needs attention'),
+            ...attention.map(
+              (row) => _CertificationTile(
+                row: row,
+                today: today,
+                onTap: onOpen == null ? null : () => onOpen!(row),
+              ),
+            ),
+            if (rest.isNotEmpty) const SectionHeader('Everything else'),
+            ...rest.map(
+              (row) => _CertificationTile(
+                row: row,
+                today: today,
+                onTap: onOpen == null ? null : () => onOpen!(row),
+              ),
+            ),
           ],
         );
       }
@@ -316,7 +345,7 @@ class _StandingHeader extends StatelessWidget {
                 ],
               ),
             ),
-            _Chip(label: cellStateLabel(rollUp), colours: colours),
+            StateChip(label: cellStateLabel(rollUp), colours: colours),
           ],
         ),
       ),
@@ -325,10 +354,11 @@ class _StandingHeader extends StatelessWidget {
 }
 
 class _CertificationTile extends StatelessWidget {
-  const _CertificationTile({required this.row, required this.today});
+  const _CertificationTile({required this.row, required this.today, this.onTap});
 
   final CertificationRow row;
   final String? today;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -336,6 +366,7 @@ class _CertificationTile extends StatelessWidget {
     final expiry = row.cell.expiry ?? row.holding?.expiry;
 
     return ListTile(
+      onTap: onTap,
       title: Text(row.title),
       subtitle: Text(
         [
@@ -347,7 +378,7 @@ class _CertificationTile extends StatelessWidget {
           if (expiry != null && today == null) 'expires ${formatDate(expiry)}',
         ].join(' · '),
       ),
-      trailing: _Chip(label: cellStateLabel(row.cell.state), colours: colours),
+      trailing: StateChip(label: cellStateLabel(row.cell.state), colours: colours),
       isThreeLine: false,
     );
   }
@@ -373,6 +404,11 @@ class RosterScreen extends StatelessWidget {
             assignments: assignmentSnapshot.data ?? const <LocalAssignment>[],
             leave: leaveSnapshot.data ?? const <LocalLeave>[],
             today: state.serverToday,
+            onOpenSwing: (assignment) => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SwingDetailScreen(state: state, assignment: assignment),
+              ),
+            ),
           ),
         );
       },
@@ -386,11 +422,13 @@ class RosterView extends StatelessWidget {
     required this.assignments,
     required this.leave,
     required this.today,
+    this.onOpenSwing,
   });
 
   final List<LocalAssignment> assignments;
   final List<LocalLeave> leave;
   final String? today;
+  final void Function(LocalAssignment assignment)? onOpenSwing;
 
   @override
   Widget build(BuildContext context) {
@@ -401,7 +439,7 @@ class RosterView extends StatelessWidget {
           // within this swing" is the whole difference between the current row and the rest.
           final today = this.today;
           if (assignments.isEmpty && leave.isEmpty) {
-            return const _Empty(
+            return const EmptyState(
               icon: Icons.calendar_today_outlined,
               title: 'Nothing scheduled',
               message: 'Assignments and leave will appear here once a coordinator records them.',
@@ -411,9 +449,10 @@ class RosterView extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.only(bottom: 24),
             children: [
-              if (assignments.isNotEmpty) const _SectionHeader('Swings'),
+              if (assignments.isNotEmpty) const SectionHeader('Swings'),
               ...assignments.map(
                 (assignment) => ListTile(
+                  onTap: onOpenSwing == null ? null : () => onOpenSwing!(assignment),
                   leading: Icon(
                     today != null && isWithin(today, assignment.fromDate, assignment.toDate)
                         ? Icons.sailing
@@ -425,14 +464,14 @@ class RosterView extends StatelessWidget {
                     '${formatDateRange(assignment.fromDate, assignment.toDate)}',
                   ),
                   trailing: today != null && isWithin(today, assignment.fromDate, assignment.toDate)
-                      ? const _Chip(
+                      ? const StateChip(
                           label: 'Current',
                           colours: (background: Color(0xFFE3F5E8), foreground: Color(0xFF1B5E33)),
                         )
                       : null,
                 ),
               ),
-              if (leave.isNotEmpty) const _SectionHeader('Leave'),
+              if (leave.isNotEmpty) const SectionHeader('Leave'),
               ...leave.map(
                 (record) => ListTile(
                   leading: const Icon(Icons.beach_access_outlined),
@@ -483,7 +522,7 @@ class NotificationsView extends StatelessWidget {
         final notifications = this.notifications;
         if (notifications == null) return const SizedBox.shrink();
         if (notifications.isEmpty) {
-          return const _Empty(
+          return const EmptyState(
             icon: Icons.notifications_none,
             title: 'No alerts',
             message: 'Expiry warnings and assignment changes will appear here.',
@@ -519,65 +558,3 @@ class NotificationsView extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Shared pieces
 // ---------------------------------------------------------------------------
-
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.colours});
-
-  final String label;
-  final ({Color background, Color foreground}) colours;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: colours.background, borderRadius: BorderRadius.circular(12)),
-      // Always the text as well as the colour: readable to a colour-blind reader, and on a
-      // sunlit deck.
-      child: Text(
-        label,
-        style: TextStyle(color: colours.foreground, fontSize: 12, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.title);
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-      child: Text(
-        title.toUpperCase(),
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(letterSpacing: 0.8),
-      ),
-    );
-  }
-}
-
-class _Empty extends StatelessWidget {
-  const _Empty({required this.icon, required this.title, required this.message});
-
-  final IconData icon;
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      children: [
-        const SizedBox(height: 80),
-        Icon(icon, size: 48, color: Theme.of(context).colorScheme.outline),
-        const SizedBox(height: 16),
-        Center(child: Text(title, style: Theme.of(context).textTheme.titleMedium)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 8),
-          child: Text(message, textAlign: TextAlign.center),
-        ),
-      ],
-    );
-  }
-}
