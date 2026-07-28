@@ -12,6 +12,9 @@ import {
   type CreateRegisterRecordRequest,
   type CreateTransitionalAccountRequest,
   type CrewChange,
+  type CrewRequest,
+  type CrewRequestStatus,
+  type CrewRequestSummary,
   type EvidenceDocument,
   type ExceptionItem,
   type ExpiryAlert,
@@ -65,6 +68,8 @@ export const keys = {
   catalogue: ['catalogue'] as const,
   exceptions: (state: string) => ['exceptions', state] as const,
   unknownHoldings: ['exceptions', 'unknown-holdings'] as const,
+  crewRequests: (status: string) => ['crew-requests', status] as const,
+  crewRequestSummary: ['crew-requests', 'open-count'] as const,
   register: (filters: RegisterFilters) =>
     ['register', filters.partnership ?? '', filters.cc ?? '', filters.type ?? '', filters.state ?? 'all'] as const,
   registerRecord: (recordId: string) => ['register', 'record', recordId] as const,
@@ -377,6 +382,48 @@ export function useResolveException() {
 
 export function useReopenException() {
   return useExceptionMutation((id: number) => api.reopenException(id))
+}
+
+// ---------------------------------------------------------------------------
+// ADM-11 — the crew request queue
+// ---------------------------------------------------------------------------
+
+export function useCrewRequests(status: CrewRequestStatus): UseQueryResult<CrewRequest[]> {
+  return useQuery({
+    queryKey: keys.crewRequests(status),
+    queryFn: () => api.crewRequests(status),
+  })
+}
+
+export function useCrewRequestSummary(): UseQueryResult<CrewRequestSummary> {
+  return useQuery({ queryKey: keys.crewRequestSummary, queryFn: api.crewRequestSummary })
+}
+
+/**
+ * Decide one request.
+ *
+ * Invalidates the notifications as well as the queue, because both are views of the same arrival —
+ * and the **compliance** queries too, for the case that is easy to miss: dismissing a `course_booked`
+ * request resumes the expiry chasing it had silenced, so an expiry warning can reappear as a direct
+ * result of this click.
+ */
+export function useDecideCrewRequest() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      decision,
+      note,
+    }: {
+      id: number
+      decision: 'action' | 'dismiss'
+      note: string
+    }) => api.decideCrewRequest(id, decision, note),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['crew-requests'] })
+      void client.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
 }
 
 /**

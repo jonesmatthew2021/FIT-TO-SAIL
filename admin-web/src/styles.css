@@ -1172,6 +1172,19 @@ select.input option {
   font-size: 12.5px;
 }
 
+/*
+ * A consequence the form has to state before the button is pressed, not an error.
+ *
+ * Caution rather than critical: ADM-11's dismissal restarts a crew member's expiry reminders, which
+ * is a real effect to know about and not a mistake to warn against.
+ */
+.editor__note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--tone-caution-text);
+  font-size: 12.5px;
+}
+
 /* Tables ----------------------------------------------------------------- */
 
 /*

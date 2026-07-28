@@ -33,6 +33,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/register', label: 'Register', module: 'ADM-4', built: true },
   { to: '/requirements', label: 'Requirements', module: 'ADM-6', built: true },
   { to: '/exceptions', label: 'Exceptions', module: 'ADM-7', built: true },
+  // Beside the other two queues, and after them: the evidence queue and the exceptions worklist are
+  // the daily ones. ADM-11 post-dates §6, which enumerates ADM-1 to ADM-10 — the crew app's one-tap
+  // answers had nowhere to land, and a notification is not a worklist.
+  { to: '/crew-requests', label: 'Crew requests', module: 'ADM-11', built: true },
   { to: '/notifications', label: 'Notifications', module: 'ADM-8', built: true },
   { to: '/evidence', label: 'Evidence queue', module: 'ADM-9', built: true },
   { to: '/administration', label: 'Administration', module: 'ADM-10', built: true },

@@ -12,6 +12,7 @@ import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
 import org.hamcrest.Matchers.hasSize
 import org.hamcrest.Matchers.not
+import org.hamcrest.Matchers.notNullValue
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -334,6 +335,53 @@ class NotificationIT {
                 .get("/api/v1/notifications")
                 .then()
                 .body("findAll { it.kind == 'expiry_affects_roster' }.size()", greaterThan(0))
+        }
+
+        @Test
+        fun `dismissing a booking in the queue puts the expiry warning back`() {
+            // The safety valve. A statement silences the crew warning on the crew member's word
+            // alone; a coordinator who finds no such booking has to be able to undo that, or a
+            // mis-tap goes unchased until the certificate lapses.
+            asRoles("data_steward")
+                .body("""{"status":"held_expiry","expiry":"2026-08-15"}""")
+                .put("/api/v1/people/${seed.compliantPersonId}/holdings/${seed.medRequirementId}")
+                .then()
+                .statusCode(200)
+
+            asCrew()
+                .body(
+                    """{"operations":[{"opId":"op-doubtful","type":"requirement.progress",
+                        "requirementId":${seed.medRequirementId}}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .body("results[0].status", equalTo("applied"))
+
+            runJob("expiry-scan").body("detail", containsString("1 already answered"))
+
+            val requestId: Int = asRoles("crew_coordinator")
+                .get("/api/v1/crew-requests?status=open")
+                .then()
+                .statusCode(200)
+                .body("size()", equalTo(1))
+                .body("[0].kind", equalTo("course_booked"))
+                .body("[0].sam", equalTo("SAM001"))
+                .body("[0].aboutExpiry", equalTo("2026-08-15"))
+                .extract()
+                .path("[0].id")
+
+            asRoles("crew_coordinator")
+                .body("""{"note":"No booking on the provider's list for this crew member."}""")
+                .post("/api/v1/crew-requests/$requestId/dismiss")
+                .then()
+                .statusCode(200)
+                .body("status", equalTo("dismissed"))
+                .body("decidedBy", notNullValue())
+
+            // And now the scan chases again.
+            runJob("expiry-scan")
+                .body("detail", containsString("1 addressed to crew"))
+                .body("detail", containsString("0 already answered"))
         }
 
         @Test

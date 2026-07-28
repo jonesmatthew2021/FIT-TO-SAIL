@@ -152,6 +152,13 @@ describe('evidence and notification enumerations', () => {
     expect(notificationKind('matrix_published').tone).toBe('muted')
   })
 
+  it('tones a crew request by whether it asks for work', () => {
+    // A crew member reporting progress is good news; one who cannot arrange something themselves is
+    // waiting on the office. Neither is critical — nobody's compliance changed either way.
+    expect(notificationKind('crew_progress_reported').tone).toBe('good')
+    expect(notificationKind('crew_help_requested').tone).toBe('caution')
+  })
+
   it('degrades to the raw wire value for a kind this revision does not know', () => {
     // Both revisions are live during an expand/contract deploy, so a newer kind must not blank a row.
     expect(notificationKind('something_new_entirely').label).toBe('something_new_entirely')

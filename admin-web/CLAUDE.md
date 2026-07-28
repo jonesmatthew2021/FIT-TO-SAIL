@@ -2,7 +2,11 @@
 
 **All ten §6 modules exist**: ADM-1 dashboard, ADM-2 swing planner, ADM-3 matrix, ADM-4 register,
 ADM-5 people & holdings, ADM-6 requirements catalogue, ADM-7 exceptions worklist, ADM-8 notifications
-centre, ADM-9 evidence verification queue, ADM-10 administration. `NotBuilt.tsx` survives as the
+centre, ADM-9 evidence verification queue, ADM-10 administration — plus **ADM-11 crew requests**,
+which §6 does not enumerate. It exists because the crew app's one-tap answers had nowhere to land: a
+notification tells whoever held the role at that moment and is marked read by one of them, and no
+query answered "what has the crew asked us for that nobody has dealt with". **Worth confirming with
+the client** — it is the first module here that the spec did not ask for. `NotBuilt.tsx` survives as the
 catch-all route and as the mechanism — a module added to `NAV_ITEMS` with `built: false` routes there
 with its blocker named — which is what kept the remaining scope on screen while four were
 outstanding.
@@ -117,7 +121,7 @@ npm run dev                                                           # :5173
 | `src/api/` | `schema.d.ts` (generated), `client.ts` (typed fetch + dev identity), `queries.ts` (React Query hooks and cache policy), `session.tsx` (session context, role helpers) |
 | `src/domain/` | `dates.ts` calendar-date arithmetic, `enums.ts` Appendix A presentation, `csv.ts` RFC 4180 export |
 | `src/components/` | `Layout` (with the unread badge), `DataTable`, `Ruler`, `StateChip`, `SwingSelector`, `Spinner`, `ErrorPanel` |
-| `src/screens/` | `Dashboard` (ADM-1), `SwingPlanner` (ADM-2), `Matrix` (ADM-3), `Register`/`RegisterDetail`/`RegisterNew` (ADM-4), `People`/`PersonDetail` (ADM-5), `Requirements` (ADM-6), `Exceptions` (ADM-7), `Notifications` (ADM-8), `Evidence` (ADM-9), `Administration` (ADM-10), `SignIn`, `NotBuilt` |
+| `src/screens/` | `Dashboard` (ADM-1), `SwingPlanner` (ADM-2), `Matrix` (ADM-3), `Register`/`RegisterDetail`/`RegisterNew` (ADM-4), `People`/`PersonDetail` (ADM-5), `Requirements` (ADM-6), `Exceptions` (ADM-7), `CrewRequests` (ADM-11), `Notifications` (ADM-8), `Evidence` (ADM-9), `Administration` (ADM-10), `SignIn`, `NotBuilt` |
 
 ## Development sign-in
 
@@ -273,6 +277,19 @@ it, because working these modules is working a queue — read one, act on it, mo
 the selection in the URL is what lets a §9 notification point at the document it is about; ADM-9's
 route existed and did nothing until this pass.
 
+**ADM-11 carries no compliance state, and that is the whole design.** A crew statement is not a
+compliance answer (AUTH-1): saying a course is booked does not close a gap, and a cell-state column
+on this queue would read as though it had. The person's actual standing is one click away on their
+page. Two smaller rules follow the same line — every label is **reported speech** ("Says a course is
+booked", never "Course booked"), and the positive action is `Confirm` / `Arranged` rather than
+`Resolve`, because nothing here resolves anything the engine evaluates.
+
+**ADM-11's Dismiss states its consequence before the click, not after.** Dismissing a `course_booked`
+request resumes the expiry reminders that statement had switched off on the crew member's phone —
+the safety valve for "we have no record of that booking". It is the one control in this app whose
+effect lands on somebody else's device, so the form says so above the button. The mutation
+invalidates the notification queries for the same reason.
+
 **ADM-8 checks a deep link before rendering it as an href.** `deepLink` is a server-provided string
 and is either an app path or the mobile app's `crewcomp://` scheme. `internalLink` accepts only a
 single-slash relative path, so `//evil.example` — which looks relative and is not — comes back null.
@@ -354,8 +371,16 @@ it is why `RegisterNew` reads its initial state from `useSearchParams` rather th
    blank-level bug, an empty "Not built" nav heading and the restyle's off-by-one handover hole were
    found. Making that a committed lane is the pipeline bootstrap's, and the first two cases it should
    carry are already known: **no screen may scroll the page horizontally** at 1600 / 1280 / 1100 / 980
-   / 900 / 760 / 420px (checked by hand, all ten screens, this pass), and every ruler bar must cover
-   its own end date.
+   / 900 / 760 / 420px, and every ruler bar must cover its own end date.
+12. **The shell scrolls horizontally at 980px and 420px** — 16px and 132px respectively, identically
+    on every screen, so it is the shell rather than any one of them. `shell__header` and
+    `shell__body` are the overflowing boxes; at 420px the widest child is `shell__session`, the
+    **dev-only** role picker and its "Switch role" button, which a production bundle does not
+    contain. Measured with a headless Chromium against the live backend on 28 July 2026, across
+    `/exceptions`, `/crew-requests`, `/register` and `/evidence`, all four identical. The rule above
+    was checked by hand per screen and this is a shell-level regression underneath it — one fix in
+    `Layout`/`styles.css`, but it needs all eleven screens re-checked afterwards, which is why it is
+    listed rather than done.
 10. **ADM-8's role proxy shows other people's copies.** Until the identity spike gives a back-office
     user their own account, an account-less actor reads the notifications addressed to the accounts
     holding their roles — so a §9 fan-out to four Workflow Managers reads as four rows. The recipient

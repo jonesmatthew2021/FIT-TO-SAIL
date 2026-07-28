@@ -4,6 +4,7 @@ import { ApiError } from './api/client'
 import { SessionProvider } from './api/session'
 import { Layout, NAV_ITEMS } from './components/Layout'
 import { Administration } from './screens/Administration'
+import { CrewRequests } from './screens/CrewRequests'
 import { Dashboard } from './screens/Dashboard'
 import { Evidence } from './screens/Evidence'
 import { Exceptions } from './screens/Exceptions'
@@ -46,6 +47,7 @@ export function App(): React.ReactNode {
               <Route path="people/:personId" element={<PersonDetail />} />
               <Route path="requirements" element={<Requirements />} />
               <Route path="exceptions" element={<Exceptions />} />
+              <Route path="crew-requests" element={<CrewRequests />} />
               <Route path="register" element={<Register />} />
               <Route path="register/new" element={<RegisterNew />} />
               {/* ADM-4 is one screen with the list beside the detail, so a record id selects rather

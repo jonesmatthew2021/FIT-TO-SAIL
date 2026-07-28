@@ -4,11 +4,13 @@ import au.crewcomp.engine.HoldingStatus
 import au.crewcomp.notify.NotificationKind
 import au.crewcomp.notify.NotificationService
 import au.crewcomp.platform.audit.AuditWriter
+import au.crewcomp.platform.persistence.EntityNotFoundException
 import au.crewcomp.platform.security.AccessPolicy
 import au.crewcomp.platform.security.Role
 import au.crewcomp.reference.RequirementRepository
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.transaction.Transactional
+import java.time.Instant
 import java.time.LocalDate
 
 /**
@@ -104,6 +106,106 @@ class CrewStatementService(
         return statement
     }
 
+    // -----------------------------------------------------------------------
+    // ADM-11 — the queue
+    // -----------------------------------------------------------------------
+
+    /** The worklist. @param status open, actioned, dismissed, or null for everything. */
+    @Transactional
+    fun queue(status: CrewStatementStatus? = null): List<CrewStatement> {
+        policy.require(*READERS)
+        return statements.queueUnscoped(status)
+    }
+
+    /** How many requests nobody has dealt with — the nav badge, and the only number ADM-11 needs. */
+    @Transactional
+    fun openCount(): Long {
+        policy.require(*READERS)
+        return statements.openCountUnscoped()
+    }
+
+    /**
+     * The coordinator did the thing: confirmed the booking, arranged the help.
+     *
+     * Terminal. There is no reopen, for the same reason the register has none — a crew member who
+     * is still waiting asks again, and the second statement carries its own date.
+     */
+    @Transactional
+    fun action(statementId: Long, note: String): CrewStatement = decide(
+        statementId = statementId,
+        to = CrewStatementStatus.ACTIONED,
+        note = note,
+        event = "crew_statement.actioned",
+    )
+
+    /**
+     * Nothing to do, or the office cannot confirm it.
+     *
+     * For a `course_booked` statement this **resumes the expiry chasing** the statement had
+     * silenced, because the suppression query excludes dismissed rows. That is the whole safety
+     * valve: without it the queue could only ever agree with the crew member.
+     */
+    @Transactional
+    fun dismiss(statementId: Long, note: String): CrewStatement = decide(
+        statementId = statementId,
+        to = CrewStatementStatus.DISMISSED,
+        note = note,
+        event = "crew_statement.dismissed",
+    )
+
+    /**
+     * The one place a request leaves the queue.
+     *
+     * The note is **required**, in both directions. A queue emptied with no explanation is
+     * indistinguishable from one emptied to clear the badge — the same argument ADM-7 makes for its
+     * resolution note, and it matters more here because the person on the other end of a dismissal
+     * is a crew member who asked for something.
+     */
+    private fun decide(
+        statementId: Long,
+        to: CrewStatementStatus,
+        note: String,
+        event: String,
+    ): CrewStatement {
+        policy.require(*DECIDERS)
+
+        val clean = note.trim()
+        require(clean.isNotEmpty()) { "Deciding a crew request needs a note saying what was done" }
+
+        // Fetch-joined rather than loaded by id: this method returns the entity, and the DTO maps
+        // it after the transaction has closed.
+        val statement = statements.findWithContextUnscoped(statementId)
+            ?: throw EntityNotFoundException("No crew request $statementId")
+        require(statement.isOpen) {
+            "Crew request ${statement.requiredId} was already ${statement.status.wire}"
+        }
+
+        val before = snapshot(statement)
+        val actor = policy.actor()
+        statement.status = to
+        statement.decisionNote = clean
+        statement.decidedAt = Instant.now()
+        statement.decidedBy = actor.label
+        statement.stampUpdated(actor.label)
+
+        audit.record(
+            entityType = "CrewStatement",
+            event = event,
+            entityId = statement.id,
+            businessKey = "${statement.person.sam}/${statement.requirement.code}",
+            before = before,
+            after = snapshot(statement),
+        )
+        return statement
+    }
+
+    private fun snapshot(statement: CrewStatement): Map<String, Any?> = mapOf(
+        "kind" to statement.kind.wire,
+        "status" to statement.status.wire,
+        "decisionNote" to statement.decisionNote,
+        "decidedBy" to statement.decidedBy,
+    )
+
     /**
      * The expiry this statement is about, or null.
      *
@@ -152,10 +254,34 @@ class CrewStatementService(
             kind = kind,
             title = title,
             body = body,
-            deepLink = "/people/${person.requiredId}",
+            // ADM-11's queue, not the person page: the notification says something arrived, and
+            // the thing that can be *done* about it is in the queue. The person is one click on
+            // from there.
+            deepLink = "/crew-requests",
             // Keyed on the statement's own opId, so a replay that got past the row check — a
             // concurrent duplicate delivery, say — still cannot produce a second notification.
             dedupeKey = "crew-statement:${statement.opId}",
+        )
+    }
+
+    private companion object {
+        /**
+         * Who may read the queue. The wider set, because a crew request is context for anyone
+         * planning a swing or working the register, not just for whoever will action it.
+         */
+        val READERS = arrayOf(
+            Role.CREW_COORDINATOR, Role.WORKFLOW_MANAGER, Role.COMPLIANCE_LEAD,
+            Role.DATA_STEWARD, Role.SYSTEM_ADMINISTRATOR,
+        )
+
+        /**
+         * Who may decide one. Narrower: arranging a course and confirming a booking is the Crew
+         * Coordinator's job (§9 routes these to them), and a dismissal restarts the chasing of a
+         * named crew member — which is not something a Data Steward should be able to do while
+         * tidying data.
+         */
+        val DECIDERS = arrayOf(
+            Role.CREW_COORDINATOR, Role.WORKFLOW_MANAGER, Role.SYSTEM_ADMINISTRATOR,
         )
     }
 }

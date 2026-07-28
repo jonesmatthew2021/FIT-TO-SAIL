@@ -14,7 +14,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 | Path | Contents | Status |
 |---|---|---|
 | `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync |
-| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules, on the Nocturne dark design system** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, notifications centre, evidence queue, administration |
+| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules plus ADM-11, on the Nocturne dark design system** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, crew requests, notifications centre, evidence queue, administration |
 | `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **all twelve of the design handoff's screens, on the Nocturne dark design system** — the four shipped ones restyled, eight new ones built; over an encrypted store, sync, outbox and resumable evidence upload. **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
@@ -62,10 +62,10 @@ The component guides document running each piece by hand.
 
 ## Current phase
 
-Early P1 across three components, with **the whole of §6 now built**. Green: **125 pure-domain
-tests**, **149 backend integration tests** against real PostgreSQL (Colima + Quarkus Dev Services),
-**64 frontend tests** with a production bundle that builds, and **127 Flutter tests** including a real
-encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
+Early P1 across three components, with **the whole of §6 now built** and one module beyond it
+(ADM-11). Green: **125 pure-domain tests**, **160 backend integration tests** against real PostgreSQL
+(Colima + Quarkus Dev Services), **68 frontend tests** with a production bundle that builds, and
+**127 Flutter tests** including a real encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
 component detail — including the traps each has already paid for and the spec questions each takes a
 position on.
 
@@ -128,15 +128,25 @@ What exists end to end, verified over real HTTP against a seeded database and dr
   an empty list a supervisor reads as *everyone is fine*. `docs/handoff/mobile-crew-app-backend.md`
   is what has to become true, and `mobile/CLAUDE.md` records each departure and why.
 
-- **The first two one-tap answers now reach the office.** `requirement.progress` and
-  `requirement.help` land as a **crew statement** — §7.5's third client-originated write, beside the
-  evidence submission and the read-mark, and deliberately the least powerful of the three. Nothing
-  in the engine reads it: a person who says "course booked" against a lapsed medical still evaluates
-  as a gap, because they still do not hold it. Its one consequence is to make a notification *stop*
-  — the expiry scan skips the crew warning for the exact expiry the person answered, and starts
-  again by itself when a renewal moves the date. The coordinator's roster warning is not suppressed,
-  because a booked course is not a held certificate. Neither operation needed a line of client code:
-  the app was already sending what the server grew a reader for.
+- **The first two one-tap answers now reach the office, and land in a queue somebody works.**
+  `requirement.progress` and `requirement.help` become a **crew statement** — §7.5's third
+  client-originated write, beside the evidence submission and the read-mark, and deliberately the
+  least powerful of the three. Nothing in the engine reads it: a person who says "course booked"
+  against a lapsed medical still evaluates as a gap, because they still do not hold it. Its one
+  consequence is to make a notification *stop* — the expiry scan skips the crew warning for the exact
+  expiry the person answered, and starts again by itself when a renewal moves the date. The
+  coordinator's roster warning is not suppressed, because a booked course is not a held certificate.
+  Neither operation needed a line of client code: the app was already sending what the server grew a
+  reader for.
+
+- **ADM-11, the crew request queue, is the first module beyond §6.** A notification is a "something
+  happened" signal — addressed to whoever held the role at that moment, marked read by one of them —
+  and no query answered *what has the crew asked us for that nobody has dealt with*. The queue does,
+  generically over kinds, so three of the five outstanding one-tap operations land in it without a
+  second screen. `open` → `actioned` | `dismissed`, both terminal, both needing a note, no reopen.
+  **Dismissal is why it could not wait**: the suppression above silences a crew member's expiry
+  warning on their word alone, and a coordinator who finds no such booking has to be able to put it
+  back. §6 enumerates ADM-1 to ADM-10 and stops, so the module number is ours and worth confirming.
 
 The largest functional gaps, in the order they bite:
 

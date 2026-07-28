@@ -576,6 +576,114 @@ class CrewChangeDto {
       };
 }
 
+class CrewRequestDto {
+  final int id;
+  final String kind;
+  final String status;
+  final int personId;
+  final String sam;
+  final String personName;
+  final String positionName;
+  final String partnershipAbbrev;
+  final int requirementId;
+  final String code;
+  final String title;
+  final String? aboutExpiry;
+  final DateTime raisedAt;
+  final String? decisionNote;
+  final DateTime? decidedAt;
+  final String? decidedBy;
+
+  const CrewRequestDto({
+    required this.id,
+    required this.kind,
+    required this.status,
+    required this.personId,
+    required this.sam,
+    required this.personName,
+    required this.positionName,
+    required this.partnershipAbbrev,
+    required this.requirementId,
+    required this.code,
+    required this.title,
+    this.aboutExpiry,
+    required this.raisedAt,
+    this.decisionNote,
+    this.decidedAt,
+    this.decidedBy,
+  });
+
+  factory CrewRequestDto.fromJson(Map<String, dynamic> json) => CrewRequestDto(
+        id: json['id'] as int,
+        kind: json['kind'] as String,
+        status: json['status'] as String,
+        personId: json['personId'] as int,
+        sam: json['sam'] as String,
+        personName: json['personName'] as String,
+        positionName: json['positionName'] as String,
+        partnershipAbbrev: json['partnershipAbbrev'] as String,
+        requirementId: json['requirementId'] as int,
+        code: json['code'] as String,
+        title: json['title'] as String,
+        aboutExpiry: json['aboutExpiry'] == null ? null : json['aboutExpiry'] as String,
+        raisedAt: DateTime.parse(json['raisedAt'] as String).toUtc(),
+        decisionNote: json['decisionNote'] == null ? null : json['decisionNote'] as String,
+        decidedAt: json['decidedAt'] == null ? null : DateTime.parse(json['decidedAt'] as String).toUtc(),
+        decidedBy: json['decidedBy'] == null ? null : json['decidedBy'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'kind': kind,
+        'status': status,
+        'personId': personId,
+        'sam': sam,
+        'personName': personName,
+        'positionName': positionName,
+        'partnershipAbbrev': partnershipAbbrev,
+        'requirementId': requirementId,
+        'code': code,
+        'title': title,
+        'aboutExpiry': aboutExpiry,
+        'raisedAt': raisedAt.toIso8601String(),
+        'decisionNote': decisionNote,
+        'decidedAt': decidedAt?.toIso8601String(),
+        'decidedBy': decidedBy,
+      };
+}
+
+class CrewRequestSummaryDto {
+  final int open;
+
+  const CrewRequestSummaryDto({
+    required this.open,
+  });
+
+  factory CrewRequestSummaryDto.fromJson(Map<String, dynamic> json) => CrewRequestSummaryDto(
+        open: json['open'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'open': open,
+      };
+}
+
+class DecideCrewRequestRequest {
+  final String note;
+
+  const DecideCrewRequestRequest({
+    required this.note,
+  });
+
+  factory DecideCrewRequestRequest.fromJson(Map<String, dynamic> json) => DecideCrewRequestRequest(
+        note: json['note'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'note': note,
+      };
+}
+
 class EvidenceDocumentDto {
   final String publicId;
   final int personId;

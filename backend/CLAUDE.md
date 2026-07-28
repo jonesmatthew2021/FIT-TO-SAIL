@@ -5,7 +5,9 @@ persistence and security layers, the compliance service, the REST API, and the e
 server. On top of it, **every §6 admin module now has a backend**: assignment (ADM-2), matrix
 versioning (ADM-3), the register workflow (ADM-4), the catalogue (ADM-6), the exceptions worklist
 (ADM-7), notifications with the §9 scans (ADM-8), the §8 evidence pipeline and its verification
-queue (ADM-9), and configuration, jobs, users and the SEC-1a allow-list (ADM-10) — plus §10.3 sync.
+queue (ADM-9), and configuration, jobs, users and the SEC-1a allow-list (ADM-10) — plus §10.3 sync
+and **ADM-11**, the crew request queue, which §6 does not enumerate and the crew app's one-tap
+answers needed.
 
 What is left is not a module but the four spikes: the platform decision, identity, the pipeline, and
 mobile hardware. Two things in this component are honest placeholders rather than gaps, and both are
@@ -98,7 +100,7 @@ the working loop is dev mode for iteration, a full `verify` before committing.
 | `au.crewcomp.engine` | **The §5 engine. Pure Kotlin — no CDI, no JPA, no framework types.** Cell/person/swing evaluation, rule resolution, quotas, suggestions, gap report, expiry alerts, matrix diff. |
 | `au.crewcomp.reference` | §4.1 partnerships, vessels, positions, slots, crew changes, requirements. `ReferenceService` also carries the ADM-6 catalogue write path and its usage counts |
 | `au.crewcomp.rules` | §4.2 matrix versions, requirement/conditional/quota rules. `MatrixService` is ADM-3's whole lifecycle: draft → edit → publish |
-| `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave. `HoldingService` and `AssignmentService` are the two write paths; `UserAdminService` is ADM-10's access surface; `CrewStatementService` is the crew app's one-tap answers, which are deliberately none of the above |
+| `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave. `HoldingService` and `AssignmentService` are the two write paths; `UserAdminService` is ADM-10's access surface; `CrewStatementService` is the crew app's one-tap answers (deliberately none of the above) and ADM-11's queue over them |
 | `au.crewcomp.workflow` | §4.4 register records, conditions, notes, exception items. `RegisterService` is ADM-4's whole lifecycle; `ExceptionService` is ADM-7's worklist |
 | `au.crewcomp.compliance` | Application service around the engine: entity↔engine mapping, matrix snapshots, `ComplianceService` |
 | `au.crewcomp.sync` | §10.3 mobile sync: delta reads, tombstones, `SyncService`. Takes no person id anywhere — it answers for the authenticated crew member only |
@@ -138,6 +140,11 @@ these.
   to make a notification *stop* (see `CrewStatementService`). Adding a fourth, or letting a
   statement reach the engine, breaks AUTH-1 at its most load-bearing point: the crew member would be
   grading their own compliance.
+- **A client-originated write that silences something must be reversible by the office.** A
+  `course_booked` statement suppresses the crew-facing expiry warning on the crew member's word
+  alone; ADM-11's dismissal is what puts it back. The general rule: if a device can turn a warning
+  off, a human has to be able to turn it back on, and the queue that lets them is part of the
+  feature rather than a follow-up to it.
 - **Dates are calendar dates** (NFR-5). `BusinessClock` is the only source of "today", so the
   admin date override has exactly one place to take effect. `GET /api/v1/session` hands it to
   clients, because a browser cannot know the operating timezone.

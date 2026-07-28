@@ -108,15 +108,43 @@ reassurance.
 Both raise a per-role notification to Crew Coordinators — `crew_progress_reported` and
 `crew_help_requested`, both new `NotificationKind`s, both SEC-13-safe in the title.
 
+### 1.2 ADM-11 — where they land
+
+A notification is a "something happened" signal and nothing more: it is addressed to whoever held the
+role at the moment it was raised, one person marks it read, and no query answers *what has the crew
+asked us for that nobody has dealt with*. So the statements are also a **queue**, and `crew_statement`
+gained a status (V6).
+
+`open` → `actioned` | `dismissed`, both terminal, both requiring a note. No reopen, matching the
+register: a crew member still waiting asks again, and the second statement carries its own date.
+
+The queue is generic over kinds on purpose — three of the five operations still outstanding in §1
+(`course.seat_request`, `course.waitlist`, `register.exemption_request`) land in the same screen with
+no second worklist.
+
+**Dismissal is the safety valve, and the reason the queue could not wait.** §1.1's suppression
+silences a crew member's expiry warning on their word alone; dismissing the request resumes it. The
+console says so on the form, above the button, because it is the one control in the back office whose
+effect lands on somebody else's phone.
+
+`GET /api/v1/crew-requests`, `…/open-count`, `POST …/{id}/action`, `POST …/{id}/dismiss`. Readable by
+every back-office role; decidable by Crew Coordinator, Workflow Manager and System Administrator —
+not the Data Steward, because restarting the chasing of a named crew member is not something to do
+while tidying data.
+
+**§6 enumerates ADM-1 to ADM-10 and stops.** ADM-11 is the first module here the spec did not ask
+for, and it is worth confirming with the client rather than quietly numbering.
+
 Still outstanding for these two, and deliberately not done:
 
 * **The statement is not in the sync payload.** The table carries `updated_seq` and a tombstone
   trigger from birth, so it is ready to be replicated, but the device's own `CrewIntents` row is
   still the only place the answer shows on screen. That means a reinstall loses "Course booked" and
   Home asks again. It belongs with §2's payload additions.
-* **Nothing in `admin-web` shows a statement.** The coordinator's notification is the whole
-  surfacing today. This document previously said "surfaces on ADM-7 / the person page as *in
-  progress*"; the person page is the right home for it and it is not built.
+* **A decision is invisible to the crew member.** A coordinator confirms or dismisses, and the phone
+  never hears. Dismissing at least resumes the expiry notification, which is an indirect signal; a
+  direct one — a §9 notification back to the person, and the decision on the row when the statement
+  reaches the payload — is the right answer and is part of the same item above.
 
 ---
 
@@ -313,7 +341,7 @@ Listed here so the whole picture is in one place.
 * **The camera.** MOB-4's capture branch has never run — a simulator has no camera.
 * **`admin-web`:** a crew-raised exemption and an attestation both want somewhere to land in the
   console. The register (ADM-4) probably absorbs the first; the second may want a column on the
-  planner rather than a screen of its own.
+  planner rather than a screen of its own. Everything else crew-originated now has ADM-11 (§1.2).
 
 ---
 

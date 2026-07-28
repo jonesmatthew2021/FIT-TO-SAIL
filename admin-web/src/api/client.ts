@@ -41,6 +41,11 @@ export type RequirementUsage = Schemas['RequirementUsageDto']
 export type SaveRequirementRequest = Schemas['SaveRequirementRequest']
 export type ExceptionItem = Schemas['ExceptionItemDto']
 export type UnknownHolding = Schemas['UnknownHoldingDto']
+export type CrewRequest = Schemas['CrewRequestDto']
+export type CrewRequestSummary = Schemas['CrewRequestSummaryDto']
+
+/** ADM-11's filter. `all` is this screen's word for "no status parameter", not a server state. */
+export type CrewRequestStatus = 'open' | 'actioned' | 'dismissed' | 'all'
 export type RaiseExceptionRequest = Schemas['RaiseExceptionRequest']
 export type RegisterRecord = Schemas['RegisterRecordDto']
 export type RegisterRecordDetail = Schemas['RegisterRecordDetailDto']
@@ -318,6 +323,21 @@ export const api = {
 
   reopenException: (exceptionItemId: number): Promise<ExceptionItem> =>
     request(`/api/v1/exceptions/${exceptionItemId}/reopen`, { method: 'POST' }),
+
+  crewRequests: (status: CrewRequestStatus): Promise<CrewRequest[]> =>
+    request('/api/v1/crew-requests' + query({ status: status === 'all' ? undefined : status })),
+
+  crewRequestSummary: (): Promise<CrewRequestSummary> => request('/api/v1/crew-requests/open-count'),
+
+  decideCrewRequest: (
+    crewRequestId: number,
+    decision: 'action' | 'dismiss',
+    note: string,
+  ): Promise<CrewRequest> =>
+    request(`/api/v1/crew-requests/${crewRequestId}/${decision}`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
 
   register: (filters: RegisterFilters): Promise<RegisterRecord[]> =>
     request(
