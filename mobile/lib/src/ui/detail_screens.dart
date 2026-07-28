@@ -1,4 +1,5 @@
-/// Drill-down from the two list screens, and MOB-4's submit flow.
+/// Drill-down from the list screens: MOB-2 requirement detail and the swing detail behind a
+/// roster row.
 ///
 /// The same rule as `screens.dart` holds throughout: these read the local store and nothing
 /// else, and they compute no compliance (AUTH-1). Every state, level and note rendered here
@@ -9,24 +10,36 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 
-import '../data/evidence_capture.dart';
 import '../data/local_store.dart';
 import '../domain/calendar.dart';
+import '../domain/intents.dart';
 import '../domain/states.dart';
+import '../domain/urgency.dart';
+import 'action_screens.dart';
 import 'app_state.dart';
+import 'evidence_screens.dart';
+import 'nocturne.dart';
+import 'screens.dart';
 import 'widgets.dart';
 
+/// Pushes MOB-2 for a requirement. One function so every entry point — a list row, a Home card,
+/// an alert's inline action — lands on the same screen with the same back behaviour.
+void openRequirement(BuildContext context, AppState state, int requirementId) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => CertificationDetailScreen(state: state, requirementId: requirementId),
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
-// MOB-1 detail — one certification
+// MOB-2 — one requirement
 // ---------------------------------------------------------------------------
 
 class CertificationDetailScreen extends StatelessWidget {
-  const CertificationDetailScreen({
-    super.key,
-    required this.state,
-    required this.requirementId,
-  });
+  const CertificationDetailScreen({super.key, required this.state, required this.requirementId});
 
   final AppState state;
   final int requirementId;
@@ -38,15 +51,39 @@ class CertificationDetailScreen extends StatelessWidget {
       builder: (context, rowSnapshot) {
         return StreamBuilder<List<LocalSubmission>>(
           stream: state.watchSubmissionsFor(requirementId),
-          builder: (context, submissionSnapshot) => CertificationDetailView(
-            row: rowSnapshot.data,
-            submissions: submissionSnapshot.data ?? const <LocalSubmission>[],
-            today: state.serverToday,
-            onSubmit: (source) => state.submitEvidence(
-              source: source,
-              requirementId: requirementId,
-            ),
-          ),
+          builder: (context, submissionSnapshot) {
+            return StreamBuilder<List<LocalCrewIntent>>(
+              stream: state.watchIntentsFor(requirementId),
+              builder: (context, intentSnapshot) {
+                final row = rowSnapshot.data;
+                return CertificationDetailView(
+                  row: row,
+                  submissions: submissionSnapshot.data ?? const <LocalSubmission>[],
+                  intents: intentSnapshot.data ?? const <LocalCrewIntent>[],
+                  today: state.serverToday,
+                  swingTo: state.syncState?.standingTo,
+                  onSubmit: row == null
+                      ? null
+                      : () => showSendCertificateSheet(
+                          context: context,
+                          state: state,
+                          requirementId: requirementId,
+                          requirementLabel: '${row.code} ${row.title}',
+                        ),
+                  onCourseBooked: row == null ? null : () => openOneTapUpdate(context, state, row),
+                  onNeedHelp: row == null
+                      ? null
+                      : () => state.answer(
+                          kind: IntentKind.helpNeeded,
+                          summary: 'Asked for help with ${row.title}',
+                          requirementId: requirementId,
+                        ),
+                  onRetryIntent: state.retryAnswer,
+                  onDiscardIntent: state.discardAnswer,
+                );
+              },
+            );
+          },
         );
       },
     );
@@ -59,24 +96,35 @@ class CertificationDetailView extends StatelessWidget {
     required this.row,
     required this.submissions,
     required this.today,
-    required this.onSubmit,
+    this.intents = const <LocalCrewIntent>[],
+    this.swingTo,
+    this.onSubmit,
+    this.onCourseBooked,
+    this.onNeedHelp,
+    this.onRetryIntent,
+    this.onDiscardIntent,
   });
 
   final CertificationRow? row;
   final List<LocalSubmission> submissions;
+  final List<LocalCrewIntent> intents;
   final String? today;
-
-  /// Returns a message to show, or null when there is nothing to say.
-  final Future<String?> Function(CaptureSource source) onSubmit;
+  final String? swingTo;
+  final VoidCallback? onSubmit;
+  final VoidCallback? onCourseBooked;
+  final VoidCallback? onNeedHelp;
+  final void Function(String opId)? onRetryIntent;
+  final void Function(String opId)? onDiscardIntent;
 
   @override
   Widget build(BuildContext context) {
     final row = this.row;
     if (row == null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: const EmptyState(
-          icon: Icons.help_outline,
+      return const Scaffold(
+        backgroundColor: Nocturne.bg,
+        appBar: NocturneNavBar(title: ''),
+        body: EmptyState(
+          icon: PhosphorIconsRegular.question,
           title: 'No longer required',
           message: 'This requirement is not part of your current standing.',
         ),
@@ -84,97 +132,192 @@ class CertificationDetailView extends StatelessWidget {
     }
 
     final cell = row.cell;
-    final colours = cellStateColours(cell.state, Theme.of(context).brightness);
-    final expiry = cell.expiry ?? row.holding?.expiry;
+    final expiry = row.expiry;
+    final urgency = urgencyFor(state: cell.state, expiry: expiry, today: today, swingTo: swingTo);
 
     return Scaffold(
-      appBar: AppBar(title: Text(row.code)),
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+      backgroundColor: Nocturne.bg,
+      appBar: NocturneNavBar(
+        title: row.code,
+        titleSpan: monoSpan(row.code, fontSize: 15, colour: Nocturne.text),
+      ),
+      body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 18, Nocturne.gutter, 8),
               children: [
-                Expanded(
-                  child: Text(row.title, style: Theme.of(context).textTheme.titleLarge),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: Text(row.title, style: NoctType.screenName)),
+                    const SizedBox(width: 12),
+                    NTag(label: cellStateLabel(cell.state), tone: cellStateTone(cell.state)),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                StateChip(label: cellStateLabel(cell.state), colours: colours),
+
+                const SizedBox(height: 22),
+                const SectionLabel('Requirement', padding: EdgeInsets.only(bottom: 10)),
+                DefinitionRow(
+                  label: 'Code',
+                  value: row.code,
+                  valueSpan: monoSpan(row.code, fontSize: 13, colour: Nocturne.text),
+                ),
+                DefinitionRow(label: 'Category', value: categoryLabel(row.category)),
+                // §5.1's level for this cell — M, R, M9 and the rest. Rendered raw: what a level
+                // means is the matrix's business, and the app is told the answer rather than
+                // deriving it.
+                DefinitionRow(
+                  label: 'Level',
+                  value: cell.level,
+                  valueSpan: monoSpan(cell.level, fontSize: 13, colour: Nocturne.text),
+                ),
+                if (row.requirement?.issuingAuthority != null)
+                  DefinitionRow(label: 'Issued by', value: row.requirement!.issuingAuthority!),
+
+                const SizedBox(height: 14),
+                const SectionLabel('What you hold', padding: EdgeInsets.only(bottom: 10)),
+                if (row.holding == null)
+                  const DefinitionRow(label: 'Status', value: 'Nothing recorded')
+                else ...[
+                  DefinitionRow(label: 'Status', value: holdingStatusLabel(row.holding!.status)),
+                  if (row.holding!.issueDate != null)
+                    DefinitionRow(label: 'Issued', value: formatDate(row.holding!.issueDate!)),
+                ],
+                if (expiry != null)
+                  DefinitionRow(
+                    label: 'Expires',
+                    value: formatDate(expiry),
+                    valueSpan: TextSpan(
+                      children: [
+                        TextSpan(text: formatDate(expiry)),
+                        // Counted from the server's business date, never the device clock.
+                        if (today != null)
+                          TextSpan(
+                            text: ' · ${relativeDays(today!, expiry)}',
+                            style: TextStyle(color: toneColours(urgencyTone(urgency)).text),
+                          ),
+                      ],
+                    ),
+                  ),
+                if (row.holding?.note != null)
+                  DefinitionRow(label: 'Note', value: row.holding!.note!),
+
+                if (cell.notes != null) ...[
+                  const SizedBox(height: 14),
+                  const SectionLabel('Notes', padding: EdgeInsets.only(bottom: 10)),
+                  Text(cell.notes!, style: NoctType.bodyText),
+                ],
+
+                if (cell.registerRecordId != null) ...[
+                  const SizedBox(height: 14),
+                  const SectionLabel('Register', padding: EdgeInsets.only(bottom: 10)),
+                  // The overlay from §5.1 step 4: an exemption or query is why this cell reads as
+                  // it does. The app names the record so the crew member can quote it; it cannot
+                  // open it, because the register is a back-office workflow (§6.4).
+                  DefinitionRow(
+                    label: 'Record',
+                    value: cell.registerRecordId!,
+                    valueSpan: monoSpan(
+                      cell.registerRecordId!,
+                      fontSize: 13,
+                      colour: Nocturne.text,
+                    ),
+                  ),
+                ],
+
+                if (intents.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  const SectionLabel(
+                    'What you have told the office',
+                    padding: EdgeInsets.only(bottom: 10),
+                  ),
+                  for (final intent in intents)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: IntentLine(
+                        intent: intent,
+                        onRetry: intent.state == 'failed' && onRetryIntent != null
+                            ? () => onRetryIntent!(intent.opId)
+                            : null,
+                        onDismiss: intent.state == 'failed' && onDiscardIntent != null
+                            ? () => onDiscardIntent!(intent.opId)
+                            : null,
+                      ),
+                    ),
+                ],
+
+                const SizedBox(height: 14),
+                const SectionLabel('Evidence you have sent', padding: EdgeInsets.only(bottom: 10)),
+                if (submissions.isEmpty)
+                  Text('Nothing submitted for this requirement yet.', style: NoctType.cardBody)
+                else
+                  for (final submission in submissions)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: SubmissionTile(submission: submission),
+                    ),
               ],
             ),
           ),
 
-          const SectionHeader('Requirement'),
-          DetailRow(label: 'Code', value: row.code),
-          DetailRow(label: 'Category', value: categoryLabel(row.category)),
-          // §5.1's level for this cell — M, R, M9 and the rest. Rendered raw: what a level means
-          // is the matrix's business, and the app is told the answer rather than deriving it.
-          DetailRow(label: 'Level', value: cell.level),
-          if (row.requirement?.issuingAuthority != null)
-            DetailRow(label: 'Issued by', value: row.requirement!.issuingAuthority!),
-
-          const SectionHeader('What you hold'),
-          if (row.holding == null)
-            const DetailRow(label: 'Status', value: 'Nothing recorded')
-          else ...[
-            DetailRow(label: 'Status', value: holdingStatusLabel(row.holding!.status)),
-            if (row.holding!.issueDate != null)
-              DetailRow(label: 'Issued', value: formatDate(row.holding!.issueDate!)),
-            if (row.holding!.note != null) DetailRow(label: 'Note', value: row.holding!.note!),
-          ],
-          if (expiry != null)
-            DetailRow(
-              label: 'Expires',
-              // Counted from the server's business date, never the device clock (NFR-5, O-11).
-              value: today == null
-                  ? formatDate(expiry)
-                  : '${formatDate(expiry)} · ${relativeDays(today!, expiry)}',
-              emphasis: needsAttention(cell.state),
+          // Pinned, because the action is the point of the screen and scrolling to find it is how
+          // a crew member decides the app is not worth opening.
+          Container(
+            padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 12, Nocturne.gutter, 8),
+            decoration: const BoxDecoration(
+              color: Nocturne.bg,
+              border: Border(top: BorderSide(color: Nocturne.neutral900)),
             ),
-
-          if (cell.notes != null) ...[
-            const SectionHeader('Notes'),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text(cell.notes!),
-            ),
-          ],
-
-          if (cell.registerRecordId != null) ...[
-            const SectionHeader('Register'),
-            // The overlay from §5.1 step 4: an exemption or query is why this cell reads as it
-            // does. The app names the record so the crew member can quote it; it cannot open it,
-            // because the register is a back-office workflow (§6.4).
-            DetailRow(label: 'Record', value: cell.registerRecordId!),
-          ],
-
-          const SectionHeader('Evidence you have sent'),
-          if (submissions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Text('Nothing submitted for this requirement yet.'),
-            )
-          else
-            ...submissions.map((submission) => SubmissionTile(submission: submission)),
-
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: FilledButton.icon(
-              onPressed: () => showSubmitEvidenceSheet(context, onSubmit),
-              icon: const Icon(Icons.add_a_photo_outlined),
-              label: const Text('Submit evidence'),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            // Setting the expectation the pipeline actually meets (LLM-1, LLM-2): a submission
-            // is read and proposed, and a person decides. Nothing the crew member sends changes
-            // their compliance by itself, and the screen should not imply otherwise.
-            child: Text(
-              'A photo or PDF is read automatically and checked by the compliance team. '
-              'Your record changes once they accept it.',
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NButton(
+                    label: 'Submit evidence',
+                    icon: PhosphorIconsRegular.cameraPlus,
+                    iconSize: 18,
+                    variant: NButtonVariant.primary,
+                    block: true,
+                    minHeight: 48,
+                    onPressed: onSubmit,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: NButton(
+                          label: 'Course booked',
+                          icon: PhosphorIconsRegular.calendarCheck,
+                          fontSize: 12.5,
+                          onPressed: onCourseBooked,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: NButton(
+                          label: 'Need help',
+                          icon: PhosphorIconsRegular.chatCircleDots,
+                          variant: NButtonVariant.ghost,
+                          fontSize: 12.5,
+                          onPressed: onNeedHelp,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Setting the expectation the pipeline actually meets (LLM-1, LLM-2): a
+                  // submission is read and proposed, and a person decides. Nothing the crew
+                  // member sends changes their compliance by itself, and the screen must not
+                  // imply otherwise.
+                  Text(
+                    'A photo or PDF is read on the server and checked by the compliance team. '
+                    'Your record changes once they accept it.',
+                    style: NoctType.cardBody.copyWith(fontSize: 12),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -185,99 +328,102 @@ class CertificationDetailView extends StatelessWidget {
 
 /// One submission, with the part of its life the crew member can see.
 class SubmissionTile extends StatelessWidget {
-  const SubmissionTile({super.key, required this.submission});
+  const SubmissionTile({super.key, required this.submission, this.onTap});
 
   final LocalSubmission submission;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final size = submission.declaredSize;
 
     final String progress;
     if (submission.uploadComplete) {
-      progress = 'Sent';
+      progress = 'Sent ${_shortDate(submission.submittedAt)}';
     } else if (size != null && size > 0) {
       progress = 'Sending — ${((submission.uploadOffset / size) * 100).clamp(0, 100).round()}%';
     } else {
       progress = 'Waiting to send';
     }
 
-    return ListTile(
-      leading: Icon(
-        submission.uploadComplete ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined,
-      ),
-      title: Text(submissionStatusLabel(submission.verificationStatus)),
-      subtitle: Text(
-        [
-          progress,
-          if (submission.source == 'mobile_camera') 'Photo' else 'File',
-          if (submission.rejectionReason != null) submission.rejectionReason!,
-        ].join(' · '),
-        style: theme.textTheme.bodySmall,
-      ),
-      trailing: submission.uploadComplete
-          ? null
-          : SizedBox(
+    return NCard(
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(15, 13, 15, 13),
+      child: Row(
+        children: [
+          Icon(
+            submission.uploadComplete
+                ? PhosphorIconsRegular.cloudCheck
+                : PhosphorIconsRegular.cloudArrowUp,
+            size: 22,
+            color: Nocturne.accent,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  submissionStatusLabel(submission.verificationStatus),
+                  style: NoctType.listPrimary,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    progress,
+                    if (submission.source == 'mobile_camera') 'Photo' else 'File',
+                    if (submission.rejectionReason != null) submission.rejectionReason!,
+                  ].join(' · '),
+                  style: NoctType.listSecondary.copyWith(color: Nocturne.neutral600),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (submission.uploadComplete)
+            NTag(
+              label: submissionStatusLabel(submission.verificationStatus),
+              tone: submissionStatusTone(submission.verificationStatus),
+            )
+          else
+            SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
+                color: Nocturne.accent,
                 value: (size != null && size > 0) ? submission.uploadOffset / size : null,
               ),
             ),
+        ],
+      ),
     );
+  }
+
+  /// A wall-clock timestamp, not a business date — "when did I send this" is a different question
+  /// from "what day is it", and only the second one has to come from the server.
+  static String _shortDate(DateTime when) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final local = when.toLocal();
+    return '${local.day} ${months[local.month - 1]}';
   }
 }
 
 // ---------------------------------------------------------------------------
-// MOB-4 — the submit sheet
-// ---------------------------------------------------------------------------
-
-/// The three ways a document gets here. Kept as one sheet so every entry point offers the same
-/// set, and so a new source is added in one place.
-Future<void> showSubmitEvidenceSheet(
-  BuildContext context,
-  Future<String?> Function(CaptureSource source) onSubmit,
-) async {
-  final source = await showModalBottomSheet<CaptureSource>(
-    context: context,
-    builder: (sheetContext) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SectionHeader('Submit evidence'),
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Take a photo'),
-            onTap: () => Navigator.pop(sheetContext, CaptureSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Choose from library'),
-            onTap: () => Navigator.pop(sheetContext, CaptureSource.photoLibrary),
-          ),
-          ListTile(
-            leading: const Icon(Icons.attach_file),
-            title: const Text('Attach a file'),
-            subtitle: const Text('PDF or image'),
-            onTap: () => Navigator.pop(sheetContext, CaptureSource.file),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    ),
-  );
-
-  if (source == null) return;
-
-  final message = await onSubmit(source);
-  if (message == null || !context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-}
-
-// ---------------------------------------------------------------------------
-// MOB-2 detail — one swing
+// Roster detail — one swing
 // ---------------------------------------------------------------------------
 
 class SwingDetailScreen extends StatelessWidget {
@@ -293,12 +439,28 @@ class SwingDetailScreen extends StatelessWidget {
       builder: (context, crewChangeSnapshot) {
         return StreamBuilder<List<LocalLeave>>(
           stream: state.watchLeave(),
-          builder: (context, leaveSnapshot) => SwingDetailView(
-            assignment: assignment,
-            crewChange: crewChangeSnapshot.data,
-            leave: leaveSnapshot.data ?? const <LocalLeave>[],
-            today: state.serverToday,
-          ),
+          builder: (context, leaveSnapshot) {
+            return StreamBuilder<List<CertificationRow>>(
+              stream: state.watchCertifications(),
+              builder: (context, rowSnapshot) => SwingDetailView(
+                assignment: assignment,
+                crewChange: crewChangeSnapshot.data,
+                leave: leaveSnapshot.data ?? const <LocalLeave>[],
+                today: state.serverToday,
+                // MOB-9 is only offered for the swing the standing was evaluated against —
+                // signing off against a swing whose requirements nobody has evaluated would be
+                // asking a crew member to attest to an unknown.
+                onAttest: state.syncState?.standingCcId == assignment.ccId
+                    ? () => openAttestation(
+                        context,
+                        state,
+                        assignment: assignment,
+                        rows: rowSnapshot.data ?? const <CertificationRow>[],
+                      )
+                    : null,
+              ),
+            );
+          },
         );
       },
     );
@@ -312,12 +474,14 @@ class SwingDetailView extends StatelessWidget {
     required this.crewChange,
     required this.leave,
     required this.today,
+    this.onAttest,
   });
 
   final LocalAssignment assignment;
   final LocalCrewChange? crewChange;
   final List<LocalLeave> leave;
   final String? today;
+  final VoidCallback? onAttest;
 
   @override
   Widget build(BuildContext context) {
@@ -339,51 +503,55 @@ class SwingDetailView extends StatelessWidget {
         .toList(growable: false);
 
     return Scaffold(
-      appBar: AppBar(title: Text('${assignment.partnershipAbbrev} ${assignment.ccId}')),
+      backgroundColor: Nocturne.bg,
+      appBar: NocturneNavBar(title: '${assignment.partnershipAbbrev} ${assignment.ccId}'),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 18, Nocturne.gutter, 32),
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    formatDateRange(assignment.fromDate, assignment.toDate),
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  formatDateRange(assignment.fromDate, assignment.toDate),
+                  style: NoctType.screenName,
                 ),
-                if (current)
-                  const StateChip(
-                    label: 'Current',
-                    colours: (background: Color(0xFFE3F5E8), foreground: Color(0xFF1B5E33)),
-                  ),
-              ],
-            ),
+              ),
+              if (current) const NTag(label: 'Current', tone: Tone.good),
+            ],
           ),
 
-          const SectionHeader('Swing'),
-          DetailRow(label: 'Partnership', value: assignment.partnershipAbbrev),
-          DetailRow(label: 'Crew change', value: assignment.ccId),
-          DetailRow(label: 'Slot', value: '${assignment.slotRef}'),
-          DetailRow(label: 'Starts', value: formatDate(assignment.fromDate)),
-          DetailRow(label: 'Ends', value: formatDate(assignment.toDate)),
-          DetailRow(label: 'Length', value: '$length days'),
+          const SizedBox(height: 22),
+          const SectionLabel('Swing', padding: EdgeInsets.only(bottom: 10)),
+          DefinitionRow(label: 'Partnership', value: assignment.partnershipAbbrev),
+          DefinitionRow(
+            label: 'Crew change',
+            value: assignment.ccId,
+            valueSpan: monoSpan(assignment.ccId, fontSize: 13, colour: Nocturne.text),
+          ),
+          DefinitionRow(
+            label: 'Slot',
+            value: '${assignment.slotRef}',
+            valueSpan: monoSpan(
+              assignment.slotRef.toString().padLeft(2, '0'),
+              fontSize: 13,
+              colour: Nocturne.text,
+            ),
+          ),
+          DefinitionRow(label: 'Starts', value: formatDate(assignment.fromDate)),
+          DefinitionRow(label: 'Ends', value: formatDate(assignment.toDate)),
+          DefinitionRow(label: 'Length', value: '$length days'),
 
           if (today != null) ...[
-            const SectionHeader('Where you are'),
+            const SizedBox(height: 14),
+            const SectionLabel('Where you are', padding: EdgeInsets.only(bottom: 10)),
             if (current) ...[
-              DetailRow(
+              DefinitionRow(
                 label: 'Day',
                 value: '${daysBetween(assignment.fromDate, today) + 1} of $length',
-                emphasis: true,
               ),
-              DetailRow(
-                label: 'Ends',
-                value: relativeDays(today, assignment.toDate),
-              ),
+              DefinitionRow(label: 'Ends', value: relativeDays(today, assignment.toDate)),
             ] else
-              DetailRow(
+              DefinitionRow(
                 label: daysBetween(today, assignment.fromDate) > 0 ? 'Starts' : 'Ended',
                 value: relativeDays(
                   today,
@@ -391,38 +559,73 @@ class SwingDetailView extends StatelessWidget {
                       ? assignment.fromDate
                       : assignment.toDate,
                 ),
-                emphasis: true,
               ),
           ],
 
           if (crewChange != null) ...[
-            const SectionHeader('Cut-off'),
-            DetailRow(
+            const SizedBox(height: 14),
+            const SectionLabel('Cut-off', padding: EdgeInsets.only(bottom: 10)),
+            DefinitionRow(
               label: 'Requests by',
               value: today == null
                   ? formatDate(crewChange!.cutoff)
                   : '${formatDate(crewChange!.cutoff)} · '
-                      '${relativeDays(today, crewChange!.cutoff)}',
+                        '${relativeDays(today, crewChange!.cutoff)}',
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 0),
-              // Q17: a late request is accepted on an acknowledged retry rather than refused, so
-              // the wording is a deadline that matters, not a door that closes.
-              child: Text(
-                'Exemption and query requests for this swing are expected before this date.',
-              ),
+            // Q17: a late request is accepted on an acknowledged retry rather than refused, so
+            // the wording is a deadline that matters, not a door that closes.
+            Text(
+              'Exemption and query requests for this swing are expected before this date.',
+              style: NoctType.cardBody,
             ),
           ],
 
           if (overlapping.isNotEmpty) ...[
-            const SectionHeader('Leave in this window'),
-            ...overlapping.map(
-              (record) => ListTile(
-                leading: const Icon(Icons.beach_access_outlined),
-                title: Text(record.kind.replaceAll('_', ' ')),
-                subtitle: Text(formatDateRange(record.fromDate, record.toDate)),
-                trailing: Text(record.status),
+            const SizedBox(height: 14),
+            const SectionLabel('Leave in this window', padding: EdgeInsets.only(bottom: 10)),
+            for (final record in overlapping)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: NCard(
+                  padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        PhosphorIconsRegular.umbrella,
+                        size: 20,
+                        color: Nocturne.neutral500,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(leaveKindLabel(record.kind), style: NoctType.listPrimarySm),
+                            const SizedBox(height: 2),
+                            Text(
+                              formatDateRange(record.fromDate, record.toDate),
+                              style: NoctType.listSecondary,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(record.status, style: NoctType.meta),
+                    ],
+                  ),
+                ),
               ),
+          ],
+
+          if (onAttest != null) ...[
+            const SizedBox(height: 24),
+            NButton(
+              label: 'Sign off before you sail',
+              icon: PhosphorIconsRegular.sealCheck,
+              iconSize: 18,
+              variant: NButtonVariant.primary,
+              block: true,
+              minHeight: 48,
+              onPressed: onAttest,
             ),
           ],
         ],

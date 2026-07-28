@@ -146,7 +146,7 @@ void main() {
     });
   });
 
-  group('MOB-2 roster', () {
+  group('MOB-3 roster', () {
     testWidgets('mark the swing in progress using the server\'s today', (tester) async {
       await pump(
         tester,
@@ -202,14 +202,14 @@ void main() {
         ),
       );
 
-      expect(find.text('annual leave'), findsOneWidget);
+      expect(find.text('Annual leave'), findsOneWidget);
       expect(find.text('19–28 Aug 2026'), findsOneWidget);
       expect(find.byType(TextField), findsNothing);
       expect(find.byType(FilledButton), findsNothing);
     });
   });
 
-  group('MOB-3 notifications', () {
+  group('MOB-4 alerts', () {
     testWidgets('show the detail in-app, not only the push-safe title', (tester) async {
       // SEC-13: the title is all a push payload may carry; the body must be reachable here.
       await pump(

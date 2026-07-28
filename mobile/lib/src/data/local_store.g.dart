@@ -4511,6 +4511,595 @@ class OutboxCompanion extends UpdateCompanion<OutboxEntry> {
   }
 }
 
+class $CrewIntentsTable extends CrewIntents
+    with TableInfo<$CrewIntentsTable, LocalCrewIntent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CrewIntentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _opIdMeta = const VerificationMeta('opId');
+  @override
+  late final GeneratedColumn<String> opId = GeneratedColumn<String>(
+    'op_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _requirementIdMeta = const VerificationMeta(
+    'requirementId',
+  );
+  @override
+  late final GeneratedColumn<int> requirementId = GeneratedColumn<int>(
+    'requirement_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _subjectRefMeta = const VerificationMeta(
+    'subjectRef',
+  );
+  @override
+  late final GeneratedColumn<String> subjectRef = GeneratedColumn<String>(
+    'subject_ref',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _queuedAtMeta = const VerificationMeta(
+    'queuedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> queuedAt = GeneratedColumn<DateTime>(
+    'queued_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('queued'),
+  );
+  static const VerificationMeta _detailMeta = const VerificationMeta('detail');
+  @override
+  late final GeneratedColumn<String> detail = GeneratedColumn<String>(
+    'detail',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    opId,
+    kind,
+    requirementId,
+    subjectRef,
+    summary,
+    payload,
+    queuedAt,
+    state,
+    detail,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'crew_intents';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalCrewIntent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('op_id')) {
+      context.handle(
+        _opIdMeta,
+        opId.isAcceptableOrUnknown(data['op_id']!, _opIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_opIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('requirement_id')) {
+      context.handle(
+        _requirementIdMeta,
+        requirementId.isAcceptableOrUnknown(
+          data['requirement_id']!,
+          _requirementIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('subject_ref')) {
+      context.handle(
+        _subjectRefMeta,
+        subjectRef.isAcceptableOrUnknown(data['subject_ref']!, _subjectRefMeta),
+      );
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_summaryMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('queued_at')) {
+      context.handle(
+        _queuedAtMeta,
+        queuedAt.isAcceptableOrUnknown(data['queued_at']!, _queuedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_queuedAtMeta);
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    }
+    if (data.containsKey('detail')) {
+      context.handle(
+        _detailMeta,
+        detail.isAcceptableOrUnknown(data['detail']!, _detailMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {opId};
+  @override
+  LocalCrewIntent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalCrewIntent(
+      opId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}op_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      requirementId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}requirement_id'],
+      ),
+      subjectRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_ref'],
+      ),
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      queuedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}queued_at'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+      detail: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}detail'],
+      ),
+    );
+  }
+
+  @override
+  $CrewIntentsTable createAlias(String alias) {
+    return $CrewIntentsTable(attachedDatabase, alias);
+  }
+}
+
+class LocalCrewIntent extends DataClass implements Insertable<LocalCrewIntent> {
+  /// Shared with the outbox entry that carries it, which is also the server's idempotency key.
+  final String opId;
+
+  /// `requirement.progress`, `requirement.help`, `evidence.reading`, `course.seat_request`,
+  /// `course.waitlist`, `register.exemption_request`, `attestation.sign_off`, `team.nudge`.
+  final String kind;
+
+  /// What it is about, where that is a requirement. Lets a detail screen find its own intents.
+  final int? requirementId;
+
+  /// The non-requirement subject: a course option id, a crew change id, a colleague's Sam #.
+  final String? subjectRef;
+
+  /// One line, already written, for the row that reports it. Composed at queue time because the
+  /// screen that shows it may not be the screen that raised it.
+  final String summary;
+
+  /// The operation's JSON body, kept here as well as on the outbox entry.
+  ///
+  /// Duplication with a purpose: a server rejection deletes the outbox entry, and without a copy
+  /// the "Retry" the failed row offers would have nothing to send. Retrying re-posts under the
+  /// *same* `opId`, so a request the server actually applied before losing the connection cannot
+  /// be applied twice.
+  final String payload;
+  final DateTime queuedAt;
+
+  /// `queued` · `sent` · `failed`. Nothing else, and no state that means "probably".
+  final String state;
+
+  /// Why it failed, in the server's words where there are any.
+  final String? detail;
+  const LocalCrewIntent({
+    required this.opId,
+    required this.kind,
+    this.requirementId,
+    this.subjectRef,
+    required this.summary,
+    required this.payload,
+    required this.queuedAt,
+    required this.state,
+    this.detail,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['op_id'] = Variable<String>(opId);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || requirementId != null) {
+      map['requirement_id'] = Variable<int>(requirementId);
+    }
+    if (!nullToAbsent || subjectRef != null) {
+      map['subject_ref'] = Variable<String>(subjectRef);
+    }
+    map['summary'] = Variable<String>(summary);
+    map['payload'] = Variable<String>(payload);
+    map['queued_at'] = Variable<DateTime>(queuedAt);
+    map['state'] = Variable<String>(state);
+    if (!nullToAbsent || detail != null) {
+      map['detail'] = Variable<String>(detail);
+    }
+    return map;
+  }
+
+  CrewIntentsCompanion toCompanion(bool nullToAbsent) {
+    return CrewIntentsCompanion(
+      opId: Value(opId),
+      kind: Value(kind),
+      requirementId: requirementId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(requirementId),
+      subjectRef: subjectRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subjectRef),
+      summary: Value(summary),
+      payload: Value(payload),
+      queuedAt: Value(queuedAt),
+      state: Value(state),
+      detail: detail == null && nullToAbsent
+          ? const Value.absent()
+          : Value(detail),
+    );
+  }
+
+  factory LocalCrewIntent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalCrewIntent(
+      opId: serializer.fromJson<String>(json['opId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      requirementId: serializer.fromJson<int?>(json['requirementId']),
+      subjectRef: serializer.fromJson<String?>(json['subjectRef']),
+      summary: serializer.fromJson<String>(json['summary']),
+      payload: serializer.fromJson<String>(json['payload']),
+      queuedAt: serializer.fromJson<DateTime>(json['queuedAt']),
+      state: serializer.fromJson<String>(json['state']),
+      detail: serializer.fromJson<String?>(json['detail']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'opId': serializer.toJson<String>(opId),
+      'kind': serializer.toJson<String>(kind),
+      'requirementId': serializer.toJson<int?>(requirementId),
+      'subjectRef': serializer.toJson<String?>(subjectRef),
+      'summary': serializer.toJson<String>(summary),
+      'payload': serializer.toJson<String>(payload),
+      'queuedAt': serializer.toJson<DateTime>(queuedAt),
+      'state': serializer.toJson<String>(state),
+      'detail': serializer.toJson<String?>(detail),
+    };
+  }
+
+  LocalCrewIntent copyWith({
+    String? opId,
+    String? kind,
+    Value<int?> requirementId = const Value.absent(),
+    Value<String?> subjectRef = const Value.absent(),
+    String? summary,
+    String? payload,
+    DateTime? queuedAt,
+    String? state,
+    Value<String?> detail = const Value.absent(),
+  }) => LocalCrewIntent(
+    opId: opId ?? this.opId,
+    kind: kind ?? this.kind,
+    requirementId: requirementId.present
+        ? requirementId.value
+        : this.requirementId,
+    subjectRef: subjectRef.present ? subjectRef.value : this.subjectRef,
+    summary: summary ?? this.summary,
+    payload: payload ?? this.payload,
+    queuedAt: queuedAt ?? this.queuedAt,
+    state: state ?? this.state,
+    detail: detail.present ? detail.value : this.detail,
+  );
+  LocalCrewIntent copyWithCompanion(CrewIntentsCompanion data) {
+    return LocalCrewIntent(
+      opId: data.opId.present ? data.opId.value : this.opId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      requirementId: data.requirementId.present
+          ? data.requirementId.value
+          : this.requirementId,
+      subjectRef: data.subjectRef.present
+          ? data.subjectRef.value
+          : this.subjectRef,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      queuedAt: data.queuedAt.present ? data.queuedAt.value : this.queuedAt,
+      state: data.state.present ? data.state.value : this.state,
+      detail: data.detail.present ? data.detail.value : this.detail,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalCrewIntent(')
+          ..write('opId: $opId, ')
+          ..write('kind: $kind, ')
+          ..write('requirementId: $requirementId, ')
+          ..write('subjectRef: $subjectRef, ')
+          ..write('summary: $summary, ')
+          ..write('payload: $payload, ')
+          ..write('queuedAt: $queuedAt, ')
+          ..write('state: $state, ')
+          ..write('detail: $detail')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    opId,
+    kind,
+    requirementId,
+    subjectRef,
+    summary,
+    payload,
+    queuedAt,
+    state,
+    detail,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalCrewIntent &&
+          other.opId == this.opId &&
+          other.kind == this.kind &&
+          other.requirementId == this.requirementId &&
+          other.subjectRef == this.subjectRef &&
+          other.summary == this.summary &&
+          other.payload == this.payload &&
+          other.queuedAt == this.queuedAt &&
+          other.state == this.state &&
+          other.detail == this.detail);
+}
+
+class CrewIntentsCompanion extends UpdateCompanion<LocalCrewIntent> {
+  final Value<String> opId;
+  final Value<String> kind;
+  final Value<int?> requirementId;
+  final Value<String?> subjectRef;
+  final Value<String> summary;
+  final Value<String> payload;
+  final Value<DateTime> queuedAt;
+  final Value<String> state;
+  final Value<String?> detail;
+  final Value<int> rowid;
+  const CrewIntentsCompanion({
+    this.opId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.requirementId = const Value.absent(),
+    this.subjectRef = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.queuedAt = const Value.absent(),
+    this.state = const Value.absent(),
+    this.detail = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CrewIntentsCompanion.insert({
+    required String opId,
+    required String kind,
+    this.requirementId = const Value.absent(),
+    this.subjectRef = const Value.absent(),
+    required String summary,
+    required String payload,
+    required DateTime queuedAt,
+    this.state = const Value.absent(),
+    this.detail = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : opId = Value(opId),
+       kind = Value(kind),
+       summary = Value(summary),
+       payload = Value(payload),
+       queuedAt = Value(queuedAt);
+  static Insertable<LocalCrewIntent> custom({
+    Expression<String>? opId,
+    Expression<String>? kind,
+    Expression<int>? requirementId,
+    Expression<String>? subjectRef,
+    Expression<String>? summary,
+    Expression<String>? payload,
+    Expression<DateTime>? queuedAt,
+    Expression<String>? state,
+    Expression<String>? detail,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (opId != null) 'op_id': opId,
+      if (kind != null) 'kind': kind,
+      if (requirementId != null) 'requirement_id': requirementId,
+      if (subjectRef != null) 'subject_ref': subjectRef,
+      if (summary != null) 'summary': summary,
+      if (payload != null) 'payload': payload,
+      if (queuedAt != null) 'queued_at': queuedAt,
+      if (state != null) 'state': state,
+      if (detail != null) 'detail': detail,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CrewIntentsCompanion copyWith({
+    Value<String>? opId,
+    Value<String>? kind,
+    Value<int?>? requirementId,
+    Value<String?>? subjectRef,
+    Value<String>? summary,
+    Value<String>? payload,
+    Value<DateTime>? queuedAt,
+    Value<String>? state,
+    Value<String?>? detail,
+    Value<int>? rowid,
+  }) {
+    return CrewIntentsCompanion(
+      opId: opId ?? this.opId,
+      kind: kind ?? this.kind,
+      requirementId: requirementId ?? this.requirementId,
+      subjectRef: subjectRef ?? this.subjectRef,
+      summary: summary ?? this.summary,
+      payload: payload ?? this.payload,
+      queuedAt: queuedAt ?? this.queuedAt,
+      state: state ?? this.state,
+      detail: detail ?? this.detail,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (opId.present) {
+      map['op_id'] = Variable<String>(opId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (requirementId.present) {
+      map['requirement_id'] = Variable<int>(requirementId.value);
+    }
+    if (subjectRef.present) {
+      map['subject_ref'] = Variable<String>(subjectRef.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (queuedAt.present) {
+      map['queued_at'] = Variable<DateTime>(queuedAt.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (detail.present) {
+      map['detail'] = Variable<String>(detail.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CrewIntentsCompanion(')
+          ..write('opId: $opId, ')
+          ..write('kind: $kind, ')
+          ..write('requirementId: $requirementId, ')
+          ..write('subjectRef: $subjectRef, ')
+          ..write('summary: $summary, ')
+          ..write('payload: $payload, ')
+          ..write('queuedAt: $queuedAt, ')
+          ..write('state: $state, ')
+          ..write('detail: $detail, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncStatesTable extends SyncStates
     with TableInfo<$SyncStatesTable, LocalSyncState> {
   @override
@@ -5228,6 +5817,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
   late final $CrewChangesTable crewChanges = $CrewChangesTable(this);
   late final $StandingCellsTable standingCells = $StandingCellsTable(this);
   late final $OutboxTable outbox = $OutboxTable(this);
+  late final $CrewIntentsTable crewIntents = $CrewIntentsTable(this);
   late final $SyncStatesTable syncStates = $SyncStatesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -5244,6 +5834,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
     crewChanges,
     standingCells,
     outbox,
+    crewIntents,
     syncStates,
   ];
 }
@@ -7597,6 +8188,286 @@ typedef $$OutboxTableProcessedTableManager =
       OutboxEntry,
       PrefetchHooks Function()
     >;
+typedef $$CrewIntentsTableCreateCompanionBuilder =
+    CrewIntentsCompanion Function({
+      required String opId,
+      required String kind,
+      Value<int?> requirementId,
+      Value<String?> subjectRef,
+      required String summary,
+      required String payload,
+      required DateTime queuedAt,
+      Value<String> state,
+      Value<String?> detail,
+      Value<int> rowid,
+    });
+typedef $$CrewIntentsTableUpdateCompanionBuilder =
+    CrewIntentsCompanion Function({
+      Value<String> opId,
+      Value<String> kind,
+      Value<int?> requirementId,
+      Value<String?> subjectRef,
+      Value<String> summary,
+      Value<String> payload,
+      Value<DateTime> queuedAt,
+      Value<String> state,
+      Value<String?> detail,
+      Value<int> rowid,
+    });
+
+class $$CrewIntentsTableFilterComposer
+    extends Composer<_$LocalStore, $CrewIntentsTable> {
+  $$CrewIntentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subjectRef => $composableBuilder(
+    column: $table.subjectRef,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get queuedAt => $composableBuilder(
+    column: $table.queuedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get detail => $composableBuilder(
+    column: $table.detail,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CrewIntentsTableOrderingComposer
+    extends Composer<_$LocalStore, $CrewIntentsTable> {
+  $$CrewIntentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subjectRef => $composableBuilder(
+    column: $table.subjectRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get queuedAt => $composableBuilder(
+    column: $table.queuedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get detail => $composableBuilder(
+    column: $table.detail,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CrewIntentsTableAnnotationComposer
+    extends Composer<_$LocalStore, $CrewIntentsTable> {
+  $$CrewIntentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get opId =>
+      $composableBuilder(column: $table.opId, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get subjectRef => $composableBuilder(
+    column: $table.subjectRef,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get queuedAt =>
+      $composableBuilder(column: $table.queuedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<String> get detail =>
+      $composableBuilder(column: $table.detail, builder: (column) => column);
+}
+
+class $$CrewIntentsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $CrewIntentsTable,
+          LocalCrewIntent,
+          $$CrewIntentsTableFilterComposer,
+          $$CrewIntentsTableOrderingComposer,
+          $$CrewIntentsTableAnnotationComposer,
+          $$CrewIntentsTableCreateCompanionBuilder,
+          $$CrewIntentsTableUpdateCompanionBuilder,
+          (
+            LocalCrewIntent,
+            BaseReferences<_$LocalStore, $CrewIntentsTable, LocalCrewIntent>,
+          ),
+          LocalCrewIntent,
+          PrefetchHooks Function()
+        > {
+  $$CrewIntentsTableTableManager(_$LocalStore db, $CrewIntentsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CrewIntentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CrewIntentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CrewIntentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> opId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int?> requirementId = const Value.absent(),
+                Value<String?> subjectRef = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<DateTime> queuedAt = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<String?> detail = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CrewIntentsCompanion(
+                opId: opId,
+                kind: kind,
+                requirementId: requirementId,
+                subjectRef: subjectRef,
+                summary: summary,
+                payload: payload,
+                queuedAt: queuedAt,
+                state: state,
+                detail: detail,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String opId,
+                required String kind,
+                Value<int?> requirementId = const Value.absent(),
+                Value<String?> subjectRef = const Value.absent(),
+                required String summary,
+                required String payload,
+                required DateTime queuedAt,
+                Value<String> state = const Value.absent(),
+                Value<String?> detail = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CrewIntentsCompanion.insert(
+                opId: opId,
+                kind: kind,
+                requirementId: requirementId,
+                subjectRef: subjectRef,
+                summary: summary,
+                payload: payload,
+                queuedAt: queuedAt,
+                state: state,
+                detail: detail,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CrewIntentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $CrewIntentsTable,
+      LocalCrewIntent,
+      $$CrewIntentsTableFilterComposer,
+      $$CrewIntentsTableOrderingComposer,
+      $$CrewIntentsTableAnnotationComposer,
+      $$CrewIntentsTableCreateCompanionBuilder,
+      $$CrewIntentsTableUpdateCompanionBuilder,
+      (
+        LocalCrewIntent,
+        BaseReferences<_$LocalStore, $CrewIntentsTable, LocalCrewIntent>,
+      ),
+      LocalCrewIntent,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncStatesTableCreateCompanionBuilder =
     SyncStatesCompanion Function({
       Value<int> id,
@@ -7947,6 +8818,8 @@ class $LocalStoreManager {
       $$StandingCellsTableTableManager(_db, _db.standingCells);
   $$OutboxTableTableManager get outbox =>
       $$OutboxTableTableManager(_db, _db.outbox);
+  $$CrewIntentsTableTableManager get crewIntents =>
+      $$CrewIntentsTableTableManager(_db, _db.crewIntents);
   $$SyncStatesTableTableManager get syncStates =>
       $$SyncStatesTableTableManager(_db, _db.syncStates);
 }

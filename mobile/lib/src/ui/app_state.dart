@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import '../data/evidence_capture.dart';
 import '../data/local_store.dart';
 import '../data/sync_engine.dart';
+import '../domain/offers.dart';
+import '../domain/states.dart';
 
 /// What the screens read from, and the only thing that talks to the sync engine.
 ///
@@ -14,11 +16,24 @@ import '../data/sync_engine.dart';
 /// vessel, which is precisely where this app is used. Syncing is a background activity whose
 /// only visible effect is that the local data changes and the "last synced" line moves.
 class AppState extends ChangeNotifier {
-  AppState({required this.store, required this.engine, EvidenceCapture? capture})
-      : capture = capture ?? PlatformEvidenceCapture();
+  AppState({
+    required this.store,
+    required this.engine,
+    EvidenceCapture? capture,
+    this.supervisor = false,
+  }) : capture = capture ?? PlatformEvidenceCapture();
 
   final LocalStore store;
   final SyncEngine engine;
+
+  /// Whether this person supervises a watch, which swaps MOB-11 Team into the tab bar in place
+  /// of Certifications.
+  ///
+  /// A role, and roles are the identity spike's. Nothing in the sync payload says who supervises
+  /// whom, so today this is set only from a debug-mode `--dart-define` and is `false` in any
+  /// release build — the same compile-time pattern as the development sign-in shim. When ADR
+  /// 0003 lands it comes from the session, and when the team endpoint lands it comes with data.
+  final bool supervisor;
 
   /// MOB-4's camera and file pickers, behind an interface so the widget tests never touch a
   /// platform channel.
@@ -72,16 +87,77 @@ class AppState extends ChangeNotifier {
     unawaited(engine.flushOutbox().catchError((_) => 0));
   }
 
-  /// MOB-4: capture a document and queue it for the §8 pipeline.
+  /// Records one of the crew member's one-tap answers and starts trying to deliver it.
   ///
-  /// Returns null when there is nothing to say — the submission is queued, or the crew member
-  /// backed out of the picker — and a message to show them when there is.
+  /// Returns the moment the answer is durable, not when it lands. That ordering is the whole
+  /// promise: the row ticks in a dead spot, the queue carries it out, and if the office refuses
+  /// it the row says so rather than quietly unticking itself on the next snapshot.
+  Future<void> answer({
+    required String kind,
+    required String summary,
+    int? requirementId,
+    String? subjectRef,
+    Map<String, Object?> payload = const {},
+  }) async {
+    await engine.queueIntent(
+      kind: kind,
+      summary: summary,
+      requirementId: requirementId,
+      subjectRef: subjectRef,
+      payload: payload,
+    );
+    notifyListeners();
+    // Best-effort, exactly as a read-mark and a submission are. Failing here is the ordinary
+    // offline case, and the queue already holds everything needed to try again.
+    unawaited(engine.flushOutbox().catchError((_) => 0));
+  }
+
+  Future<void> retryAnswer(String opId) async {
+    await engine.retryIntent(opId);
+    notifyListeners();
+    unawaited(engine.flushOutbox().catchError((_) => 0));
+  }
+
+  Future<void> discardAnswer(String opId) async {
+    await engine.discardIntent(opId);
+    notifyListeners();
+  }
+
+  // -------------------------------------------------------------------------
+  // Facts the sync payload does not carry yet
+  // -------------------------------------------------------------------------
+  //
+  // Each of these is a real server-owned fact the new screens are built against, and each
+  // returns nothing until the payload carries it. They are methods on [AppState] rather than
+  // constants inside the screens so that landing the backend work is a change in one file — see
+  // `docs/handoff/mobile-crew-app-backend.md`.
+
+  /// MOB-0's credit tiles. Absent until the payload carries the history they summarise; Home
+  /// draws no tiles rather than drawing a number nobody computed.
+  Credits? get credits => null;
+
+  /// MOB-8's course dates that beat an expiry. Empty until there is a course catalogue.
+  List<CourseOption> courseOptionsFor(int requirementId) => const [];
+
+  /// MOB-7's parse result. Null with no LLM provider configured (§14.5), which is exactly what
+  /// the pipeline reports today: nothing extracted, and a human to type the fields (LLM-2).
+  ExtractedReading? readingFor(String submissionPublicId) => null;
+
+  /// MOB-11's watch. Empty until there is a team endpoint — and it must stay a status-only
+  /// endpoint: no documents, no medical detail, no expiry reasons.
+  List<TeamMember> get team => const [];
+
+  /// Evidence submission (the spec's MOB-4): capture a document and queue it for the §8 pipeline.
+  ///
+  /// Returns what happened. A cancelled picker is neither a success nor a failure and reports
+  /// both fields null; a rejected file reports a message; a queued submission reports its id so
+  /// the caller can open MOB-7 against it.
   ///
   /// Note what this method does *not* do. It does not upload, and it does not wait for one: the
   /// row and its outbox entry are durable the moment this returns, so the screen can say
   /// "Processing" in a dead spot and mean it. The bytes leave on the next sync, which is kicked
   /// off here only as a courtesy.
-  Future<String?> submitEvidence({
+  Future<EvidenceSubmitResult> submitEvidence({
     required CaptureSource source,
     int? requirementId,
   }) async {
@@ -89,15 +165,16 @@ class AppState extends ChangeNotifier {
     try {
       captured = await capture.capture(source);
     } on CaptureCancelled {
-      return null;
+      return const EvidenceSubmitResult();
     } on CaptureRejected catch (e) {
-      return e.message;
+      return EvidenceSubmitResult(message: e.message);
     } on Exception catch (e) {
-      return 'That document could not be read: $e';
+      return EvidenceSubmitResult(message: 'That document could not be read: $e');
     }
 
+    final publicId = SyncEngine.newId();
     await engine.queueSubmission(
-      publicId: SyncEngine.newId(),
+      publicId: publicId,
       source: captured.source.wire,
       contentType: captured.contentType,
       declaredSize: captured.size,
@@ -110,10 +187,27 @@ class AppState extends ChangeNotifier {
     // Best-effort, exactly as a read-mark is. Failing is the ordinary offline case and the queue
     // already holds everything needed to try again.
     unawaited(sync());
-    return null;
+    return EvidenceSubmitResult(
+      publicId: publicId,
+      fileName: captured.path.split('/').last,
+      size: captured.size,
+      contentType: captured.contentType,
+    );
   }
 
   // --- Queries the screens use. Streams, so an applied delta redraws by itself. ---
+
+  /// Every one-tap answer still worth showing, newest first.
+  Stream<List<LocalCrewIntent>> watchIntents() => (store.select(store.crewIntents)
+        ..orderBy([(t) => OrderingTerm(expression: t.queuedAt, mode: OrderingMode.desc)]))
+      .watch();
+
+  /// The answers raised against one requirement.
+  Stream<List<LocalCrewIntent>> watchIntentsFor(int requirementId) =>
+      (store.select(store.crewIntents)
+            ..where((t) => t.requirementId.equals(requirementId))
+            ..orderBy([(t) => OrderingTerm(expression: t.queuedAt, mode: OrderingMode.desc)]))
+          .watch();
 
   Stream<List<LocalNotification>> watchNotifications() =>
       (store.select(store.notifications)
@@ -196,6 +290,42 @@ class AppState extends ChangeNotifier {
   }
 }
 
+/// What came of a capture. Three outcomes and no exception: cancelled (everything null), refused
+/// ([message] set), or queued ([publicId] set).
+class EvidenceSubmitResult {
+  const EvidenceSubmitResult({
+    this.publicId,
+    this.message,
+    this.fileName,
+    this.size,
+    this.contentType,
+  });
+
+  final String? publicId;
+  final String? message;
+  final String? fileName;
+  final int? size;
+  final String? contentType;
+
+  bool get queued => publicId != null;
+}
+
+/// MOB-0's ring, counted from the server's own answers.
+///
+/// This summarises evaluations; it does not produce one. Every cell arrived with a state the
+/// engine decided (§5.2), and all that happens here is a partition on the same `needsAttention`
+/// grouping the certifications list has always used — which is why the ring and the list can
+/// never disagree about how many things are outstanding.
+///
+/// `na` cells are excluded from both halves. A requirement that does not apply to this person is
+/// not something they are ready for; counting it would inflate the ring with rows the screen
+/// never shows.
+Readiness readinessFrom(List<CertificationRow> rows) {
+  final applicable = rows.where((row) => row.cell.state != 'na').toList(growable: false);
+  final outstanding = applicable.where((row) => needsAttention(row.cell.state)).length;
+  return Readiness(ready: applicable.length - outstanding, total: applicable.length);
+}
+
 /// One line of the certifications screen.
 class CertificationRow {
   const CertificationRow({required this.cell, this.requirement, this.holding});
@@ -211,4 +341,15 @@ class CertificationRow {
   String get code => requirement?.code ?? 'REQ-${cell.requirementId}';
   String get title => requirement?.title ?? 'Requirement ${cell.requirementId}';
   String get category => requirement?.category ?? '—';
+
+  /// The date this stops being valid, preferring the evaluated cell's over the raw holding's.
+  ///
+  /// The cell's is the one the engine reasoned about — a footnote or a register overlay can make
+  /// the effective date differ from what the certificate on the person's desk says — so where the
+  /// two disagree the server's answer wins.
+  String? get expiry => cell.expiry ?? holding?.expiry;
+
+  /// Whether this row is one of the things asked of the crew member — the server's state, read
+  /// through the same grouping every screen uses.
+  bool get outstanding => needsAttention(cell.state);
 }

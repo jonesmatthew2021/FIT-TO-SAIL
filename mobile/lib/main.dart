@@ -6,6 +6,7 @@ import 'src/data/database_opener.dart';
 import 'src/data/local_store.dart';
 import 'src/data/sync_engine.dart';
 import 'src/ui/app_state.dart';
+import 'src/ui/nocturne.dart';
 import 'src/ui/screens.dart';
 
 /// CREWCOMP crew self-service (§7).
@@ -50,7 +51,14 @@ Future<void> main() async {
         : null,
   );
 
-  final state = AppState(store: store, engine: SyncEngine(api: api, store: store));
+  final state = AppState(
+    store: store,
+    engine: SyncEngine(api: api, store: store),
+    // MOB-11's tab. A supervisory role is the identity spike's to establish and nothing in the
+    // sync payload carries one, so this is a debug-only switch for driving the screen — and
+    // `kDebugMode` being a compile-time constant means a release build cannot reach it at all.
+    supervisor: kDebugMode && const bool.fromEnvironment('CREWCOMP_DEV_SUPERVISOR'),
+  );
   await state.load();
 
   runApp(CrewcompApp(state: state));
@@ -64,18 +72,13 @@ class CrewcompApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CREWCOMP',
+      title: 'Attest',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF12507A),
-        brightness: Brightness.light,
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: const Color(0xFF12507A),
-        brightness: Brightness.dark,
-        useMaterial3: true,
-      ),
+      // One theme, and it is dark. Nocturne has no light mode; following the platform would put
+      // the crew app on a ground the console does not have, half-ported.
+      theme: nocturneTheme(),
+      darkTheme: nocturneTheme(),
+      themeMode: ThemeMode.dark,
       home: CrewHome(state: state),
     );
   }

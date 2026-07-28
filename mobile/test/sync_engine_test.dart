@@ -397,6 +397,137 @@ void main() {
     });
   });
 
+  group('one-tap answers', () {
+    test('a queued answer is durable and visible before the server has heard of it', () async {
+      final engine = engineFor(MockClient((request) async => http.Response('{}', 500)));
+
+      await engine.queueIntent(
+        kind: 'requirement.progress',
+        summary: 'Course booked for Sea Survival',
+        requirementId: 11,
+      );
+
+      final intent = await store.select(store.crewIntents).getSingle();
+      expect(intent.state, 'queued');
+      expect(intent.requirementId, 11);
+      // One id across both rows, and it is the server's idempotency key.
+      expect((await store.select(store.outbox).getSingle()).opId, intent.opId);
+    });
+
+    test('a rejected answer keeps its intent, with the reason, instead of vanishing', () async {
+      // The whole point of the crew-intent table. The outbox entry is dropped — a poison entry
+      // retried forever wedges the queue — but if that were the only record, the crew member's
+      // tap would disappear without a word and the row would revert on the next snapshot.
+      final engine = engineFor(MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final operations = body['operations'] as List<dynamic>;
+        return http.Response(
+          jsonEncode({
+            'cursor': 10,
+            'results': [
+              {
+                'opId': operations[0]['opId'],
+                'status': 'rejected',
+                'detail': "Unsupported operation type 'requirement.progress'",
+              },
+            ],
+          }),
+          200,
+        );
+      }));
+
+      await engine.queueIntent(
+        kind: 'requirement.progress',
+        summary: 'Course booked for Sea Survival',
+        requirementId: 11,
+      );
+      await engine.flushOutbox();
+
+      expect(await store.select(store.outbox).get(), isEmpty);
+      final intent = await store.select(store.crewIntents).getSingle();
+      expect(intent.state, 'failed');
+      expect(intent.detail, contains('Unsupported operation type'));
+    });
+
+    test('retrying re-posts under the original id, so an applied answer cannot double', () async {
+      final engine = engineFor(MockClient((request) async {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final operations = body['operations'] as List<dynamic>;
+        return http.Response(
+          jsonEncode({
+            'cursor': 10,
+            'results': [
+              {'opId': operations[0]['opId'], 'status': 'rejected', 'detail': 'nope'},
+            ],
+          }),
+          200,
+        );
+      }));
+
+      final opId = await engine.queueIntent(
+        kind: 'course.seat_request',
+        summary: 'Seat requested',
+        subjectRef: 'course-1',
+      );
+      await engine.flushOutbox();
+      await engine.retryIntent(opId);
+
+      final requeued = await store.select(store.outbox).getSingle();
+      expect(requeued.opId, opId, reason: 'the idempotency key survives a retry');
+      expect(requeued.attempts, 0);
+      expect((await store.select(store.crewIntents).getSingle()).state, 'queued');
+    });
+
+    test('an applied answer is swept only once it is older than the retention window', () async {
+      var clock = DateTime.utc(2026, 7, 26, 8);
+      final engine = engineFor(
+        MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final operations = body['operations'] as List<dynamic>;
+          return http.Response(
+            jsonEncode({
+              'cursor': 10,
+              'results': [
+                {'opId': operations[0]['opId'], 'status': 'applied', 'detail': null},
+              ],
+            }),
+            200,
+          );
+        }),
+        now: () => clock,
+      );
+
+      await engine.queueIntent(kind: 'requirement.help', summary: 'Asked for help');
+      await engine.flushOutbox();
+      expect((await store.select(store.crewIntents).getSingle()).state, 'sent');
+
+      await engine.pruneSettledIntents();
+      expect(await store.select(store.crewIntents).get(), hasLength(1),
+          reason: '"you told the office on 25 Jul" is still worth showing');
+
+      clock = clock.add(SyncEngine.intentRetention + const Duration(days: 1));
+      await engine.pruneSettledIntents();
+      expect(await store.select(store.crewIntents).get(), isEmpty);
+    });
+
+    test('a failed answer is never swept, however old', () async {
+      var clock = DateTime.utc(2026, 7, 26, 8);
+      final engine = engineFor(
+        MockClient((request) async => http.Response('{}', 500)),
+        now: () => clock,
+      );
+
+      final opId = await engine.queueIntent(kind: 'team.nudge', summary: 'Nudged Ada');
+      await (store.update(store.crewIntents)..where((t) => t.opId.equals(opId)))
+          .write(const CrewIntentsCompanion(state: drift.Value('failed')));
+
+      clock = clock.add(const Duration(days: 400));
+      await engine.pruneSettledIntents();
+
+      expect(await store.select(store.crewIntents).get(), hasLength(1));
+    });
+  });
+
   group('offline validity (SEC-12)', () {
     test('data locks once it is older than the offline window', () async {
       var clock = DateTime.utc(2026, 7, 26);

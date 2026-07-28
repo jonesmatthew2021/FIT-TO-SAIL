@@ -171,6 +171,62 @@ class Outbox extends Table {
   Set<Column> get primaryKey => {opId};
 }
 
+/// The crew member's one-tap answers, and what became of each (MOB-0, MOB-5, MOB-8, MOB-9,
+/// MOB-10, MOB-11 — the *design handoff's* numbering).
+///
+/// An intent is the device's record of something the crew member *said*: the course is booked,
+/// they need help arranging it, they want that seat, they are asking for an exemption. Every one
+/// rides the [Outbox] like an evidence submission does, and this table is the half the screens
+/// read — the outbox holds the payload in flight, this holds what to draw on the row.
+///
+/// It exists because of one rule: a one-tap answer updates the row immediately, queues when
+/// offline, and **shows a retry affordance rather than reverting silently** if it fails. The
+/// outbox alone cannot do that. A rejected entry is deleted from it on purpose — a poison entry
+/// retried forever is how a queue wedges — and if that were the only record, the crew member's
+/// tap would disappear without a word and the row would revert on the next snapshot, which is
+/// the one failure mode the one-tap design explicitly rules out. Here the verdict lands on the
+/// intent instead, and stays.
+///
+/// Not server-owned, so `_applySnapshot` does not clear it.
+@DataClassName('LocalCrewIntent')
+class CrewIntents extends Table {
+  /// Shared with the outbox entry that carries it, which is also the server's idempotency key.
+  TextColumn get opId => text()();
+
+  /// `requirement.progress`, `requirement.help`, `evidence.reading`, `course.seat_request`,
+  /// `course.waitlist`, `register.exemption_request`, `attestation.sign_off`, `team.nudge`.
+  TextColumn get kind => text()();
+
+  /// What it is about, where that is a requirement. Lets a detail screen find its own intents.
+  IntColumn get requirementId => integer().nullable()();
+
+  /// The non-requirement subject: a course option id, a crew change id, a colleague's Sam #.
+  TextColumn get subjectRef => text().nullable()();
+
+  /// One line, already written, for the row that reports it. Composed at queue time because the
+  /// screen that shows it may not be the screen that raised it.
+  TextColumn get summary => text()();
+
+  /// The operation's JSON body, kept here as well as on the outbox entry.
+  ///
+  /// Duplication with a purpose: a server rejection deletes the outbox entry, and without a copy
+  /// the "Retry" the failed row offers would have nothing to send. Retrying re-posts under the
+  /// *same* `opId`, so a request the server actually applied before losing the connection cannot
+  /// be applied twice.
+  TextColumn get payload => text()();
+
+  DateTimeColumn get queuedAt => dateTime()();
+
+  /// `queued` · `sent` · `failed`. Nothing else, and no state that means "probably".
+  TextColumn get state => text().withDefault(const Constant('queued'))();
+
+  /// Why it failed, in the server's words where there are any.
+  TextColumn get detail => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {opId};
+}
+
 /// Single-row sync bookkeeping. `id` is pinned to 0.
 @DataClassName('LocalSyncState')
 class SyncStates extends Table {
@@ -206,6 +262,7 @@ class SyncStates extends Table {
     CrewChanges,
     StandingCells,
     Outbox,
+    CrewIntents,
     SyncStates,
   ],
 )
@@ -213,7 +270,22 @@ class LocalStore extends _$LocalStore {
   LocalStore(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  /// v1 → v2 adds [CrewIntents].
+  ///
+  /// Additive, and it has to be: an upgrade that dropped and re-created the database would take
+  /// the outbox with it, and the outbox is the only copy of writes the server has never seen. A
+  /// crew member who queued an evidence submission in a dead spot and then took an app update
+  /// would lose it, with nothing anywhere saying so. Everything server-owned in here is a replica
+  /// and could be rebuilt from a snapshot; the two device-owned tables cannot.
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          if (from < 2) await m.createTable(crewIntents);
+        },
+      );
 
   /// Everything the crew member's device holds, gone.
   ///

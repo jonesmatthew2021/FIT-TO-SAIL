@@ -64,6 +64,51 @@ String formatDateRange(String from, String to) {
   return '${formatDate(from)} – ${formatDate(to)}';
 }
 
+const _weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/// `Mon 3 Aug` — a date a crew member has to *plan* around rather than merely read.
+///
+/// The weekday is the point: "3 Aug" does not tell someone whether a two-day course eats their
+/// weekend, and it is the first thing they check. Computed from the epoch day rather than a
+/// `DateTime`, for the same reason as everything else here — 1970-01-01 was a Thursday, and that
+/// is true in every timezone.
+String formatDateWeekday(String date, {bool withYear = false, bool withMonth = true}) {
+  if (!_isoDate.hasMatch(date)) return date;
+  final weekday = _weekdays[(epochDay(date) + 4) % 7];
+  final day = int.parse(date.substring(8, 10));
+  final month = _months[int.parse(date.substring(5, 7)) - 1];
+  return [
+    '$weekday $day',
+    if (withMonth) month,
+    if (withYear) date.substring(0, 4),
+  ].join(' ');
+}
+
+/// `Mon 3 – Tue 4 Aug`, collapsing the month when both ends share it, and `Thu 6 Aug` when the
+/// two ends are the same day.
+String formatWeekdayRange(String from, String to) {
+  if (from == to) return formatDateWeekday(to);
+  if (!_isoDate.hasMatch(from) || !_isoDate.hasMatch(to)) return '$from – $to';
+  final sameMonth = from.substring(0, 7) == to.substring(0, 7);
+  return '${formatDateWeekday(from, withMonth: !sameMonth)} – ${formatDateWeekday(to)}';
+}
+
+final RegExp _isoDateInProse = RegExp(r'\d{4}-\d{2}-\d{2}');
+
+/// Rewrites every `YYYY-MM-DD` inside a sentence into the day-first form crew read.
+///
+/// For server-composed prose only — notification bodies, today. `NotificationService` builds
+/// those strings with raw `LocalDate.toString()`, so an expiry warning arrives saying "expires on
+/// 2026-08-14", and **a crew member must never be shown an ISO date**: 08-14 and 14-08 are two
+/// different days to two people in the same crew room, and the format is what tells them apart.
+///
+/// This is a date *format* substitution and nothing else — it cannot alter a word, a code or a
+/// number that is not shaped like a calendar date. The real fix is for the server to compose in
+/// the display format, at which point this becomes a no-op and can be deleted; it is on the
+/// backend handoff. Until then the screen is right rather than waiting to be.
+String humaniseDates(String prose) =>
+    prose.replaceAllMapped(_isoDateInProse, (match) => formatDate(match.group(0)!));
+
 /// "in 12 days" / "yesterday" / "today", relative to the server's business date.
 ///
 /// Deliberately takes [today] rather than reading a clock: the whole point of this library is

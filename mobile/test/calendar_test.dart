@@ -58,6 +58,36 @@ void main() {
     test('passes a malformed date through rather than inventing one', () {
       expect(formatDate('not-a-date'), 'not-a-date');
     });
+
+    test('carries the weekday on a date someone has to plan around', () {
+      // MOB-8: "3 Aug" does not tell a crew member whether a two-day course eats their weekend,
+      // and that is the first thing they check. 1970-01-01 was a Thursday, in every timezone —
+      // which is why this comes off the epoch day rather than a `DateTime`.
+      expect(formatDateWeekday('1970-01-01'), 'Thu 1 Jan');
+      expect(formatDateWeekday('2026-08-03'), 'Mon 3 Aug');
+      expect(formatDateWeekday('2026-08-03', withYear: true), 'Mon 3 Aug 2026');
+    });
+
+    test('rewrites an ISO date inside server-composed prose, and touches nothing else', () {
+      // `NotificationService` builds bodies with a raw `LocalDate.toString()`. 08-14 and 14-08 are
+      // two different days to two people in the same crew room.
+      expect(
+        humaniseDates('Your Sea Survival certificate expires on 2026-08-14, before the end.'),
+        'Your Sea Survival certificate expires on 14 Aug 2026, before the end.',
+      );
+      expect(
+        humaniseDates('UNI CC24, slot 2, 2026-07-21 to 2026-08-17.'),
+        'UNI CC24, slot 2, 21 Jul 2026 to 17 Aug 2026.',
+      );
+      // A requirement code is not a date, and a version label is not one either.
+      expect(humaniseDates('MS-02 under matrix dev-2026.1'), 'MS-02 under matrix dev-2026.1');
+    });
+
+    test('collapses the month a course range shares, and a one-day course to a date', () {
+      expect(formatWeekdayRange('2026-08-03', '2026-08-04'), 'Mon 3 – Tue 4 Aug');
+      expect(formatWeekdayRange('2026-07-30', '2026-08-01'), 'Thu 30 Jul – Sat 1 Aug');
+      expect(formatWeekdayRange('2026-08-06', '2026-08-06'), 'Thu 6 Aug');
+    });
   });
 
   group('relativeDays', () {

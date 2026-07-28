@@ -41,6 +41,10 @@ class SyncEngine {
   /// SEC-12: after this long without a successful sync the cached data locks.
   static const offlineValidity = Duration(days: 30);
 
+  /// How long a delivered one-tap answer stays on the device. Long enough that "you told the
+  /// office on 25 Jul" is still on the requirement when the certificate finally arrives.
+  static const intentRetention = Duration(days: 30);
+
   static const maxAttempts = 8;
 
   /// Runs a full sync cycle: push the queue, then pull.
@@ -57,6 +61,11 @@ class SyncEngine {
       final uploaded = await uploader.uploadPending();
 
       final pulled = await pull();
+
+      // After the pull, so an intent is only forgotten once whatever it caused has had a chance
+      // to come back down as a real record.
+      await pruneSettledIntents();
+
       return SyncOutcome(
         succeeded: true,
         operationsPushed: pushed,
@@ -356,6 +365,94 @@ class SyncEngine {
     return opId;
   }
 
+  /// Queues one of the crew member's one-tap answers and records it locally so the row can
+  /// report itself immediately.
+  ///
+  /// Two rows, one transaction: the [Outbox] entry that will be posted, and the [CrewIntents] row
+  /// the screens read. They share an `opId`, which is also the server's idempotency key, so a
+  /// retry after a half-delivered request cannot produce two seat requests for the same course.
+  ///
+  /// This does **not** write a holding or a compliance state, and never will (§7.5). An intent
+  /// says what the crew member told the office; what the office does with it comes back down the
+  /// sync payload like every other answer.
+  Future<String> queueIntent({
+    required String kind,
+    required String summary,
+    Map<String, Object?> payload = const {},
+    int? requirementId,
+    String? subjectRef,
+  }) async {
+    final opId = newId();
+    final body = jsonEncode({
+      'opId': opId,
+      'type': kind,
+      'requirementId': requirementId,
+      'subjectRef': subjectRef,
+      ...payload,
+    });
+
+    await store.transaction(() async {
+      await store.into(store.outbox).insertOnConflictUpdate(
+            OutboxCompanion.insert(opId: opId, type: kind, payload: body, queuedAt: now()),
+          );
+      await store.into(store.crewIntents).insertOnConflictUpdate(
+            CrewIntentsCompanion.insert(
+              opId: opId,
+              kind: kind,
+              requirementId: Value(requirementId),
+              subjectRef: Value(subjectRef),
+              summary: summary,
+              payload: body,
+              queuedAt: now(),
+            ),
+          );
+    });
+    return opId;
+  }
+
+  /// Puts a failed intent back on the queue, under its original `opId`.
+  ///
+  /// Reusing the id is the whole safety property: the failure may have been a connection dropped
+  /// after the server applied the operation, and an idempotency key the server has already seen
+  /// makes the second attempt a no-op rather than a duplicate seat request.
+  Future<void> retryIntent(String opId) async {
+    final intent = await (store.select(store.crewIntents)..where((t) => t.opId.equals(opId)))
+        .getSingleOrNull();
+    if (intent == null) return;
+
+    await store.transaction(() async {
+      await store.into(store.outbox).insertOnConflictUpdate(
+            OutboxCompanion.insert(
+              opId: opId,
+              type: intent.kind,
+              payload: intent.payload,
+              queuedAt: now(),
+              attempts: const Value(0),
+              nextAttemptAt: const Value.absent(),
+            ),
+          );
+      await (store.update(store.crewIntents)..where((t) => t.opId.equals(opId))).write(
+        const CrewIntentsCompanion(state: Value('queued'), detail: Value(null)),
+      );
+    });
+  }
+
+  /// Drops an intent the crew member has acknowledged the failure of.
+  Future<void> discardIntent(String opId) async {
+    await store.transaction(() async {
+      await (store.delete(store.outbox)..where((t) => t.opId.equals(opId))).go();
+      await (store.delete(store.crewIntents)..where((t) => t.opId.equals(opId))).go();
+    });
+  }
+
+  /// Forgets delivered intents once they are old enough that nothing on screen still refers to
+  /// them. Failed and queued ones are never swept — those are the two states a crew member may
+  /// still be waiting on an answer about.
+  Future<void> pruneSettledIntents() => (store.delete(store.crewIntents)
+        ..where((t) => t.state.equals('sent'))
+        ..where((t) => t.queuedAt.isSmallerThanValue(now().subtract(intentRetention))))
+      .go();
+
   /// Sends every due queue entry and reconciles the verdicts. Returns how many were applied.
   Future<int> flushOutbox() async {
     final due = await (store.select(store.outbox)
@@ -385,16 +482,31 @@ class SyncEngine {
         case 'applied':
           applied += 1;
           await (store.delete(store.outbox)..where((t) => t.opId.equals(verdict.opId))).go();
+          await _settleIntent(verdict.opId, 'sent', null);
         case 'rejected':
-          // Permanently refused. Dropping it is the point: a poison entry retried forever is how
-          // an offline queue wedges and every good entry behind it stops moving.
+          // Permanently refused. Dropping it from the queue is the point: a poison entry retried
+          // forever is how an offline queue wedges and every good entry behind it stops moving.
+          //
+          // The *intent* is not dropped with it. If it were, a crew member's tap would disappear
+          // without a word and the row would revert on the next snapshot — the one failure mode
+          // the one-tap design explicitly rules out.
           await (store.delete(store.outbox)..where((t) => t.opId.equals(verdict.opId))).go();
+          await _settleIntent(
+            verdict.opId,
+            'failed',
+            verdict.detail ?? 'The office could not accept this',
+          );
         default:
           await _backOffOne(verdict.opId, verdict.detail);
       }
     }
     return applied;
   }
+
+  Future<void> _settleIntent(String opId, String state, String? detail) =>
+      (store.update(store.crewIntents)..where((t) => t.opId.equals(opId))).write(
+        CrewIntentsCompanion(state: Value(state), detail: Value(detail)),
+      );
 
   Future<void> _backOff(List<OutboxEntry> entries) async {
     for (final entry in entries) {
@@ -419,6 +531,9 @@ class SyncEngine {
           nextAttemptAt: Value(null),
         ),
       );
+      // Same reason as a rejection: the crew member must be told their tap did not land. The
+      // outbox entry stays so it can be retried by hand; the intent carries the message.
+      await _settleIntent(opId, 'failed', error ?? 'Could not reach the office after $next tries');
       return;
     }
 

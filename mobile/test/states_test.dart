@@ -1,5 +1,5 @@
 import 'package:crewcomp_crew/src/domain/states.dart';
-import 'package:flutter/material.dart';
+import 'package:crewcomp_crew/src/ui/nocturne.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -32,12 +32,30 @@ void main() {
       expect(needsAttention('quota_only'), isFalse);
     });
 
-    test('give gap and ok visibly different colours in both themes', () {
-      for (final brightness in Brightness.values) {
-        final gap = cellStateColours('gap', brightness);
-        final ok = cellStateColours('ok', brightness);
-        expect(gap.background, isNot(ok.background));
-      }
+    test('carry the same six tones the console does', () {
+      // The mapping is ported from `admin-web/src/domain/enums.ts`. Two clients that disagree
+      // about what colour a gap is are two clients a coordinator and a crew member cannot talk
+      // to each other over.
+      expect(cellStateTone('gap'), Tone.critical);
+      expect(cellStateTone('expiring'), Tone.warning);
+      expect(cellStateTone('ok'), Tone.good);
+      expect(cellStateTone('quota_only'), Tone.muted);
+      // An absence of information, not a verdict — and quieter than a warning for that reason.
+      expect(cellStateTone('unknown'), Tone.caution);
+      expect(cellStateTone('review'), Tone.caution);
+      expect(cellStateTone('pending'), Tone.caution);
+      expect(cellStateTone('exempt'), Tone.neutral);
+    });
+
+    test('give gap and ok visibly different fills', () {
+      expect(toneColours(cellStateTone('gap')).fill, isNot(toneColours(cellStateTone('ok')).fill));
+    });
+
+    test('label the two states the shipped build had never heard of', () {
+      // `pending` and `exempt` are §5.1 states the engine emits and this app used to render
+      // verbatim — a crew member reading "exempt" as a raw wire value beside "Expiring".
+      expect(cellStateLabel('pending'), 'Pending');
+      expect(cellStateLabel('exempt'), 'Exempt');
     });
   });
 
