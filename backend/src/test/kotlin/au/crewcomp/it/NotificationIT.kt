@@ -294,6 +294,72 @@ class NotificationIT {
         }
 
         @Test
+        fun `the expiry scan stops chasing a crew member who has answered, and tells coordinators anyway`() {
+            backOfficeAccount("crew_coordinator", name = "Coordinator")
+
+            // Move the medical so it lapses part-way through the seeded swing (2026-08-01..28).
+            // The fixture's own expiry is a year out, which is inside no assignment and therefore
+            // raises nothing for a coordinator — the half of this test that has to *not* be
+            // suppressed would pass vacuously.
+            asRoles("data_steward")
+                .body("""{"status":"held_expiry","expiry":"2026-08-15"}""")
+                .put("/api/v1/people/${seed.compliantPersonId}/holdings/${seed.medRequirementId}")
+                .then()
+                .statusCode(200)
+
+            val beforeAnswering: Int = asCrew().get("/api/v1/notifications").then().extract().path("size()")
+
+            // MOB-5's one tap: "I have booked the course."
+            asCrew()
+                .body(
+                    """{"operations":[{"opId":"op-answered","type":"requirement.progress",
+                        "requirementId":${seed.medRequirementId}}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .statusCode(200)
+                .body("results[0].status", equalTo("applied"))
+
+            runJob("expiry-scan")
+                .body("detail", containsString("1 already answered"))
+                .body("detail", containsString("0 addressed to crew"))
+
+            // The crew member is not asked again about the expiry they just answered — the only
+            // notification they have is the one the fixture seeded.
+            asCrew().get("/api/v1/notifications").then().body("size()", equalTo(beforeAnswering))
+
+            // The coordinator still hears about it. A booked course is not a held certificate, and
+            // somebody deciding whether to crew a swing needs the risk rather than the reassurance.
+            asRoles("crew_coordinator")
+                .get("/api/v1/notifications")
+                .then()
+                .body("findAll { it.kind == 'expiry_affects_roster' }.size()", greaterThan(0))
+        }
+
+        @Test
+        fun `a crew member's one-tap answer reaches the coordinator`() {
+            backOfficeAccount("crew_coordinator", name = "Coordinator")
+
+            asCrew()
+                .body(
+                    """{"operations":[{"opId":"op-help","type":"requirement.help",
+                        "requirementId":${seed.medRequirementId}}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .statusCode(200)
+                .body("results[0].status", equalTo("applied"))
+
+            asRoles("crew_coordinator")
+                .get("/api/v1/notifications")
+                .then()
+                // SEC-13: the title is the only field a push may carry, so it names neither the
+                // person nor the qualification. Both are in the body, which is fetched in-app.
+                .body("find { it.kind == 'crew_help_requested' }.title", equalTo("A crew member has asked for help"))
+                .body("find { it.kind == 'crew_help_requested' }.body", containsString("SAM001"))
+        }
+
+        @Test
         fun `the cutoff scan warns coordinators about an approaching cutoff, once`() {
             backOfficeAccount("crew_coordinator", name = "Coordinator")
 

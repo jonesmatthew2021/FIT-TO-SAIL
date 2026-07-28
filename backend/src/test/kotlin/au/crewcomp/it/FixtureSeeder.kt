@@ -73,6 +73,8 @@ class FixtureSeeder(private val em: EntityManager) {
             // test's pipeline decides — so the fixture resets it, rather than trusting each test to.
             "delete from AppConfigEntry",
             "delete from LeaveRecord",
+            // Before Person and Requirement, which it references.
+            "delete from CrewStatement",
             "delete from UserAccount",
             // After UserAccount, which references it. ADM-10's allow-list tests create rows here and
             // a leaked one would make the next test's list longer than it seeded.

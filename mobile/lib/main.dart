@@ -12,8 +12,9 @@ import 'src/ui/screens.dart';
 /// CREWCOMP crew self-service (§7).
 ///
 /// The app is: my certifications, my roster, my alerts. It is not a planning tool and it never
-/// writes a holding — the only client-originated writes are evidence submissions and read-marks,
-/// both of which go through the outbound queue (§7.5, §7.6).
+/// writes a holding — the client-originated writes are evidence submissions, read-marks and the
+/// crew member's own one-tap statements, all of which go through the outbound queue (§7.5, §7.6)
+/// and none of which the §5 engine reads.
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

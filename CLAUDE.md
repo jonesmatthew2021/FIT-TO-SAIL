@@ -63,7 +63,7 @@ The component guides document running each piece by hand.
 ## Current phase
 
 Early P1 across three components, with **the whole of §6 now built**. Green: **125 pure-domain
-tests**, **143 backend integration tests** against real PostgreSQL (Colima + Quarkus Dev Services),
+tests**, **149 backend integration tests** against real PostgreSQL (Colima + Quarkus Dev Services),
 **64 frontend tests** with a production bundle that builds, and **127 Flutter tests** including a real
 encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
 component detail — including the traps each has already paid for and the spec questions each takes a
@@ -120,13 +120,23 @@ What exists end to end, verified over real HTTP against a seeded database and dr
   and a retry.
 
   **Eight of those screens are ahead of the backend, deliberately.** There is no course catalogue,
-  no extraction fields on a submission, no credits history, no team endpoint, and none of the seven
-  new sync operations the one-tap answers post — `SyncService` rejects each as an unsupported
-  operation type, per operation, without failing the batch. Each screen degrades in a way a crew
+  no extraction fields on a submission, no credits history, no team endpoint, and five of the seven
+  new sync operations the one-tap answers post are still rejected — per operation, without failing
+  the batch. Each screen degrades in a way a crew
   member can read rather than in a way that looks finished: no course dates rather than invented
   ones, no credit tiles rather than a made-up streak, "the app is not sent your watch" rather than
   an empty list a supervisor reads as *everyone is fine*. `docs/handoff/mobile-crew-app-backend.md`
   is what has to become true, and `mobile/CLAUDE.md` records each departure and why.
+
+- **The first two one-tap answers now reach the office.** `requirement.progress` and
+  `requirement.help` land as a **crew statement** — §7.5's third client-originated write, beside the
+  evidence submission and the read-mark, and deliberately the least powerful of the three. Nothing
+  in the engine reads it: a person who says "course booked" against a lapsed medical still evaluates
+  as a gap, because they still do not hold it. Its one consequence is to make a notification *stop*
+  — the expiry scan skips the crew warning for the exact expiry the person answered, and starts
+  again by itself when a renewal moves the date. The coordinator's roster warning is not suppressed,
+  because a booked course is not a held certificate. Neither operation needed a line of client code:
+  the app was already sending what the server grew a reader for.
 
 The largest functional gaps, in the order they bite:
 
@@ -159,8 +169,8 @@ The largest functional gaps, in the order they bite:
    pipeline bootstrap's.
 7. **The crew app's eight new screens are ahead of the server they need.** Course catalogue,
    extraction fields, readiness and credits in the sync payload, a status-only team endpoint, a
-   mobile-raised exemption, an attestation record, and seven new sync operations. None of it is
-   speculative work — every item has a built screen waiting on it, and
+   mobile-raised exemption, an attestation record, and the five remaining sync operations. None of
+   it is speculative work — every item has a built screen waiting on it, and
    `docs/handoff/mobile-crew-app-backend.md` says what each one needs. Two of them are also
    blocked on something else: the team endpoint needs a supervisory role, which is the identity
    spike's, and MOB-6's real intake route — Attest as a share target in Mail, Files and WhatsApp —

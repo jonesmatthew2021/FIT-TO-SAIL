@@ -135,7 +135,8 @@ data class SyncDeltaDto(
  *
  * §7.6 restricts these to operations that are "commutative or idempotent by construction", which
  * is what removes general conflict resolution from this system: evidence submissions are
- * append-only with client-generated ids, and read-marks are monotonic.
+ * append-only with client-generated ids, read-marks are monotonic, and a crew statement is keyed
+ * on the `opId` that carried it.
  */
 data class SyncQueueRequest(val operations: List<SyncOperationDto>)
 
@@ -143,13 +144,23 @@ data class SyncOperationDto(
     /**
      * Client-generated id for this queue entry. Echoed back in the result so the device knows
      * exactly which entries to drop, even when the batch partially succeeded.
+     *
+     * It is also the **idempotency key** for every operation that creates something: a device
+     * re-posts the same id after a dropped connection, and the server must treat the second
+     * delivery as a no-op rather than as a second answer.
      */
     val opId: String,
-    /** `notification.read` | `evidence.submit` — the only two a client may originate. */
+    /**
+     * `notification.read` | `evidence.submit` | `requirement.progress` | `requirement.help` — the
+     * operations a client may originate today. An unrecognised type is `rejected` per operation,
+     * never per batch: an old server and a new app must not deadlock each other's queues.
+     */
     val type: String,
     val notificationId: Long? = null,
     val readAt: Instant? = null,
     val submission: EvidenceSubmitDto? = null,
+    /** `requirement.progress` | `requirement.help`: what the crew member is answering about. */
+    val requirementId: Long? = null,
 )
 
 data class EvidenceSubmitDto(

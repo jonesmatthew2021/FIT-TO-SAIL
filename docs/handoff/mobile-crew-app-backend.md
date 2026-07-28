@@ -5,6 +5,11 @@
 **Status:** the client half is built, tested and running on a simulator. Every item below is the
 server half of a screen that already exists.
 
+**Two of the seven operations have landed** (28 July 2026): `requirement.progress` and
+`requirement.help` are implemented, tested and verified against the live backend. §1 records what
+they do and what changed; the remaining five are still rejected, still per operation, and still
+listed below.
+
 ---
 
 ## Why this document exists
@@ -24,10 +29,14 @@ Rather than stub the screens or invent the data, the client was built to **degra
   shown an empty list, which they would read as "everyone is fine".
 
 And the seven new write paths are **already queued and already posted**. The device raises them
-through the existing §7.6 outbox, and `SyncService` rejects each with
+through the existing §7.6 outbox, and `SyncService` rejects the unimplemented ones with
 `Unsupported operation type '<kind>'`, per operation, without failing the batch. The crew member
 sees `Couldn't send` with that string and a Retry. That is the intended state: nothing is silently
 dropped, evidence submissions and read-marks keep flowing, and the failure message names the work.
+
+It is also a state with a short half-life, and the first two are out of it. Whoever taps the button
+reads that string, and "Unsupported operation type 'requirement.progress'" is a developer's sentence
+on a crew member's phone.
 
 So this document is the list of what has to become true for those messages to stop.
 
@@ -45,8 +54,8 @@ member*, and the compliance answer stays the engine's (AUTH-1, §7.5).
 
 | `type` | Payload beyond `opId` | What the server should do |
 |---|---|---|
-| `requirement.progress` | `requirementId` | Record that the crew member says the course is booked. Surfaces on ADM-7 / the person page as *in progress*, and suppresses expiry chasing for that requirement until the lead window closes again. |
-| `requirement.help` | `requirementId` | Raise a task or notification for the Crew Coordinator. **Nothing may be recorded against the person** — the screen promises this in as many words, and the promise is the reason the button gets used. |
+| ~~`requirement.progress`~~ | `requirementId` | **Done** — see §1.1. |
+| ~~`requirement.help`~~ | `requirementId` | **Done** — see §1.1. |
 | `course.seat_request` | `requirementId`, `subjectRef` (course option id), `starts`, `finishes` | Register interest in a specific course date (see §3). |
 | `course.waitlist` | as above | Same, for a date with no seats. |
 | `evidence.reading` | `submissionPublicId`, `requirementId`, `certificateNumber`, `issued`, `expires` | The fields as the crew member confirmed or corrected them, against a submission `evidence.submit` already registered. See §4. |
@@ -59,6 +68,55 @@ actor is a human — none of these is AI-proposed.
 **Reason codes for `register.exemption_request`** are a closed set the client already sends:
 `no_seat`, `medical_personal`, `with_authority`. If the register wants different ones, they are a
 one-line change in `mobile/lib/src/ui/action_screens.dart` — say so and it will move.
+
+### 1.1 The two that landed — `requirement.progress` and `requirement.help`
+
+Implemented 28 July 2026. **No client change was needed**: the app was already posting both, with
+the `requirementId` the DTO now reads.
+
+They are stored as a **crew statement** (`crew_statement`, V5) — a new, deliberately small third
+kind of client-originated write beside the evidence submission and the read-mark. A statement is
+what the crew member *said*, and it is kept well away from the evaluation path:
+
+* Nothing in `au.crewcomp.engine` reads the table. A person who says "course booked" against a
+  lapsed medical still evaluates as a gap, on their phone and on the planner, because they still do
+  not hold it (AUTH-1, §7.5). `SyncIT` asserts the roll-up and the holding are untouched.
+* It is keyed on the device's `opId`, unique in the schema, so the outbox can replay freely.
+* It is write-once. Changing your mind is a new statement — the office needs to see the answer move,
+  and when.
+
+Two decisions worth challenging if they are wrong:
+
+**`requirement.help` does create a row**, which contradicts what this document said before
+("nothing may be recorded against the person"). The screen's promise — *"Nothing is recorded against
+you for asking for help"* — is read as a promise about **consequence**: no compliance state moves,
+the engine never sees it, and no scan changes behaviour because of it. It is not read as a promise
+that the request evaporates. With no back-office accounts yet (ADR 0003) the notification fan-out
+resolves to nobody, so if the row did not exist the tap would be answered "Sent to the office" and
+reach no office at all. A request nobody can find is a request nobody can action, which makes the
+button a placebo. **If the intended reading was the stronger one, this is one `if` to change.**
+
+**`requirement.progress` suppresses the crew-facing expiry warning**, and only that one. The
+statement records `about_expiry` — the expiry as the holding stood when the person answered — and
+the expiry scan skips a crew warning for exactly that (person, requirement, expiry). This is the
+same "the key includes the value, not just the subject" rule as the dedupe key beside it: renew the
+certificate, the expiry moves, no statement matches, and the chasing resumes on its own. The
+**coordinator's** `expiry_affects_roster` notice is *not* suppressed — a booked course is not a held
+certificate, and someone deciding whether to crew a swing needs the risk rather than the
+reassurance.
+
+Both raise a per-role notification to Crew Coordinators — `crew_progress_reported` and
+`crew_help_requested`, both new `NotificationKind`s, both SEC-13-safe in the title.
+
+Still outstanding for these two, and deliberately not done:
+
+* **The statement is not in the sync payload.** The table carries `updated_seq` and a tombstone
+  trigger from birth, so it is ready to be replicated, but the device's own `CrewIntents` row is
+  still the only place the answer shows on screen. That means a reinstall loses "Course booked" and
+  Home asks again. It belongs with §2's payload additions.
+* **Nothing in `admin-web` shows a statement.** The coordinator's notification is the whole
+  surfacing today. This document previously said "surfaces on ADM-7 / the person page as *in
+  progress*"; the person page is the right home for it and it is not built.
 
 ---
 
@@ -274,4 +332,6 @@ Small, and deliberately concentrated:
 * `mobile/lib/src/api/schema.g.dart` regenerates from the OpenAPI schema (DEV-2); nothing is
   hand-written.
 
-The seven operations need no client change at all. They are already being sent.
+The seven operations need no client change at all. They are already being sent — which the two that
+landed demonstrated: `requirement.progress` and `requirement.help` went from rejected to applied
+with nothing touched in `mobile/lib` but the generated schema file.

@@ -19,9 +19,11 @@ sentence about a **capability or a rule** is the spec's. Where it could go eithe
 says which.
 
 **Three-quarters of the new screens are ahead of the backend, deliberately.** The server has no
-course catalogue, no extraction fields, no credits history, no team endpoint and none of the seven
-new sync operations the one-tap answers post. Each screen degrades honestly rather than
-convincingly — see "What the payload does not carry yet" — and
+course catalogue, no extraction fields, no credits history, no team endpoint and — until 28 July —
+none of the seven new sync operations the one-tap answers post. **Two of those have now landed**
+(`requirement.progress`, `requirement.help`), and they needed no change in `lib/` beyond the
+regenerated schema: the app was already sending exactly what the server grew a reader for. The rest
+degrade honestly rather than convincingly — see "What the payload does not carry yet" — and
 `docs/handoff/mobile-crew-app-backend.md` is the list of what has to become true.
 
 **MOB-4 submission is built end to end** — capture (camera, photo library, PDF/image attachment),
@@ -149,9 +151,11 @@ test.
   blank on a vessel, which is exactly where this app is used.
 - **The outbox is flushed before the pull.** Pull-first would apply server rows that predate the
   device's own queued writes, and a read-mark made offline would visibly un-tick itself.
-- **The app never writes a holding** (§7.5). The only client-originated writes are evidence
-  submissions and notification read-marks, both idempotent or monotonic by construction — which
-  is what removes conflict resolution from this codebase entirely.
+- **The app never writes a holding** (§7.5). The client-originated writes are evidence submissions,
+  notification read-marks and the one-tap **crew statements**. Read-marks are monotonic; the other
+  two are append-only under a client-minted id — so all three are idempotent by construction, which
+  is what removes conflict resolution from this codebase entirely and is the test a fourth write
+  would have to pass. None of the three is read by the §5 engine.
 - **Push payloads carry title + deep link only** (SEC-13). The body is synced and shown in-app.
   The dev fixture's notification titles follow the rule too, so the screens are never accidentally
   designed around detail a real push cannot carry.
@@ -315,7 +319,8 @@ Each of these is one stub in `app_state.dart`, so landing the backend work is a 
 | MOB-11's watch | no team endpoint, no supervisory role | the tab is off unless `--dart-define=CREWCOMP_DEV_SUPERVISOR=true` under `kDebugMode`, and the screen says the app is not sent a watch — *not* an empty list a supervisor would read as "everyone is fine" |
 | MOB-9's declaration wording | a client constant carrying the handoff's copy | renders it, and draws the supporting fact under each line from the person's real evaluated cells |
 | MOB-9's "Face ID · 28 Jul 2026, 07:05 AWST" | no biometric binding, and the timestamp must be the server's | the block says "the office records the time it arrives, in the vessel's timezone" rather than printing a plausible one |
-| the seven one-tap operations | `SyncService` rejects each as `Unsupported operation type` | queues them anyway; the row shows the server's own words and a Retry. Evidence submissions and read-marks are unaffected — rejection is per operation, not per batch |
+| `requirement.progress` / `requirement.help` | **landed** — a `crew_statement` row plus a Coordinator notification | nothing; the row reports "Sent to the office". Neither moves a holding, so the card still shows the gap |
+| the other five one-tap operations | `SyncService` rejects each as `Unsupported operation type` | queues them anyway; the row shows the server's own words and a Retry. Evidence submissions and read-marks are unaffected — rejection is per operation, not per batch |
 | MOB-6 as an OS share target | an iOS Share Extension and an Android intent filter, unwritten | the in-app half of the sheet at the mock's geometry (Files · Photos · Camera). The mock's four-up with Files/Print/More is the *operating system's* sheet; drawing our own greyed-out "Print" would be a picture of a feature |
 | crew-facing dates in notification bodies | the server composes them with a raw `LocalDate.toString()` | `humaniseDates` rewrites `2026-08-14` to `14 Aug 2026` at display time. A date-format substitution and nothing else, deletable the moment the server composes properly |
 

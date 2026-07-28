@@ -2514,6 +2514,7 @@ class SyncOperationDto {
   final int? notificationId;
   final DateTime? readAt;
   final EvidenceSubmitDto? submission;
+  final int? requirementId;
 
   const SyncOperationDto({
     required this.opId,
@@ -2521,6 +2522,7 @@ class SyncOperationDto {
     this.notificationId,
     this.readAt,
     this.submission,
+    this.requirementId,
   });
 
   factory SyncOperationDto.fromJson(Map<String, dynamic> json) => SyncOperationDto(
@@ -2529,6 +2531,7 @@ class SyncOperationDto {
         notificationId: json['notificationId'] == null ? null : json['notificationId'] as int,
         readAt: json['readAt'] == null ? null : DateTime.parse(json['readAt'] as String).toUtc(),
         submission: json['submission'] == null ? null : EvidenceSubmitDto.fromJson(json['submission'] as Map<String, dynamic>),
+        requirementId: json['requirementId'] == null ? null : json['requirementId'] as int,
       );
 
   Map<String, dynamic> toJson() => {
@@ -2537,6 +2540,7 @@ class SyncOperationDto {
         'notificationId': notificationId,
         'readAt': readAt?.toIso8601String(),
         'submission': submission?.toJson(),
+        'requirementId': requirementId,
       };
 }
 

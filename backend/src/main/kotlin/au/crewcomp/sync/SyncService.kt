@@ -19,6 +19,8 @@ import au.crewcomp.notify.NotificationRepository
 import au.crewcomp.notify.NotificationService
 import au.crewcomp.people.Assignment
 import au.crewcomp.people.AssignmentRepository
+import au.crewcomp.people.CrewStatementKind
+import au.crewcomp.people.CrewStatementService
 import au.crewcomp.people.LeaveRecordRepository
 import au.crewcomp.people.PersonRepository
 import au.crewcomp.people.QualificationHoldingRepository
@@ -69,6 +71,7 @@ class SyncService(
     private val compliance: ComplianceService,
     private val evidence: EvidenceService,
     private val notificationService: NotificationService,
+    private val crewStatements: CrewStatementService,
     private val policy: AccessPolicy,
     private val clock: BusinessClock,
 ) {
@@ -217,8 +220,31 @@ class SyncService(
                 )
             }
 
+            // MOB-5's one-tap answers. Both are *statements* rather than decisions: they record
+            // what the crew member said and route it to a Coordinator, and neither touches a
+            // holding, a cell state or a roll-up (§7.5, AUTH-1). See [CrewStatementService].
+            OP_REQUIREMENT_PROGRESS -> crewStatement(operation, personId, CrewStatementKind.COURSE_BOOKED)
+            OP_REQUIREMENT_HELP -> crewStatement(operation, personId, CrewStatementKind.HELP_REQUESTED)
+
             else -> rejected(operation, "Unsupported operation type '${operation.type}'")
         }
+
+    private fun crewStatement(
+        operation: SyncOperationDto,
+        personId: Long,
+        kind: CrewStatementKind,
+    ): SyncOperationResultDto {
+        val requirementId = requireNotNull(operation.requirementId) {
+            "${operation.type} requires a requirementId"
+        }
+        crewStatements.record(
+            opId = operation.opId,
+            personId = personId,
+            requirementId = requirementId,
+            kind = kind,
+        )
+        return SyncOperationResultDto(operation.opId, STATUS_APPLIED)
+    }
 
     private fun rejected(operation: SyncOperationDto, detail: String?) =
         SyncOperationResultDto(operation.opId, STATUS_REJECTED, detail)
@@ -297,6 +323,12 @@ class SyncService(
 
         const val OP_NOTIFICATION_READ = "notification.read"
         const val OP_EVIDENCE_SUBMIT = "evidence.submit"
+
+        /** MOB-5: "I have booked the course." */
+        const val OP_REQUIREMENT_PROGRESS = "requirement.progress"
+
+        /** MOB-5 / MOB-0: "I need help arranging it." */
+        const val OP_REQUIREMENT_HELP = "requirement.help"
 
         const val STATUS_APPLIED = "applied"
         const val STATUS_REJECTED = "rejected"

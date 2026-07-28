@@ -4722,6 +4722,8 @@ export interface components {
             notificationId?: number | null;
             readAt?: components["schemas"]["Instant"] | null;
             submission?: components["schemas"]["EvidenceSubmitDto"] | null;
+            /** Format: int64 */
+            requirementId?: number | null;
         };
         SyncOperationResultDto: {
             opId: string;

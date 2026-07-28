@@ -99,7 +99,13 @@ enum class NotificationKind(val wire: String, val audience: NotificationAudience
     EXPIRY_AFFECTS_ROSTER("expiry_affects_roster", NotificationAudience.BACK_OFFICE),
     MATRIX_PUBLISHED("matrix_published", NotificationAudience.BACK_OFFICE),
     EXCEPTION_RAISED("exception_raised", NotificationAudience.BACK_OFFICE),
-    EVIDENCE_AWAITING_REVIEW("evidence_awaiting_review", NotificationAudience.BACK_OFFICE);
+    EVIDENCE_AWAITING_REVIEW("evidence_awaiting_review", NotificationAudience.BACK_OFFICE),
+
+    // The crew app's one-tap answers (MOB-5), routed to Coordinators. Back-office rather than
+    // crew: the person who tapped already knows what they said, and their own copy of it is the
+    // queue entry on their device.
+    CREW_PROGRESS_REPORTED("crew_progress_reported", NotificationAudience.BACK_OFFICE),
+    CREW_HELP_REQUESTED("crew_help_requested", NotificationAudience.BACK_OFFICE);
 
     companion object {
         fun fromWire(wire: String): NotificationKind =

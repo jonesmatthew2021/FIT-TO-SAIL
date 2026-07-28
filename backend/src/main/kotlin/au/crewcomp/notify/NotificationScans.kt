@@ -2,6 +2,7 @@ package au.crewcomp.notify
 
 import au.crewcomp.compliance.ComplianceService
 import au.crewcomp.engine.ExpiryImpact
+import au.crewcomp.people.CrewStatementRepository
 import au.crewcomp.people.UserAccountRepository
 import au.crewcomp.platform.config.ConfigService
 import au.crewcomp.platform.security.Role
@@ -41,6 +42,7 @@ class NotificationScans(
     private val compliance: ComplianceService,
     private val notifications: NotificationService,
     private val accounts: UserAccountRepository,
+    private val crewStatements: CrewStatementRepository,
     private val partnerships: PartnershipRepository,
     private val crewChanges: CrewChangeRepository,
     private val requirements: RequirementRepository,
@@ -59,6 +61,18 @@ class NotificationScans(
      *    assignment — `impact != none`. That is §9's "roster gaps → Coordinators": an expiry with no
      *    assignment behind it is the crew member's admin, not a planning problem, and routing every
      *    one of them to a coordinator is how the list stops being read.
+     *
+     * ### Answering stops the chasing
+     *
+     * A crew member who has tapped "Course booked" (MOB-5) has answered, and repeating the question
+     * every morning is how a warning system teaches people to ignore it. So a `course_booked`
+     * statement against **this expiry date** suppresses the crew-facing warning — and only that one:
+     *
+     *  * The **coordinator's** notice still fires. A booked course is not a held certificate, and a
+     *    planner deciding whether to crew a swing needs the risk, not the reassurance.
+     *  * Renewing the certificate moves the expiry, so no statement matches the new one and the
+     *    chasing resumes by itself. That is the same "the key includes the value" rule as the dedupe
+     *    key beside it, and it is why the statement records the date it was about.
      */
     @Transactional
     fun expiryScan(): String {
@@ -67,16 +81,26 @@ class NotificationScans(
         if (alerts.isEmpty()) return "No holdings expiring within $leadDays days"
 
         val codes = requirementCodes()
+        // One query for the whole scan rather than one per alert; this job walks the fleet.
+        val answered = crewStatements.courseBookedIndexUnscoped()
         var toCrew = 0
         var unreachable = 0
+        var answeredAlready = 0
         var toCoordinators = 0
 
         alerts.forEach { alert ->
             val code = codes[alert.requirementId.value] ?: "a qualification"
             val key = "expiry:${alert.person.id.value}:${alert.requirementId.value}:${alert.expiry}"
+            val hasAnswered = Triple(
+                alert.person.id.value,
+                alert.requirementId.value,
+                alert.expiry,
+            ) in answered
 
             val account = accounts.forPerson(alert.person.id.value)
-            if (account == null) {
+            if (hasAnswered) {
+                answeredAlready++
+            } else if (account == null) {
                 // A Person with no account cannot be notified. Counted rather than logged per row:
                 // a growing number here means onboarding is behind, which is worth seeing.
                 unreachable++
@@ -108,7 +132,8 @@ class NotificationScans(
         }
 
         return "${alerts.size} expiries within $leadDays days: $toCrew addressed to crew " +
-            "($unreachable with no account), $toCoordinators to coordinators"
+            "($unreachable with no account, $answeredAlready already answered), " +
+            "$toCoordinators to coordinators"
     }
 
     /**

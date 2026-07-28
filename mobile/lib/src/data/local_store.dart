@@ -7,7 +7,8 @@ part 'local_store.g.dart';
 /// The tables mirror the sync payload one-for-one, on purpose: applying a delta is an upsert per
 /// changed row and a delete per tombstone, with no translation layer in between to get wrong.
 /// Server ids are the primary keys, because the server is authoritative for every row here —
-/// the app originates only evidence submissions and read-marks, and those go through [Outbox].
+/// the app originates only evidence submissions, read-marks and one-tap statements, and all three
+/// go through [Outbox].
 ///
 /// Two things this schema deliberately does *not* do:
 ///

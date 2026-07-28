@@ -348,6 +348,16 @@ const NOTIFICATION_KINDS: Record<string, StateDisplay> = {
     tone: 'caution',
     description: 'A document is in the verification queue (ADM-9).',
   },
+  crew_progress_reported: {
+    label: 'Crew answered',
+    tone: 'good',
+    description: 'A crew member says a course is booked. Not a holding — the gap still stands.',
+  },
+  crew_help_requested: {
+    label: 'Crew needs help',
+    tone: 'caution',
+    description: 'A crew member has asked for help arranging a requirement.',
+  },
 }
 
 export function notificationKind(kind: string): StateDisplay {

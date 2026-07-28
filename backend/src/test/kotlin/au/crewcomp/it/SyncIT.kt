@@ -2,6 +2,8 @@ package au.crewcomp.it
 
 import au.crewcomp.compliance.MatrixSnapshotService
 import au.crewcomp.engine.HoldingStatus
+import au.crewcomp.people.CrewStatementKind
+import au.crewcomp.people.CrewStatementRepository
 import au.crewcomp.people.HoldingService
 import au.crewcomp.platform.security.Actor
 import au.crewcomp.platform.security.ActorContext
@@ -11,6 +13,7 @@ import io.quarkus.test.junit.QuarkusTest
 import io.restassured.RestAssured.given
 import io.restassured.http.ContentType
 import jakarta.inject.Inject
+import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
 import org.hamcrest.Matchers.hasSize
@@ -23,6 +26,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.security.MessageDigest
+import java.time.LocalDate
 import java.util.HexFormat
 import java.util.UUID
 
@@ -42,6 +46,7 @@ class SyncIT {
     @Inject lateinit var matrixSnapshots: MatrixSnapshotService
     @Inject lateinit var holdings: HoldingService
     @Inject lateinit var actorContext: ActorContext
+    @Inject lateinit var statements: CrewStatementRepository
 
     private lateinit var seed: FixtureSeeder.Seed
 
@@ -400,6 +405,96 @@ class SyncIT {
                 .then()
                 .statusCode(200)
                 .body("results[0].status", equalTo("rejected"))
+        }
+    }
+
+    @Nested
+    @DisplayName("One-tap answers (MOB-5)")
+    inner class CrewStatements {
+
+        private fun answer(opId: String, type: String, requirementId: Long?, personId: Long? = null) =
+            asCrew(personId ?: seed.compliantPersonId)
+                .contentType(ContentType.JSON)
+                .body(
+                    mapOf(
+                        "operations" to listOf(
+                            buildMap {
+                                put("opId", opId)
+                                put("type", type)
+                                if (requirementId != null) put("requirementId", requirementId)
+                            },
+                        ),
+                    ),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .statusCode(200)
+
+        @Test
+        fun `records 'course booked' once, however many times the device replays it`() {
+            // The property the outbox depends on: a device that never saw a verdict re-posts the
+            // same opId, and must not turn one answer into three.
+            repeat(3) {
+                answer("op-booked", "requirement.progress", seed.medRequirementId)
+                    .body("results[0].status", equalTo("applied"))
+            }
+
+            val mine = statements.forPersonUnscoped(seed.compliantPersonId)
+            assertEquals(1, mine.size)
+            assertEquals(CrewStatementKind.COURSE_BOOKED, mine.single().kind)
+            // Stamped from the holding, so the expiry scan can go quiet for *this* expiry and
+            // start again when a renewal moves it.
+            assertEquals(LocalDate.of(2027, 8, 1), mine.single().aboutExpiry)
+        }
+
+        @Test
+        fun `records a help request, and records nothing against the person's compliance`() {
+            val before = asCrew().get("/api/v1/sync/snapshot").then().extract()
+
+            answer("op-help", "requirement.help", seed.medRequirementId)
+                .body("results[0].status", equalTo("applied"))
+
+            assertEquals(
+                CrewStatementKind.HELP_REQUESTED,
+                statements.forPersonUnscoped(seed.compliantPersonId).single().kind,
+            )
+
+            // "Nothing is recorded against you for asking for help" is a promise the screen makes
+            // in as many words, and this is where it has to hold: no holding moved and the engine's
+            // verdict is the one it was before the tap (AUTH-1, §7.5).
+            asCrew()
+                .get("/api/v1/sync/snapshot")
+                .then()
+                .body(
+                    "standing.evaluation.rollUp",
+                    equalTo(before.path<String>("standing.evaluation.rollUp")),
+                )
+                .body(
+                    "holdings.find { it.requirementId == ${seed.medRequirementId} }.status",
+                    equalTo(before.path<String>("holdings.find { it.requirementId == ${seed.medRequirementId} }.status")),
+                )
+        }
+
+        @Test
+        fun `rejects an answer that names no requirement`() {
+            answer("op-nothing", "requirement.progress", requirementId = null)
+                .body("results[0].status", equalTo("rejected"))
+                .body("results[0].detail", containsString("requirementId"))
+
+            assertTrue(statements.forPersonUnscoped(seed.compliantPersonId).isEmpty())
+        }
+
+        @Test
+        fun `refuses a second crew member replaying someone else's opId`() {
+            answer("op-shared", "requirement.progress", seed.medRequirementId)
+                .body("results[0].status", equalTo("applied"))
+
+            // A UUID collision is not a realistic accident, so this is a device presenting an id
+            // it should not hold. It is refused rather than silently re-attributed.
+            answer("op-shared", "requirement.progress", seed.medRequirementId, personId = seed.gapPersonId)
+                .body("results[0].status", equalTo("rejected"))
+
+            assertTrue(statements.forPersonUnscoped(seed.gapPersonId).isEmpty())
         }
     }
 
