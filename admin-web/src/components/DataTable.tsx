@@ -160,7 +160,17 @@ export function DataTable<T>({
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                onClick={onRowClick === undefined ? undefined : () => onRowClick(row.original)}
+                onClick={
+                  onRowClick === undefined
+                    ? undefined
+                    : (event) => {
+                        // A click on the row's own controls — a person link, "Raise request" —
+                        // belongs to them, not to the row.
+                        const target = event.target as HTMLElement
+                        if (target.closest('a, button, input, select, label') !== null) return
+                        onRowClick(row.original)
+                      }
+                }
               >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>

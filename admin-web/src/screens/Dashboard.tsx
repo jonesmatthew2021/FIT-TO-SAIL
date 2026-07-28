@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQueries } from '@tanstack/react-query'
 import { keys, useExpiryAlerts, usePartnerships, useRequirements } from '../api/queries'
 import {
   api,
+  type Cell,
   type CrewChange,
   type ExpiryAlert,
   type Partnership,
@@ -14,10 +15,18 @@ import { useSession } from '../api/session'
 import { defaultCrewChange } from '../components/SwingSelector'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
+import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Spinner'
 import { StateChip } from '../components/StateChip'
 import { Band, Cut, Lead, Ruler, RulerRow } from '../components/Ruler'
-import { CELL_STATE_ORDER, cellState, needsAttention } from '../domain/enums'
+import {
+  CELL_STATE_ORDER,
+  cellState,
+  cellStateRank,
+  expiryImpact,
+  needsAttention,
+  type Tone,
+} from '../domain/enums'
 import {
   daysBetween,
   epochDay,
@@ -60,10 +69,18 @@ interface SwingRow {
   readonly error: Error | null
 }
 
+/** One swing, fully loaded — what the certification-state modal is opened on. */
+interface Inspection {
+  readonly partnership: Partnership
+  readonly swing: CrewChange
+  readonly evaluation: SwingEvaluation
+}
+
 export function Dashboard(): React.ReactNode {
   const session = useSession()
   const partnerships = usePartnerships()
   const [leadDays, setLeadDays] = useState(90)
+  const [inspecting, setInspecting] = useState<Inspection | null>(null)
 
   const list = partnerships.data ?? []
 
@@ -109,6 +126,22 @@ export function Dashboard(): React.ReactNode {
     .filter((row) => row.swing !== null && epochDay(row.swing.cutoff) >= epochDay(session.today))
     .sort((a, b) => epochDay(a.swing?.cutoff ?? '') - epochDay(b.swing?.cutoff ?? ''))[0]
 
+  // The expiry alerts' "affected swing": the swing already on the axis with this person aboard.
+  // A presentation join against evaluations the page has loaded — never a second evaluation.
+  const swingByPerson = new Map<number, Inspection>()
+  for (const row of rows) {
+    if (row.swing === null || row.evaluation === undefined) continue
+    for (const assignment of row.evaluation.assignments) {
+      if (!swingByPerson.has(assignment.personId)) {
+        swingByPerson.set(assignment.personId, {
+          partnership: row.partnership,
+          swing: row.swing,
+          evaluation: row.evaluation,
+        })
+      }
+    }
+  }
+
   return (
     <div className="screen">
       <header className="screen__header">
@@ -126,7 +159,7 @@ export function Dashboard(): React.ReactNode {
       {list.length === 0 ? (
         <p className="empty">No partnerships are visible to your roles.</p>
       ) : (
-        <SwingAxis rows={rows} today={session.today} />
+        <SwingAxis rows={rows} today={session.today} onInspect={setInspecting} />
       )}
 
       <section className="section">
@@ -152,8 +185,16 @@ export function Dashboard(): React.ReactNode {
             </select>
           </label>
         </div>
-        <ExpiryAlerts leadDays={leadDays} />
+        <ExpiryAlerts
+          leadDays={leadDays}
+          swingFor={(personId) => swingByPerson.get(personId) ?? null}
+          onInspect={setInspecting}
+        />
       </section>
+
+      {inspecting !== null && (
+        <SwingStateModal target={inspecting} onClose={() => setInspecting(null)} />
+      )}
     </div>
   )
 }
@@ -190,9 +231,11 @@ function isDirty(evaluation: SwingEvaluation): boolean {
 function SwingAxis({
   rows,
   today,
+  onInspect,
 }: {
   rows: readonly SwingRow[]
   today: string
+  onInspect: (target: Inspection) => void
 }): React.ReactNode {
   const dated = rows.filter((row): row is SwingRow & { swing: CrewChange } => row.swing !== null)
 
@@ -212,7 +255,7 @@ function SwingAxis({
     <>
       <Ruler from={from} to={to} today={today} labelHeader="Partnership" valueHeader="State">
         {dated.map((row) => (
-          <PartnershipRow key={row.partnership.id} row={row} today={today} />
+          <PartnershipRow key={row.partnership.id} row={row} today={today} onInspect={onInspect} />
         ))}
       </Ruler>
 
@@ -232,10 +275,13 @@ function SwingAxis({
 function PartnershipRow({
   row,
   today,
+  onInspect,
 }: {
   row: SwingRow & { swing: CrewChange }
   today: string
+  onInspect: (target: Inspection) => void
 }): React.ReactNode {
+  const navigate = useNavigate()
   const { partnership, swing, evaluation } = row
   const days = daysBetween(today, swing.cutoff)
   const passed = days < 0
@@ -255,7 +301,13 @@ function PartnershipRow({
       }
       dates={`${cutoffLabel} · swing ${formatShortRange(swing.from, swing.to)}`}
       attention={attention}
-      value={<SwingStates row={row} />}
+      onOpen={() =>
+        void navigate(
+          `/planner?partnership=${encodeURIComponent(partnership.abbrev)}&cc=${encodeURIComponent(swing.ccId)}`,
+        )
+      }
+      openLabel={`Open ${partnership.abbrev} ${swing.ccId} in the swing planner`}
+      value={<SwingStates row={row} onInspect={onInspect} />}
     >
       <Cut date={swing.cutoff} label={cutoffLabel} tight={!passed && days <= CUTOFF_URGENT_DAYS} />
       <Lead from={swing.cutoff} to={swing.from} />
@@ -269,11 +321,21 @@ function PartnershipRow({
   )
 }
 
-function SwingStates({ row }: { row: SwingRow }): React.ReactNode {
+function SwingStates({
+  row,
+  onInspect,
+}: {
+  row: SwingRow
+  onInspect: (target: Inspection) => void
+}): React.ReactNode {
   if (row.isPending) return <span className="muted">Evaluating…</span>
-  if (row.evaluation === undefined) return <span className="muted">—</span>
 
-  const evaluation = row.evaluation
+  const { swing, evaluation } = row
+  if (evaluation === undefined) return <span className="muted">—</span>
+
+  const open =
+    swing === null ? null : () => onInspect({ partnership: row.partnership, swing, evaluation })
+
   const noteworthy = CELL_STATE_ORDER.filter(
     (state) => needsAttention(state) && (evaluation.stateCounts[state] ?? 0) > 0,
   )
@@ -287,27 +349,81 @@ function SwingStates({ row }: { row: SwingRow }): React.ReactNode {
     <ul className="counts">
       {noteworthy.map((state) => (
         <li key={state} className="counts__item">
-          <span className={`chip chip--${cellState(state).tone}`} title={cellState(state).description}>
-            <span className="counts__value">{evaluation.stateCounts[state]}</span>
-            {cellState(state).label}
-          </span>
+          <CountChip
+            tone={cellState(state).tone}
+            title={cellState(state).description}
+            count={evaluation.stateCounts[state] ?? 0}
+            label={cellState(state).label}
+            onOpen={open}
+          />
         </li>
       ))}
       {short > 0 && (
         <li className="counts__item">
           {/* A quota can be short with no individual gap behind it (§5.1 step 2), which is exactly
               the failure a per-person tally hides. */}
-          <span className="chip chip--critical" title="A footnote quota is not met on this swing.">
-            <span className="counts__value">{short}</span>
-            {short === 1 ? 'Quota short' : 'Quotas short'}
-          </span>
+          <CountChip
+            tone="critical"
+            title="A footnote quota is not met on this swing."
+            count={short}
+            label={short === 1 ? 'Quota short' : 'Quotas short'}
+            onOpen={open}
+          />
         </li>
       )}
     </ul>
   )
 }
 
-function ExpiryAlerts({ leadDays }: { leadDays: number }): React.ReactNode {
+/** A state count — a button when there is a loaded swing to open the detail of. */
+function CountChip({
+  tone,
+  title,
+  count,
+  label,
+  onOpen,
+}: {
+  tone: Tone
+  title: string
+  count: number
+  label: string
+  onOpen: (() => void) | null
+}): React.ReactNode {
+  const body = (
+    <>
+      <span className="counts__value">{count}</span>
+      {label}
+    </>
+  )
+  if (onOpen === null) {
+    return (
+      <span className={`chip chip--${tone}`} title={title}>
+        {body}
+      </span>
+    )
+  }
+  return (
+    <button
+      type="button"
+      className={`chip chip--${tone}`}
+      title={`${title} Click for every certification on this swing.`}
+      onClick={onOpen}
+    >
+      {body}
+    </button>
+  )
+}
+
+function ExpiryAlerts({
+  leadDays,
+  swingFor,
+  onInspect,
+}: {
+  leadDays: number
+  /** The loaded swing this person is assigned on, if the axis has one — else null. */
+  swingFor: (personId: number) => Inspection | null
+  onInspect: (target: Inspection) => void
+}): React.ReactNode {
   const alerts = useExpiryAlerts(leadDays)
   const requirements = useRequirements()
 
@@ -354,7 +470,23 @@ function ExpiryAlerts({ leadDays }: { leadDays: number }): React.ReactNode {
       id: 'impact',
       header: 'Impact',
       accessorFn: (row) => row.impact,
-      cell: ({ row }) => <StateChip kind="impact" state={row.original.impact} />,
+      // The same pill-opens-the-swing behaviour as the axis above: when the affected swing is on
+      // the page, its impact chip opens that swing's full certification list.
+      cell: ({ row }) => {
+        const target = swingFor(row.original.personId)
+        if (target === null) return <StateChip kind="impact" state={row.original.impact} />
+        const display = expiryImpact(row.original.impact)
+        return (
+          <button
+            type="button"
+            className={`chip chip--${display.tone}`}
+            title={`${display.description} Click for ${target.partnership.abbrev} ${target.swing.ccId}'s certification states.`}
+            onClick={() => onInspect(target)}
+          >
+            {display.label}
+          </button>
+        )
+      },
     },
   ]
 
@@ -377,6 +509,138 @@ function ExpiryAlerts({ leadDays }: { leadDays: number }): React.ReactNode {
         ],
       }}
     />
+  )
+}
+
+/** One assignment × requirement cell, flattened for the modal's table. */
+interface SwingCellRow extends Cell {
+  readonly personId: number
+  readonly name: string
+  readonly sam: string
+  readonly slotRef: number
+}
+
+/**
+ * The certification-state modal: every crew member × requirement cell for one swing, worst first.
+ *
+ * This is the drill-down behind the dashboard's count pills — the counts say "2 Gap", this says
+ * whose, for what, and when it lapses. All of it is the §5.2 evaluation the page already holds;
+ * the sort mirrors the engine's own worst-first ordering (`cellStateRank`), it does not re-derive
+ * anything.
+ */
+function SwingStateModal({
+  target,
+  onClose,
+}: {
+  target: Inspection
+  onClose: () => void
+}): React.ReactNode {
+  const requirements = useRequirements()
+  const codeFor = requirementLookup(requirements.data)
+  const { partnership, swing, evaluation } = target
+
+  const cells: SwingCellRow[] = evaluation.assignments
+    .flatMap((assignment) =>
+      assignment.evaluation.cells.map((cell) => ({
+        ...cell,
+        personId: assignment.personId,
+        name: assignment.name,
+        sam: assignment.sam,
+        slotRef: assignment.slotRef,
+      })),
+    )
+    .sort(
+      (a, b) =>
+        cellStateRank(a.state) - cellStateRank(b.state) ||
+        codeFor(a.requirementId).localeCompare(codeFor(b.requirementId)) ||
+        a.name.localeCompare(b.name),
+    )
+
+  const short = evaluation.quotas.filter((quota) => !quota.satisfied)
+
+  const columns: Column<SwingCellRow>[] = [
+    {
+      id: 'state',
+      header: 'State',
+      accessorFn: (row) => row.state,
+      cell: ({ row }) => <StateChip state={row.original.state} />,
+    },
+    {
+      id: 'name',
+      header: 'Person',
+      accessorFn: (row) => row.name,
+      cell: ({ row }) => <Link to={`/people/${row.original.personId}`}>{row.original.name}</Link>,
+    },
+    {
+      id: 'sam',
+      header: 'Sam #',
+      accessorFn: (row) => row.sam,
+      cell: ({ row }) => <span className="mono">{row.original.sam}</span>,
+    },
+    { id: 'slot', header: 'Slot', accessorFn: (row) => row.slotRef },
+    { id: 'requirement', header: 'Requirement', accessorFn: (row) => codeFor(row.requirementId) },
+    { id: 'level', header: 'Level', accessorFn: (row) => row.level },
+    {
+      id: 'expiry',
+      header: 'Expires',
+      accessorFn: (row) => row.expiry ?? '',
+      cell: ({ row }) => formatDate(row.original.expiry),
+    },
+    {
+      id: 'notes',
+      header: 'Notes',
+      enableSorting: false,
+      accessorFn: (row) => row.notes.join(' '),
+      cell: ({ row }) => <span className="table__wrap">{row.original.notes.join(' · ')}</span>,
+    },
+  ]
+
+  return (
+    <Modal
+      title={`${partnership.abbrev} ${swing.ccId} — certification states`}
+      note={`Swing ${formatShortRange(swing.from, swing.to)} · every assigned crew member × requirement, worst first. States are the server's §5.2 evaluation.`}
+      wide
+      onClose={onClose}
+    >
+      {short.length > 0 && (
+        <ul className="quotas">
+          {short.map((quota) => (
+            <li
+              key={`${quota.footnote}-${quota.requirementId}-${quota.shift ?? 'swing'}`}
+              className="quota quota--short"
+            >
+              <span className="quota__footnote">{quota.footnote}</span>
+              <span className="quota__requirement">{codeFor(quota.requirementId)}</span>
+              <span className="quota__count">
+                {quota.actual} of {quota.min}
+              </span>
+              <span className="chip chip--critical">Short by {quota.shortfall}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <DataTable
+        rows={cells}
+        columns={columns}
+        filterPlaceholder="Filter by person, requirement or state"
+        empty="Nobody is assigned to this swing yet."
+        rowClassName={(row) => (needsAttention(row.state) ? 'table__row--attention' : undefined)}
+        csv={{
+          filename: `swing-${swing.ccId}-states.csv`,
+          columns: [
+            { header: 'State', value: (row) => row.state },
+            { header: 'Sam #', value: (row) => row.sam },
+            { header: 'Name', value: (row) => row.name },
+            { header: 'Slot', value: (row) => row.slotRef },
+            { header: 'Requirement', value: (row) => codeFor(row.requirementId) },
+            { header: 'Level', value: (row) => row.level },
+            { header: 'Expiry', value: (row) => row.expiry },
+            { header: 'Notes', value: (row) => row.notes.join(' | ') },
+          ],
+        }}
+      />
+    </Modal>
   )
 }
 

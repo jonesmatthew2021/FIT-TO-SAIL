@@ -168,6 +168,10 @@ export function Ruler({
  * `dates` is the row's own window in words. It is what the track becomes on a narrow screen, and
  * it is also the row's accessible description — the bars themselves are decorative given the
  * value column already carries the states as text.
+ *
+ * `onOpen` makes the whole row an activation target (the dashboard's rows open the planner).
+ * Controls inside the row keep working: a click that lands on a link or button is theirs, not the
+ * row's.
  */
 export function RulerRow({
   label,
@@ -175,6 +179,8 @@ export function RulerRow({
   value,
   dates,
   attention = false,
+  onOpen,
+  openLabel,
   children,
 }: {
   label: React.ReactNode
@@ -182,10 +188,35 @@ export function RulerRow({
   value: React.ReactNode
   dates: string
   attention?: boolean
+  onOpen?: () => void
+  openLabel?: string
   children: React.ReactNode
 }): React.ReactNode {
+  const interactive =
+    onOpen === undefined
+      ? {}
+      : {
+          role: 'link' as const,
+          tabIndex: 0,
+          'aria-label': openLabel,
+          onClick: (event: React.MouseEvent) => {
+            if ((event.target as HTMLElement).closest('a, button, input, select') !== null) return
+            onOpen()
+          },
+          onKeyDown: (event: React.KeyboardEvent) => {
+            if (event.target !== event.currentTarget) return
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              onOpen()
+            }
+          },
+        }
+
   return (
-    <div className="ruler__row">
+    <div
+      className={onOpen === undefined ? 'ruler__row' : 'ruler__row ruler__row--clickable'}
+      {...interactive}
+    >
       <div className="ruler__label">
         <span className="ruler__label-key">{label}</span>
         {note !== undefined && <span className="ruler__label-note">{note}</span>}
