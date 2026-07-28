@@ -4343,6 +4343,17 @@ export interface components {
             to: components["schemas"]["LocalDate"];
             evaluation: components["schemas"]["PersonEvaluationDto"];
         };
+        AttestationSyncDto: {
+            /** Format: int64 */
+            id: number;
+            opId: string;
+            /** Format: int64 */
+            assignmentId: number;
+            ccId: string;
+            declarations: string[];
+            signedAt: components["schemas"]["Instant"];
+            signedAtDisplay: string;
+        };
         CellDto: {
             /** Format: int64 */
             requirementId: number;
@@ -4982,6 +4993,7 @@ export interface components {
             notifications: components["schemas"]["NotificationDto"][];
             submissions: components["schemas"]["EvidenceSubmissionDto"][];
             crewStatements: components["schemas"]["CrewStatementSyncDto"][];
+            attestations: components["schemas"]["AttestationSyncDto"][];
             tombstones: components["schemas"]["SyncTombstoneDto"][];
             standing: components["schemas"]["SyncStandingDto"] | null;
         };
@@ -4994,6 +5006,13 @@ export interface components {
             submission?: components["schemas"]["EvidenceSubmitDto"] | null;
             /** Format: int64 */
             requirementId?: number | null;
+            reason?: string | null;
+            note?: string | null;
+            ccId?: string | null;
+            attachedOpIds?: string[] | null;
+            /** Format: int64 */
+            assignmentId?: number | null;
+            declarations?: string[] | null;
         };
         SyncOperationResultDto: {
             opId: string;
@@ -5034,6 +5053,7 @@ export interface components {
             notifications: components["schemas"]["NotificationDto"][];
             submissions: components["schemas"]["EvidenceSubmissionDto"][];
             crewStatements: components["schemas"]["CrewStatementSyncDto"][];
+            attestations: components["schemas"]["AttestationSyncDto"][];
             reference: components["schemas"]["SyncReferenceDto"];
             standing: components["schemas"]["SyncStandingDto"] | null;
         };

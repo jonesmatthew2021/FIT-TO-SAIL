@@ -5,10 +5,11 @@
 **Status:** the client half is built, tested and running on a simulator. Every item below is the
 server half of a screen that already exists.
 
-**Two of the seven operations have landed** (28 July 2026): `requirement.progress` and
-`requirement.help` are implemented, tested and verified against the live backend. §1 records what
-they do and what changed; the remaining five are still rejected, still per operation, and still
-listed below.
+**Four of the seven operations have landed** (28 July 2026): `requirement.progress`,
+`requirement.help`, `register.exemption_request` and `attestation.sign_off` are implemented, tested
+and verified against the live backend. §1, §5 and §6 record what they do; the remaining three —
+both course operations and `team.nudge` — are still rejected, still per operation, and still blocked
+on a decision rather than on work.
 
 ---
 
@@ -59,8 +60,8 @@ member*, and the compliance answer stays the engine's (AUTH-1, §7.5).
 | `course.seat_request` | `requirementId`, `subjectRef` (course option id), `starts`, `finishes` | Register interest in a specific course date (see §3). |
 | `course.waitlist` | as above | Same, for a date with no seats. |
 | `evidence.reading` | `submissionPublicId`, `requirementId`, `certificateNumber`, `issued`, `expires` | The fields as the crew member confirmed or corrected them, against a submission `evidence.submit` already registered. See §4. |
-| `register.exemption_request` | `requirementId`, `ccId`, `reason`, `note`, `attachedOpIds[]` | Create a §6.4 register record of type exemption, in `raised`, addressed to a Compliance Lead. See §5. |
-| `attestation.sign_off` | `assignmentId`, `subjectRef` (cc id), `declarations[]` (the ids confirmed) | Record the pre-sail declaration. See §6. |
+| ~~`register.exemption_request`~~ | `requirementId`, `ccId`, `reason`, `note`, `attachedOpIds[]` | **Done** — see §5. |
+| ~~`attestation.sign_off`~~ | `assignmentId`, `declarations[]` | **Done** — see §6. |
 
 Every one is a business mutation and therefore audited with the authenticated actor (AUTH-3). The
 actor is a human — none of these is AI-proposed.
@@ -271,7 +272,39 @@ Two related notes:
 
 ---
 
-## 5. A mobile-originated exemption request — MOB-10
+## 5. A mobile-originated exemption request — MOB-10 — **done**
+
+Implemented 28 July 2026. `RegisterService.raiseCrewExemption` writes a real §6.4 record:
+`Exemption Request - PW`, status `Open - PW`, against the crew member's own requirement and their
+own swing.
+
+**This is the one client-originated write that changes what the engine answers** — and it does so
+only by asking. §5.1 step 4's overlay moves the cell to `pending` the moment it is raised, and to
+`exempt` only when a Workflow Manager approves. That is also how the decision reaches the phone:
+through the compliance evaluation the payload already carries, which is a better answer than
+notifying a crew member about a register record they cannot open.
+
+Five things differ from a coordinator-raised record, each recorded on the method:
+
+* **Authorisation is scope, not role.** A crew member holds none of the register's `RAISERS`, so the
+  check is their own person plus an assignment they are actually on.
+* **The `ccId` is verified, not accepted.** It is the one field the device chooses that names
+  something outside the crew member.
+* **A late submission is acknowledged rather than refused.** Q17's acknowledgement is a deliberate
+  human act and tapping "Send the request" is one; there is no round trip on a sync queue to ask
+  twice, and refusing would leave someone who has just found a problem with nothing to do about it.
+  The trail records that it came from a device after the cutoff.
+* **Reason and note become a PW note.** A register record has no "why" field and inventing one would
+  be the wrong shape — what the crew member wrote is a statement by a party, which is what a note is.
+* **Earlier attempts are resolved into a sentence.** The `opId`s the device attaches become "already
+  tried: asked the office for help arranging it"; ids with no server record are dropped, because an
+  operation the server never accepted did not happen.
+
+`register_record.crew_op_id` (V7) is the idempotency key and doubles as provenance — a record with
+one was raised from a phone. Still open: **nothing in ADM-4 badges that yet**; the trail says so in
+words only.
+
+### 5.1 The original text, for the open question it still contains
 
 This one contradicts a position the app previously took, so it is worth being explicit. The
 requirement-detail screen deliberately *names* a register record and cannot open it, because the
@@ -290,7 +323,31 @@ coordinator-raised one, or does it need a triage state first?
 
 ---
 
-## 6. Attestation — MOB-9
+## 6. Attestation — MOB-9 — **done**
+
+Implemented 28 July 2026. `attestation` + `attestation_declaration` (V8), `AttestationService`, and
+the record comes back in the sync payload.
+
+Both constraints this document named are met, and a third turned out to matter:
+
+* **The timestamp is the server's**, in the vessel's timezone. It is also *formatted* server-side —
+  `signedAtDisplay`, "28 Jul 2026, 07:05 AWST" — for the same reason `serverToday` is sent rather
+  than computed: a phone knows neither the operating timezone (O-11) nor the admin date override,
+  and this string sits on a legal record.
+* **The signature is not a biometric assertion.** `attestation.assertion` is the column it will land
+  in and is null on this build; the record means "confirmed on this device by the authenticated crew
+  member", stored as such.
+* **What was ticked is stored line by line**, and this was not merely tidiness. The screen used to
+  rebuild its checkboxes from "which lines are already true from the record", so reopening a signed
+  attestation showed a *different* set from the one signed — every line confirmed by hand came back
+  empty, on a record whose entire purpose is being able to say what somebody confirmed. The payload's
+  `declarations[]` is what the screen now renders.
+
+The declaration *set* is still §2.5's — a client constant. When it becomes server-owned, the
+**wording as presented** should be stored beside each id, because what someone signed is the
+sentence and not the key.
+
+### 6.1 The original text
 
 An entirely new record: person, assignment, the declaration ids confirmed, and a timestamp.
 

@@ -171,6 +171,16 @@ test.
   `answersFrom` merges them on `opId`; a `sent` intent is deleted the moment its statement lands, so
   one tap is one row. Anything reading `intents` directly to decide whether a question has been
   answered is a bug waiting for a decision to arrive.
+- **A failed attempt is not a completed one.** MOB-9 gated "Already signed" on *any* record of a
+  tap, so a rejected sign-off showed a disabled button and locked rows — the crew member believed
+  they had signed and the office had nothing. `AttestationView.isSigned` is `attempt.stands`, and
+  the failure still shows, with a Retry. Any screen that has both "an attempt" and "a done state"
+  needs the same distinction.
+- **MOB-9's ticks come from the record, never re-derived.** The boxes used to be rebuilt from
+  "which lines are already true", so reopening a signed attestation showed a different set from the
+  one signed and every hand-ticked line came back empty — on a record whose whole purpose is saying
+  what somebody confirmed. `confirmed` is passed in from the server's `declarations[]`, or from the
+  queued intent's own payload until that arrives.
 - **`Answer.stands`, never "an answer exists".** A dismissed answer puts the ask back on the card,
   because the server simultaneously resumes the expiry chasing it had silenced. Those two are the
   same fact and must not be able to disagree — a card still reading "Told them" beside a reminder
@@ -337,7 +347,9 @@ Each of these is one stub in `app_state.dart`, so landing the backend work is a 
 | MOB-9's declaration wording | a client constant carrying the handoff's copy | renders it, and draws the supporting fact under each line from the person's real evaluated cells |
 | MOB-9's "Face ID · 28 Jul 2026, 07:05 AWST" | no biometric binding, and the timestamp must be the server's | the block says "the office records the time it arrives, in the vessel's timezone" rather than printing a plausible one |
 | `requirement.progress` / `requirement.help` | **landed end to end** — a `crew_statement` row, ADM-11's queue, and the decision back down the sync payload | nothing is degraded. The card reports the office's own answer, and a dismissal puts the ask back |
-| the other five one-tap operations | `SyncService` rejects each as `Unsupported operation type` | queues them anyway; the row shows the server's own words and a Retry. Evidence submissions and read-marks are unaffected — rejection is per operation, not per batch |
+| `register.exemption_request` | **landed** — a real §6.4 register record | nothing. The cell moves to `pending` through §5.1 step 4's overlay, which is how the decision reaches the phone |
+| `attestation.sign_off` | **landed** — an `attestation` row, and the record back in the payload | nothing. The screen shows what was ticked and the server's own "28 Jul 2026, 21:33 AWST" |
+| the remaining three one-tap operations | `SyncService` rejects each as `Unsupported operation type` | queues them anyway; the row shows the server's own words and a Retry. Evidence submissions and read-marks are unaffected — rejection is per operation, not per batch |
 | MOB-6 as an OS share target | an iOS Share Extension and an Android intent filter, unwritten | the in-app half of the sheet at the mock's geometry (Files · Photos · Camera). The mock's four-up with Files/Print/More is the *operating system's* sheet; drawing our own greyed-out "Print" would be a picture of a feature |
 | crew-facing dates in notification bodies | the server composes them with a raw `LocalDate.toString()` | `humaniseDates` rewrites `2026-08-14` to `14 Aug 2026` at display time. A date-format substitution and nothing else, deletable the moment the server composes properly |
 

@@ -296,6 +296,46 @@ class AssignmentEvaluationDto {
       };
 }
 
+class AttestationSyncDto {
+  final int id;
+  final String opId;
+  final int assignmentId;
+  final String ccId;
+  final List<String> declarations;
+  final DateTime signedAt;
+  final String signedAtDisplay;
+
+  const AttestationSyncDto({
+    required this.id,
+    required this.opId,
+    required this.assignmentId,
+    required this.ccId,
+    required this.declarations,
+    required this.signedAt,
+    required this.signedAtDisplay,
+  });
+
+  factory AttestationSyncDto.fromJson(Map<String, dynamic> json) => AttestationSyncDto(
+        id: json['id'] as int,
+        opId: json['opId'] as String,
+        assignmentId: json['assignmentId'] as int,
+        ccId: json['ccId'] as String,
+        declarations: (json['declarations'] as List<dynamic>).map((e) => (e as String)).toList(growable: false),
+        signedAt: DateTime.parse(json['signedAt'] as String).toUtc(),
+        signedAtDisplay: json['signedAtDisplay'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'opId': opId,
+        'assignmentId': assignmentId,
+        'ccId': ccId,
+        'declarations': declarations,
+        'signedAt': signedAt.toIso8601String(),
+        'signedAtDisplay': signedAtDisplay,
+      };
+}
+
 class CellDto {
   final int requirementId;
   final String level;
@@ -2616,6 +2656,7 @@ class SyncDeltaDto {
   final List<NotificationDto> notifications;
   final List<EvidenceSubmissionDto> submissions;
   final List<CrewStatementSyncDto> crewStatements;
+  final List<AttestationSyncDto> attestations;
   final List<SyncTombstoneDto> tombstones;
   final SyncStandingDto? standing;
 
@@ -2631,6 +2672,7 @@ class SyncDeltaDto {
     required this.notifications,
     required this.submissions,
     required this.crewStatements,
+    required this.attestations,
     required this.tombstones,
     this.standing,
   });
@@ -2647,6 +2689,7 @@ class SyncDeltaDto {
         notifications: (json['notifications'] as List<dynamic>).map((e) => NotificationDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         submissions: (json['submissions'] as List<dynamic>).map((e) => EvidenceSubmissionDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         crewStatements: (json['crewStatements'] as List<dynamic>).map((e) => CrewStatementSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        attestations: (json['attestations'] as List<dynamic>).map((e) => AttestationSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         tombstones: (json['tombstones'] as List<dynamic>).map((e) => SyncTombstoneDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         standing: json['standing'] == null ? null : SyncStandingDto.fromJson(json['standing'] as Map<String, dynamic>),
       );
@@ -2663,6 +2706,7 @@ class SyncDeltaDto {
         'notifications': notifications.map((e) => e.toJson()).toList(growable: false),
         'submissions': submissions.map((e) => e.toJson()).toList(growable: false),
         'crewStatements': crewStatements.map((e) => e.toJson()).toList(growable: false),
+        'attestations': attestations.map((e) => e.toJson()).toList(growable: false),
         'tombstones': tombstones.map((e) => e.toJson()).toList(growable: false),
         'standing': standing?.toJson(),
       };
@@ -2675,6 +2719,12 @@ class SyncOperationDto {
   final DateTime? readAt;
   final EvidenceSubmitDto? submission;
   final int? requirementId;
+  final String? reason;
+  final String? note;
+  final String? ccId;
+  final List<String>? attachedOpIds;
+  final int? assignmentId;
+  final List<String>? declarations;
 
   const SyncOperationDto({
     required this.opId,
@@ -2683,6 +2733,12 @@ class SyncOperationDto {
     this.readAt,
     this.submission,
     this.requirementId,
+    this.reason,
+    this.note,
+    this.ccId,
+    this.attachedOpIds,
+    this.assignmentId,
+    this.declarations,
   });
 
   factory SyncOperationDto.fromJson(Map<String, dynamic> json) => SyncOperationDto(
@@ -2692,6 +2748,12 @@ class SyncOperationDto {
         readAt: json['readAt'] == null ? null : DateTime.parse(json['readAt'] as String).toUtc(),
         submission: json['submission'] == null ? null : EvidenceSubmitDto.fromJson(json['submission'] as Map<String, dynamic>),
         requirementId: json['requirementId'] == null ? null : json['requirementId'] as int,
+        reason: json['reason'] == null ? null : json['reason'] as String,
+        note: json['note'] == null ? null : json['note'] as String,
+        ccId: json['ccId'] == null ? null : json['ccId'] as String,
+        attachedOpIds: json['attachedOpIds'] == null ? null : (json['attachedOpIds'] as List<dynamic>).map((e) => (e as String)).toList(growable: false),
+        assignmentId: json['assignmentId'] == null ? null : json['assignmentId'] as int,
+        declarations: json['declarations'] == null ? null : (json['declarations'] as List<dynamic>).map((e) => (e as String)).toList(growable: false),
       );
 
   Map<String, dynamic> toJson() => {
@@ -2701,6 +2763,12 @@ class SyncOperationDto {
         'readAt': readAt?.toIso8601String(),
         'submission': submission?.toJson(),
         'requirementId': requirementId,
+        'reason': reason,
+        'note': note,
+        'ccId': ccId,
+        'attachedOpIds': attachedOpIds,
+        'assignmentId': assignmentId,
+        'declarations': declarations,
       };
 }
 
@@ -2819,6 +2887,7 @@ class SyncSnapshotDto {
   final List<NotificationDto> notifications;
   final List<EvidenceSubmissionDto> submissions;
   final List<CrewStatementSyncDto> crewStatements;
+  final List<AttestationSyncDto> attestations;
   final SyncReferenceDto reference;
   final SyncStandingDto? standing;
 
@@ -2833,6 +2902,7 @@ class SyncSnapshotDto {
     required this.notifications,
     required this.submissions,
     required this.crewStatements,
+    required this.attestations,
     required this.reference,
     this.standing,
   });
@@ -2848,6 +2918,7 @@ class SyncSnapshotDto {
         notifications: (json['notifications'] as List<dynamic>).map((e) => NotificationDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         submissions: (json['submissions'] as List<dynamic>).map((e) => EvidenceSubmissionDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         crewStatements: (json['crewStatements'] as List<dynamic>).map((e) => CrewStatementSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        attestations: (json['attestations'] as List<dynamic>).map((e) => AttestationSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         reference: SyncReferenceDto.fromJson(json['reference'] as Map<String, dynamic>),
         standing: json['standing'] == null ? null : SyncStandingDto.fromJson(json['standing'] as Map<String, dynamic>),
       );
@@ -2863,6 +2934,7 @@ class SyncSnapshotDto {
         'notifications': notifications.map((e) => e.toJson()).toList(growable: false),
         'submissions': submissions.map((e) => e.toJson()).toList(growable: false),
         'crewStatements': crewStatements.map((e) => e.toJson()).toList(growable: false),
+        'attestations': attestations.map((e) => e.toJson()).toList(growable: false),
         'reference': reference.toJson(),
         'standing': standing?.toJson(),
       };

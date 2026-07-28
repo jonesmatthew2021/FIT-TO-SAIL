@@ -14,7 +14,9 @@ import jakarta.inject.Inject
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
+import org.hamcrest.Matchers.hasItems
 import org.hamcrest.Matchers.hasSize
+import org.hamcrest.Matchers.not
 import org.hamcrest.Matchers.notNullValue
 import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -580,6 +582,232 @@ class SyncIT {
                 ),
                 kinds,
             )
+        }
+
+        @Test
+        fun `raises one register record for an exemption request, and moves the cell to pending`() {
+            // MOB-10 is the one client-originated write that changes what the engine answers — and
+            // it does so only by *asking*. §5.1 step 4's overlay turns the cell `pending`, never
+            // `exempt`; that needs a Workflow Manager.
+            asCrew(seed.gapPersonId)
+                .contentType(ContentType.JSON)
+                .body(
+                    """{"operations":[{"opId":"op-exempt","type":"register.exemption_request",
+                        "requirementId":${seed.medRequirementId},"reason":"no_seat",
+                        "note":"Nothing available before I sail.","ccId":"CC24"}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .statusCode(200)
+                .body("results[0].status", equalTo("applied"))
+
+            val records = given()
+                .header("X-Dev-User", "Coordinator")
+                .header("X-Dev-Roles", Role.CREW_COORDINATOR.wire)
+                .get("/api/v1/register")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getList<Map<String, Any>>("")
+
+            assertEquals(1, records.size)
+            assertEquals("Exemption Request - PW", records.single()["type"])
+            assertEquals("Open - PW", records.single()["status"])
+
+            asCrew(seed.gapPersonId)
+                .get("/api/v1/sync/snapshot")
+                .then()
+                .body(
+                    "standing.evaluation.cells.find { it.requirementId == ${seed.medRequirementId} }.state",
+                    equalTo("pending"),
+                )
+        }
+
+        @Test
+        fun `does not raise a second record when the device replays the request`() {
+            val body =
+                """{"operations":[{"opId":"op-once","type":"register.exemption_request",
+                    "requirementId":${seed.medRequirementId},"reason":"with_authority","ccId":"CC24"}]}"""
+                    .trimIndent()
+
+            repeat(3) {
+                asCrew(seed.gapPersonId).contentType(ContentType.JSON).body(body)
+                    .post("/api/v1/sync/queue")
+                    .then()
+                    .body("results[0].status", equalTo("applied"))
+            }
+
+            // Three deliveries, one business key. Two open rows about one request is a Compliance
+            // Lead deciding one of them and never knowing about the other.
+            given()
+                .header("X-Dev-User", "Coordinator")
+                .header("X-Dev-Roles", Role.CREW_COORDINATOR.wire)
+                .get("/api/v1/register")
+                .then()
+                .body("size()", equalTo(1))
+        }
+
+        @Test
+        fun `refuses a request against a swing the crew member is not on`() {
+            // The one field on this operation that names something outside the crew member, so it
+            // is checked rather than trusted.
+            asCrew(seed.gapPersonId)
+                .contentType(ContentType.JSON)
+                .body(
+                    """{"operations":[{"opId":"op-elsewhere","type":"register.exemption_request",
+                        "requirementId":${seed.medRequirementId},"reason":"no_seat","ccId":"CC99"}]}"""
+                        .trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .body("results[0].status", equalTo("rejected"))
+                .body("results[0].detail", containsString("not assigned"))
+        }
+
+        @Test
+        fun `refuses a reason outside the closed set`() {
+            asCrew(seed.gapPersonId)
+                .contentType(ContentType.JSON)
+                .body(
+                    """{"operations":[{"opId":"op-bad-reason","type":"register.exemption_request",
+                        "requirementId":${seed.medRequirementId},"reason":"because","ccId":"CC24"}]}"""
+                        .trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .body("results[0].status", equalTo("rejected"))
+                .body("results[0].detail", containsString("Unknown exemption reason"))
+        }
+
+        @Test
+        fun `puts what the crew member already tried onto the record, in words`() {
+            // The info band promises this: "your earlier requests are attached automatically — no
+            // need to explain them."
+            asCrew(seed.gapPersonId)
+                .contentType(ContentType.JSON)
+                .body(
+                    """{"operations":[{"opId":"op-tried","type":"requirement.help",
+                        "requirementId":${seed.medRequirementId}}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .body("results[0].status", equalTo("applied"))
+
+            asCrew(seed.gapPersonId)
+                .contentType(ContentType.JSON)
+                .body(
+                    """{"operations":[{"opId":"op-with-history","type":"register.exemption_request",
+                        "requirementId":${seed.medRequirementId},"reason":"no_seat","ccId":"CC24",
+                        "attachedOpIds":["op-tried","op-never-accepted"]}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .body("results[0].status", equalTo("applied"))
+
+            val recordId: String = given()
+                .header("X-Dev-User", "Coordinator")
+                .header("X-Dev-Roles", Role.CREW_COORDINATOR.wire)
+                .get("/api/v1/register")
+                .then()
+                .extract()
+                .path("[0].recordId")
+
+            given()
+                .header("X-Dev-User", "Coordinator")
+                .header("X-Dev-Roles", Role.CREW_COORDINATOR.wire)
+                .get("/api/v1/register/$recordId")
+                .then()
+                .statusCode(200)
+                .body("notes[0].party", equalTo("PW"))
+                .body("notes[0].body", containsString("No seat available"))
+                // Resolved to a sentence, and the unknown opId dropped rather than printed: an id
+                // with no server record is an operation that was never accepted.
+                .body("notes[0].body", containsString("asked the office for help"))
+                .body("notes[0].body", not(containsString("op-never-accepted")))
+        }
+
+        @Test
+        fun `records a pre-sail attestation with the server's timestamp and what was ticked`() {
+            val assignmentId: Int = asCrew().get("/api/v1/sync/snapshot").then()
+                .extract().path("assignments[0].id")
+
+            asCrew()
+                .contentType(ContentType.JSON)
+                .body(
+                    """{"operations":[{"opId":"op-sign","type":"attestation.sign_off",
+                        "assignmentId":$assignmentId,
+                        "declarations":["records_correct","medically_fit"]}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .statusCode(200)
+                .body("results[0].status", equalTo("applied"))
+
+            asCrew()
+                .get("/api/v1/sync/snapshot")
+                .then()
+                .body("attestations", hasSize<Any>(1))
+                .body("attestations[0].opId", equalTo("op-sign"))
+                .body("attestations[0].ccId", equalTo("CC24"))
+                // What was ticked, line by line. A screen that re-derived this from "which lines
+                // were already satisfied" would show a different set from the one signed — which is
+                // exactly the bug this field exists to fix.
+                .body("attestations[0].declarations", hasSize<Any>(2))
+                .body("attestations[0].declarations", hasItems("records_correct", "medically_fit"))
+                // The server's clock. The device deliberately has none of its own to fall back on:
+                // a declaration timestamped from the phone of the person making it is worth nothing.
+                .body("attestations[0].signedAt", notNullValue())
+        }
+
+        @Test
+        fun `signs once however many times the device replays it`() {
+            val assignmentId: Int = asCrew().get("/api/v1/sync/snapshot").then()
+                .extract().path("assignments[0].id")
+            val body =
+                """{"operations":[{"opId":"op-sign-twice","type":"attestation.sign_off",
+                    "assignmentId":$assignmentId,"declarations":["records_correct"]}]}""".trimIndent()
+
+            repeat(3) {
+                asCrew().contentType(ContentType.JSON).body(body).post("/api/v1/sync/queue")
+                    .then().body("results[0].status", equalTo("applied"))
+            }
+
+            // Two attestations for one swing would be two legal records of one act.
+            asCrew().get("/api/v1/sync/snapshot").then().body("attestations", hasSize<Any>(1))
+        }
+
+        @Test
+        fun `refuses to sign for somebody else's assignment`() {
+            val mine: Int = asCrew().get("/api/v1/sync/snapshot").then()
+                .extract().path("assignments[0].id")
+
+            asCrew(seed.gapPersonId)
+                .contentType(ContentType.JSON)
+                .body(
+                    """{"operations":[{"opId":"op-not-mine","type":"attestation.sign_off",
+                        "assignmentId":$mine,"declarations":["records_correct"]}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .body("results[0].status", equalTo("rejected"))
+                .body("results[0].detail", containsString("not yours"))
+        }
+
+        @Test
+        fun `refuses an attestation that confirms nothing`() {
+            val assignmentId: Int = asCrew().get("/api/v1/sync/snapshot").then()
+                .extract().path("assignments[0].id")
+
+            asCrew()
+                .contentType(ContentType.JSON)
+                .body(
+                    """{"operations":[{"opId":"op-empty","type":"attestation.sign_off",
+                        "assignmentId":$assignmentId,"declarations":[]}]}""".trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .body("results[0].status", equalTo("rejected"))
         }
 
         @Test

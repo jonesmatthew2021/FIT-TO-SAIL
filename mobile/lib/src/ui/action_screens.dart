@@ -15,6 +15,8 @@
 /// the page.
 library;
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -837,17 +839,40 @@ class AttestationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<List<LocalCrewIntent>>(
       stream: state.watchIntents(),
-      builder: (context, snapshot) {
-        final signed = (snapshot.data ?? const <LocalCrewIntent>[])
-            .where((i) => i.kind == IntentKind.attestation && i.subjectRef == assignment.ccId)
-            .firstOrNull;
+      builder: (context, intentSnapshot) {
+        return StreamBuilder<List<LocalAttestation>>(
+          stream: state.watchAttestations(),
+          builder: (context, attestationSnapshot) {
+            // The server's record where there is one, the device's own until it arrives. Only the
+            // server's can say *what was ticked* and when it was signed.
+            final record = (attestationSnapshot.data ?? const <LocalAttestation>[])
+                .where((a) => a.ccId == assignment.ccId)
+                .firstOrNull;
+            final intent = (intentSnapshot.data ?? const <LocalCrewIntent>[])
+                .where((i) => i.kind == IntentKind.attestation && i.subjectRef == assignment.ccId)
+                .firstOrNull;
 
-        return AttestationView(
+            return AttestationView(
           assignment: assignment,
           declarations: declarationsFor(rows),
           personName: state.person?.name,
           today: state.serverToday,
-          signed: signed,
+          attempt: record != null
+              ? Answer(
+                  opId: record.opId,
+                  kind: IntentKind.attestation,
+                  state: AnswerState.sent,
+                  summary: answerSummary(IntentKind.attestation),
+                )
+              : (intent == null ? null : answerFromIntent(intent)),
+          // What was actually confirmed, from whichever record exists. Re-deriving it from
+          // `satisfied` is the bug this replaces: every line the crew member ticked by hand came
+          // back empty the next time they opened the screen.
+          confirmed: record?.declarations.split('\n').where((id) => id.isNotEmpty).toList() ??
+              signedDeclarationsFrom(intent),
+          signedLine: record?.signedAtDisplay,
+          onRetry: state.retryAnswer,
+          onDiscard: state.discardAnswer,
           onAttest: (confirmed) async {
             await state.answer(
               kind: IntentKind.attestation,
@@ -857,9 +882,29 @@ class AttestationScreen extends StatelessWidget {
             );
             if (context.mounted) Navigator.of(context).pop();
           },
+            );
+          },
         );
       },
     );
+  }
+}
+
+/// The declaration ids inside a queued attestation's own payload.
+///
+/// Only used before the server's record arrives — offline, or between the tap and the next sync.
+/// Returns empty rather than throwing on anything unexpected: a screen that crashed because a
+/// payload it wrote itself did not parse would be worse than one that shows no ticks.
+List<String> signedDeclarationsFrom(LocalCrewIntent? intent) {
+  if (intent == null) return const [];
+  try {
+    final payload = jsonDecode(intent.payload);
+    if (payload is! Map<String, dynamic>) return const [];
+    final declarations = payload['declarations'];
+    if (declarations is! List) return const [];
+    return declarations.whereType<String>().toList();
+  } on FormatException {
+    return const [];
   }
 }
 
@@ -918,15 +963,43 @@ class AttestationView extends StatefulWidget {
     required this.onAttest,
     this.personName,
     this.today,
-    this.signed,
+    this.attempt,
+    this.confirmed = const <String>[],
+    this.signedLine,
+    this.onRetry,
+    this.onDiscard,
   });
 
   final LocalAssignment assignment;
   final List<Declaration> declarations;
   final String? personName;
   final String? today;
-  final LocalCrewIntent? signed;
+
+  /// The signature attempt, in whatever state it reached — **including failed**.
+  ///
+  /// Named for the attempt rather than for success on purpose. Treating any record of a tap as
+  /// "signed" is how a rejected sign-off ended up showing a disabled "Already signed" button with no
+  /// way back: the crew member believed they had signed and the office had nothing.
+  final Answer? attempt;
+
+  /// The declarations actually confirmed, once there is a signature.
+  ///
+  /// Passed in rather than kept in the widget's own state, because the widget's state does not
+  /// survive the screen closing — and the crew member closes it the moment they sign. Re-deriving
+  /// the ticks from `Declaration.satisfied` on the way back in showed a *different* set from the
+  /// one signed: every line ticked by hand came back empty.
+  final List<String> confirmed;
+
+  /// The signature line, as the **server** wrote it, in the vessel's timezone. Null until the
+  /// record syncs back — and deliberately never filled in from the device clock.
+  final String? signedLine;
+
   final Future<void> Function(List<String> confirmed) onAttest;
+  final void Function(String opId)? onRetry;
+  final void Function(String opId)? onDiscard;
+
+  /// Signed only when the attempt actually stands. A failure is not a signature.
+  bool get isSigned => attempt?.stands ?? false;
 
   @override
   State<AttestationView> createState() => _AttestationViewState();
@@ -939,20 +1012,38 @@ class _AttestationViewState extends State<AttestationView> {
   @override
   void initState() {
     super.initState();
-    // A line already true from the record arrives ticked. The crew member is confirming a fact,
-    // not asserting one out of nothing — and the ones left unticked are then exactly the ones
-    // that need them.
-    _confirmed = {
-      for (final declaration in widget.declarations)
-        if (declaration.satisfied) declaration.id,
-    };
+    _confirmed = _initial();
   }
+
+  @override
+  void didUpdateWidget(AttestationView old) {
+    super.didUpdateWidget(old);
+    // A signature arriving from a sync while the screen is open must move the ticks to what was
+    // signed. Without this the widget keeps its pre-signature working set, and the boxes disagree
+    // with the record the office now holds.
+    if (widget.isSigned && !old.isSigned) {
+      setState(() => _confirmed = _initial());
+    }
+  }
+
+  /// The ticks to start from.
+  ///
+  /// Signed: exactly what was confirmed, from the record. Unsigned: the lines already true from the
+  /// crew member's own evaluated cells, because they are confirming a fact rather than asserting
+  /// one out of nothing — and the ones left unticked are then exactly the ones that need them.
+  Set<String> _initial() => widget.isSigned || widget.confirmed.isNotEmpty
+      ? widget.confirmed.toSet()
+      : {
+          for (final declaration in widget.declarations)
+            if (declaration.satisfied) declaration.id,
+        };
 
   @override
   Widget build(BuildContext context) {
     final assignment = widget.assignment;
     final complete = _confirmed.length == widget.declarations.length;
-    final signed = widget.signed;
+    final attempt = widget.attempt;
+    final signed = widget.isSigned;
 
     return Scaffold(
       backgroundColor: Nocturne.bg,
@@ -1004,7 +1095,9 @@ class _AttestationViewState extends State<AttestationView> {
               unselectedSupportingColour: declaration.supporting == null
                   ? Nocturne.warningText
                   : null,
-              onTap: signed != null
+              // Editable again after a failure: the office never got it, so the crew member is
+              // still the one who has to sign.
+              onTap: signed
                   ? null
                   : () => setState(() {
                       if (!_confirmed.remove(declaration.id)) _confirmed.add(declaration.id);
@@ -1045,20 +1138,28 @@ class _AttestationViewState extends State<AttestationView> {
             ),
           ),
 
-          if (signed != null) ...[
+          if (attempt != null) ...[
             const SizedBox(height: 12),
-            AnswerLine(answer: answerFromIntent(signed)),
+            AnswerLine(
+              answer: attempt,
+              onRetry: attempt.failed && widget.onRetry != null
+                  ? () => widget.onRetry!(attempt.opId)
+                  : null,
+              onDismiss: attempt.failed && widget.onDiscard != null
+                  ? () => widget.onDiscard!(attempt.opId)
+                  : null,
+            ),
           ],
 
           const SizedBox(height: 20),
           NButton(
-            label: signed == null ? 'Attest and send' : 'Already signed',
+            label: signed ? 'Already signed' : 'Attest and send',
             icon: PhosphorIconsRegular.sealCheck,
             iconSize: 18,
             variant: NButtonVariant.primary,
             block: true,
             minHeight: 48,
-            onPressed: (!complete || _sending || signed != null) ? null : _send,
+            onPressed: (!complete || _sending || signed) ? null : _send,
           ),
           const SizedBox(height: 8),
           Center(
@@ -1086,7 +1187,15 @@ class _AttestationViewState extends State<AttestationView> {
     return 'Due in $left days';
   }
 
+  /// What the signature block says under the name.
+  ///
+  /// Once the record is back it is the server's own line — `28 Jul 2026, 07:05 AWST`. Before that
+  /// the block says what *will* happen rather than printing a plausible timestamp: the design's
+  /// mock shows "Face ID · 28 Jul 2026, 07:05 AWST" and neither half of it exists on this build.
+  /// There is no biometric binding (ADR 0002 wants `local_auth`), and a time taken from the phone
+  /// of the person making a declaration is worth nothing as evidence.
   String _signatureLine() =>
+      (widget.isSigned ? widget.signedLine : null) ??
       'Confirmed on this device · the office records the time it arrives, '
       'in the vessel’s timezone';
 

@@ -218,6 +218,12 @@ class AppState extends ChangeNotifier {
         ..orderBy([(t) => OrderingTerm(expression: t.raisedAt, mode: OrderingMode.desc)]))
       .watch();
 
+  /// MOB-9's signed declarations, server-owned and therefore durable.
+  Stream<List<LocalAttestation>> watchAttestations() =>
+      (store.select(store.attestations)
+            ..orderBy([(t) => OrderingTerm(expression: t.signedAt, mode: OrderingMode.desc)]))
+          .watch();
+
   Stream<List<LocalCrewStatement>> watchStatementsFor(int requirementId) =>
       (store.select(store.crewStatements)
             ..where((t) => t.requirementId.equals(requirementId))

@@ -2,10 +2,14 @@ package au.crewcomp.api
 
 import au.crewcomp.evidence.EvidenceDocument
 import au.crewcomp.notify.Notification
+import au.crewcomp.people.Attestation
 import au.crewcomp.people.CrewStatement
 import au.crewcomp.sync.SyncTombstone
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -39,6 +43,8 @@ data class SyncSnapshotDto(
     val submissions: List<EvidenceSubmissionDto>,
     /** The crew member's own one-tap answers, and what the office did about each (MOB-5, ADM-11). */
     val crewStatements: List<CrewStatementSyncDto>,
+    /** MOB-9's pre-sail declarations, as signed. */
+    val attestations: List<AttestationSyncDto>,
     val reference: SyncReferenceDto,
     /** Null when the crew member has no assignment to evaluate against — see [SyncStandingDto]. */
     val standing: SyncStandingDto?,
@@ -168,6 +174,7 @@ data class SyncDeltaDto(
     val notifications: List<NotificationDto>,
     val submissions: List<EvidenceSubmissionDto>,
     val crewStatements: List<CrewStatementSyncDto>,
+    val attestations: List<AttestationSyncDto>,
     val tombstones: List<SyncTombstoneDto>,
     /** Recomputed on every delta: a holding change silently changes the roll-up. */
     val standing: SyncStandingDto?,
@@ -206,8 +213,35 @@ data class SyncOperationDto(
     val notificationId: Long? = null,
     val readAt: Instant? = null,
     val submission: EvidenceSubmitDto? = null,
-    /** `requirement.progress` | `requirement.help`: what the crew member is answering about. */
+    /**
+     * `requirement.progress` | `requirement.help` | `register.exemption_request`: what the crew
+     * member is answering or asking about.
+     */
     val requirementId: Long? = null,
+    /** `register.exemption_request`: `no_seat` | `medical_personal` | `with_authority`. */
+    val reason: String? = null,
+    /** `register.exemption_request`: the crew member's own words, optional. */
+    val note: String? = null,
+    /**
+     * `register.exemption_request`: the swing to raise it against.
+     *
+     * Checked against the person's own roster rather than trusted — it is the one field on this
+     * operation that names something outside the crew member, and a device that could choose any
+     * swing could file a request against one it has nothing to do with.
+     */
+    val ccId: String? = null,
+    /**
+     * `register.exemption_request`: the `opId`s of what the crew member already tried.
+     *
+     * The device is what knows they happened, so the device is what attaches them. Those the server
+     * can resolve to a crew statement become a sentence on the record's note; those it cannot are
+     * dropped, because an `opId` with no server record is an operation that was never accepted.
+     */
+    val attachedOpIds: List<String>? = null,
+    /** `attestation.sign_off`: the assignment being signed for — checked against their roster. */
+    val assignmentId: Long? = null,
+    /** `attestation.sign_off`: the declaration ids the crew member confirmed. */
+    val declarations: List<String>? = null,
 )
 
 data class EvidenceSubmitDto(
@@ -219,6 +253,40 @@ data class EvidenceSubmitDto(
     val declaredSha256: String? = null,
     /** The crew member's tag for what this evidences — a hint, never binding (§7.5). */
     val requirementHintId: Long? = null,
+)
+
+/**
+ * A signed pre-sail declaration, as the server holds it (MOB-9).
+ *
+ * The device sends this and then reads it back rather than trusting its own copy, for one reason
+ * that matters and one that is merely useful.
+ *
+ * The one that matters: [signedAt] is the **server's** time, and the app must show that or nothing.
+ * A legal declaration timestamped from the phone of the person who made it is worth nothing as
+ * evidence, so the client has no timestamp of its own to fall back on.
+ *
+ * The one that is useful: [declarations] is what was actually confirmed. A screen that re-derived
+ * the ticks from "which lines were already satisfied" would show a *different* set from the one
+ * signed — every line the crew member ticked by hand would come back empty.
+ */
+data class AttestationSyncDto(
+    val id: Long,
+    /** The device's queue-entry id, echoed back — how the app matches this to its own record. */
+    val opId: String,
+    val assignmentId: Long,
+    val ccId: String,
+    /** The ids confirmed. May be a subset: signing with a line outstanding is a real thing to do. */
+    val declarations: List<String>,
+    val signedAt: Instant,
+    /**
+     * The signature line, already written, in the **vessel's** timezone.
+     *
+     * Formatted here rather than on the device for the same reason `serverToday` is sent rather
+     * than computed: a phone knows neither the operating timezone (O-11) nor the admin date
+     * override, and this string appears on a legal record. "28 Jul 2026, 07:05 AWST" rendered from
+     * a device set to UTC would be eight hours wrong, for some viewers only, silently.
+     */
+    val signedAtDisplay: String,
 )
 
 /**
@@ -282,6 +350,20 @@ fun SyncTombstone.toDto() = SyncTombstoneDto(
  * row carries the person and their position, because a coordinator is triaging a list of people;
  * the device's row carries none of that, because it is already the crew member's own phone.
  */
+fun Attestation.toSyncDto(zone: ZoneId) = AttestationSyncDto(
+    id = requiredId,
+    opId = opId,
+    assignmentId = assignment.requiredId,
+    ccId = crewChange.ccId,
+    declarations = declarations.sorted(),
+    signedAt = signedAt,
+    signedAtDisplay = ATTESTATION_SIGNED_AT.format(signedAt.atZone(zone)),
+)
+
+/** `28 Jul 2026, 07:05 AWST` — the design's own format for MOB-9's signature block. */
+private val ATTESTATION_SIGNED_AT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm zzz", Locale.ENGLISH)
+
 fun CrewStatement.toSyncDto() = CrewStatementSyncDto(
     id = requiredId,
     opId = opId,

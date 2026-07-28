@@ -3,6 +3,10 @@ package au.crewcomp.workflow
 import au.crewcomp.engine.RegisterOutcome
 import au.crewcomp.notify.NotificationKind
 import au.crewcomp.notify.NotificationService
+import au.crewcomp.people.Assignment
+import au.crewcomp.people.AssignmentRepository
+import au.crewcomp.people.CrewStatementKind
+import au.crewcomp.people.CrewStatementRepository
 import au.crewcomp.people.PersonRepository
 import au.crewcomp.platform.audit.AuditWriter
 import au.crewcomp.platform.persistence.EntityNotFoundException
@@ -33,6 +37,35 @@ class LateSubmissionException(val cutoff: LocalDate, val raised: LocalDate) :
     )
 
 /**
+ * MOB-10's closed set of reasons, as the crew app offers them.
+ *
+ * Closed because the screen offers three radio buttons and no free-text alternative: a reason a
+ * Compliance Lead can group and count is worth more than a sentence, and the crew member's own
+ * words go in the note beside it. The wire values are a compatibility surface — they are
+ * `exemptionReasons` in `mobile/lib/src/ui/action_screens.dart`.
+ */
+enum class CrewExemptionReason(val wire: String, val label: String) {
+    NO_SEAT("no_seat", "No seat available before the expiry date"),
+    MEDICAL_PERSONAL("medical_personal", "Medical or personal reason"),
+    WITH_AUTHORITY("with_authority", "Renewal is with the issuing authority");
+
+    companion object {
+        fun fromWire(wire: String): CrewExemptionReason =
+            entries.firstOrNull { it.wire == wire }
+                ?: throw IllegalArgumentException(
+                    "Unknown exemption reason '$wire'; expected one of ${entries.map { it.wire }}",
+                )
+    }
+}
+
+/** How an earlier crew statement reads in the note attached to a request (MOB-10). */
+private val CrewStatementKind.attemptWording: String
+    get() = when (this) {
+        CrewStatementKind.COURSE_BOOKED -> "said a course was booked"
+        CrewStatementKind.HELP_REQUESTED -> "asked the office for help arranging it"
+    }
+
+/**
  * ADM-4 — the exemption and query register (§4.4, §5.1 step 4).
  *
  * This is the module the POC's 445-row workbook becomes, and the one place register records are
@@ -56,6 +89,8 @@ class LateSubmissionException(val cutoff: LocalDate, val raised: LocalDate) :
 class RegisterService(
     private val records: RegisterRecordRepository,
     private val people: PersonRepository,
+    private val assignments: AssignmentRepository,
+    private val crewStatements: CrewStatementRepository,
     private val requirements: RequirementRepository,
     private val crewChanges: CrewChangeRepository,
     private val policy: AccessPolicy,
@@ -141,8 +176,46 @@ class RegisterService(
         acknowledgeLateSubmission: Boolean = false,
     ): RegisterRecord {
         policy.require(*RAISERS)
+        return raise(
+            type = type,
+            // A back-office raiser is authorised by partnership, so the lookup checks that.
+            crewChange = requireCrewChange(partnershipAbbrev, ccId),
+            personId = personId,
+            requirementId = requirementId,
+            reqRaw = reqRaw,
+            effectiveFrom = effectiveFrom,
+            effectiveTo = effectiveTo,
+            status = status,
+            acknowledgeLateSubmission = acknowledgeLateSubmission,
+        )
+    }
 
-        val crewChange = requireCrewChange(partnershipAbbrev, ccId)
+    /**
+     * The record write itself, with **no authorisation of its own**.
+     *
+     * Private, and it must stay that way: the role check belongs to whichever public entry point
+     * called it, because they do not agree. [create] wants a back-office raiser; [raiseCrewExemption]
+     * wants the crew member the record is about and nobody else. A single shared `require` could
+     * only be the weaker of the two.
+     *
+     * It takes a **resolved** [crewChange] for the same reason. `requireCrewChange` gates on
+     * partnership visibility, which is right for a coordinator and wrong for a crew member — their
+     * scope is `OwnPersonOnly` and a bare partnership lookup is deliberately not something they may
+     * run. So each caller resolves the swing the way its own authorisation allows: by partnership
+     * for the back office, by the person's own roster for the crew app.
+     */
+    @Suppress("LongParameterList")
+    private fun raise(
+        type: RegisterType,
+        crewChange: CrewChange,
+        personId: Long? = null,
+        requirementId: Long? = null,
+        reqRaw: String? = null,
+        effectiveFrom: LocalDate? = null,
+        effectiveTo: LocalDate? = null,
+        status: RegisterStatus? = null,
+        acknowledgeLateSubmission: Boolean = false,
+    ): RegisterRecord {
         val today = clock.today()
 
         // Q17: the cutoff is the *submission* cutoff, and it is stored rather than derived so
@@ -221,6 +294,135 @@ class RegisterService(
         // transaction closes, where reaching one throws LazyInitializationException. Every other
         // method here already goes through `requireRecord`, which fetches the same graph.
         return requireRecord(record.recordId)
+    }
+
+    /**
+     * MOB-10 — a crew member raising **one** exemption request against **their own** requirement.
+     *
+     * This does not make the register a crew-facing workflow, and the distinction is the whole
+     * design. The crew app deliberately cannot read the register, work it, or see anyone else's
+     * records; what it can do is put one request into it, about one requirement, from a closed set
+     * of reasons. §6.4 stays a back-office workflow and this is a door into it, not a seat at it.
+     *
+     * Five things differ from [create], each for a reason:
+     *
+     *  * **Authorisation is scope, not role.** A crew member holds none of [RAISERS], so the check
+     *    is [AccessPolicy.assertCanSeePerson] — which for a crew actor is their own person and
+     *    nothing else — plus the assignment check below.
+     *  * **The swing is verified, not accepted.** The device names a `ccId`; this refuses one the
+     *    person is not assigned to. Otherwise the one field a client controls would let somebody
+     *    file against a swing they have nothing to do with.
+     *  * **A late submission is acknowledged rather than refused.** Q17's acknowledgement is a
+     *    deliberate human act, and tapping "Send the request" is one — there is no round trip on a
+     *    sync queue to ask a second time, and refusing would leave a crew member who has just
+     *    discovered a problem with nothing to do about it. The trail records that it came from a
+     *    device after the cutoff, which is the part that must not be lost.
+     *  * **The reason and the note become a PW note**, because a register record has no field for
+     *    "why" and inventing one for this would be the wrong shape: what the crew member wrote is a
+     *    statement by a party, which is exactly what a note is.
+     *  * **Earlier attempts are resolved, not listed.** The device attaches the `opId`s of what it
+     *    already tried. Those it can find as crew statements become a sentence a Compliance Lead can
+     *    read; those it cannot are silently dropped, and correctly — an `opId` with no server record
+     *    is an operation the server never accepted, so it did not happen.
+     *
+     * **The decision comes back through the engine, not through a second payload.** An approved
+     * exemption is §5.1 step 4's overlay, so the crew member's cell moves to `pending` the moment
+     * this is raised and to `exempt` when it is approved. That is a better answer than notifying
+     * them about a register record they cannot open.
+     */
+    @Transactional
+    @Suppress("LongParameterList")
+    fun raiseCrewExemption(
+        opId: String,
+        personId: Long,
+        requirementId: Long,
+        ccId: String?,
+        reason: String,
+        note: String?,
+        attachedOpIds: List<String> = emptyList(),
+    ): RegisterRecord {
+        policy.assertCanSeePerson(personId)
+
+        records.byCrewOpId(opId)?.let { existing ->
+            // A replay. Returning the record it already made is the whole idempotency guarantee:
+            // re-raising would allocate a second business key for one request, leaving a Compliance
+            // Lead two identical open rows and no way to tell which is the real one.
+            require(existing.person?.id == personId) { "Operation '$opId' is not yours to replay" }
+            return existing
+        }
+
+        val kind = CrewExemptionReason.fromWire(reason)
+        val person = people.findById(personId)
+            ?: throw EntityNotFoundException("No person $personId")
+        val assignment = assignmentFor(personId, ccId)
+
+        val record = raise(
+            // PW: the request originates on the vessel side and PW holds its own (see
+            // `defaultStatusFor`). One constant away from changing if the client wants crew-raised
+            // requests triaged somewhere else first — an open question in the handoff.
+            type = RegisterType.EXEMPTION_REQUEST_PW,
+            // Resolved from the person's own roster above, which is the crew member's authorisation
+            // to raise against this swing at all.
+            crewChange = assignment.crewChange,
+            personId = personId,
+            requirementId = requirementId,
+            acknowledgeLateSubmission = true,
+        )
+
+        record.crewOpId = opId
+        attachNote(record, "PW", crewNote(kind, note, attachedOpIds), person.name)
+        trail(record, "Raised by ${person.name} (${person.sam}) from the crew app: ${kind.label}.")
+        record.stampUpdated(policy.actor().label)
+
+        audit.record(
+            entityType = "RegisterRecord",
+            event = "register.crew_raised",
+            entityId = record.id,
+            businessKey = record.recordId,
+            after = mapOf("reason" to kind.wire, "personId" to personId, "requirementId" to requirementId),
+        )
+        return record
+    }
+
+    /**
+     * The swing this request belongs to, verified against the person's own roster.
+     *
+     * [ccId] is the only thing the device chooses here, so it is checked rather than trusted. A null
+     * one — an app that has no standing yet — falls back to their current or next assignment, which
+     * is the swing the screen was showing them anyway.
+     */
+    private fun assignmentFor(personId: Long, ccId: String?): Assignment {
+        val mine = assignments.forPersonScoped(personId)
+        val today = clock.today()
+
+        if (ccId != null) {
+            return mine.firstOrNull { it.crewChange.ccId == ccId }
+                ?: throw IllegalArgumentException(
+                    "You are not assigned to $ccId, so a request cannot be raised against it",
+                )
+        }
+        return mine.firstOrNull { !today.isAfter(it.crewChange.toDate) }
+            ?: throw IllegalArgumentException("You have no current or upcoming swing to raise this against")
+    }
+
+    /** What the crew member said, as a note a Compliance Lead reads. */
+    private fun crewNote(
+        reason: CrewExemptionReason,
+        note: String?,
+        attachedOpIds: List<String>,
+    ): String {
+        val tried = attachedOpIds
+            .mapNotNull { crewStatements.byOpId(it) }
+            .map { it.kind.attemptWording }
+            .distinct()
+
+        return buildString {
+            append("Raised from the crew app. Reason: ${reason.label}.")
+            note?.trim()?.takeIf { it.isNotEmpty() }?.let { append(" \"$it\"") }
+            if (tried.isNotEmpty()) {
+                append(" Already tried: ${tried.joinToString("; ")}.")
+            }
+        }
     }
 
     /**

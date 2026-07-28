@@ -132,6 +132,7 @@ class SyncEngine {
       // are this device's own records of what it sent, and a snapshot has nothing to say about
       // an answer the server has not seen yet.
       await store.delete(store.crewStatements).go();
+      await store.delete(store.attestations).go();
 
       await _upsertPerson(snapshot.person);
       for (final holding in snapshot.holdings) {
@@ -157,6 +158,9 @@ class SyncEngine {
       }
       for (final statement in snapshot.crewStatements) {
         await _upsertCrewStatement(statement);
+      }
+      for (final attestation in snapshot.attestations) {
+        await _upsertAttestation(attestation);
       }
       for (final requirement in snapshot.reference.requirements) {
         await store.into(store.requirements).insertOnConflictUpdate(
@@ -213,6 +217,9 @@ class SyncEngine {
       for (final statement in delta.crewStatements) {
         await _upsertCrewStatement(statement);
       }
+      for (final attestation in delta.attestations) {
+        await _upsertAttestation(attestation);
+      }
       for (final tombstone in delta.tombstones) {
         await _applyTombstone(tombstone);
       }
@@ -249,6 +256,10 @@ class SyncEngine {
             .go();
       case 'CrewStatement':
         await (store.delete(store.crewStatements)
+              ..where((t) => t.id.equals(tombstone.entityId)))
+            .go();
+      case 'Attestation':
+        await (store.delete(store.attestations)
               ..where((t) => t.id.equals(tombstone.entityId)))
             .go();
       case 'Person':
@@ -476,7 +487,10 @@ class SyncEngine {
   /// Only `sent` in both cases. A `queued` intent is unsent work and a `failed` one is a retry the
   /// crew member has not dealt with; deleting either would lose something.
   Future<void> pruneSettledIntents() async {
-    final confirmed = await store.select(store.crewStatements).map((row) => row.opId).get();
+    final confirmed = [
+      ...await store.select(store.crewStatements).map((row) => row.opId).get(),
+      ...await store.select(store.attestations).map((row) => row.opId).get(),
+    ];
     await (store.delete(store.crewIntents)
           ..where((t) => t.state.equals('sent'))
           ..where(
@@ -733,6 +747,26 @@ class SyncEngine {
           ),
         );
     await _settleIntent(statement.opId, 'sent', null);
+  }
+
+  /// Stores a signed declaration, and settles the intent that sent it.
+  ///
+  /// The same pairing as a crew statement, and for the same reason: once the server holds the
+  /// record, the device's own copy has nothing left to say and leaving it at `queued` beside an
+  /// arrived attestation would tell a crew member their signature was still waiting for signal.
+  Future<void> _upsertAttestation(AttestationSyncDto attestation) async {
+    await store.into(store.attestations).insertOnConflictUpdate(
+          AttestationsCompanion.insert(
+            id: Value(attestation.id),
+            opId: attestation.opId,
+            assignmentId: attestation.assignmentId,
+            ccId: attestation.ccId,
+            declarations: attestation.declarations.join('\n'),
+            signedAt: attestation.signedAt,
+            signedAtDisplay: attestation.signedAtDisplay,
+          ),
+        );
+    await _settleIntent(attestation.opId, 'sent', null);
   }
 }
 

@@ -10,6 +10,15 @@ class RegisterRecordRepository(private val scopeGuard: ScopeGuard) : PanacheRepo
     fun byRecordId(recordId: String): RegisterRecord? = find("recordId", recordId).firstResult()
 
     /**
+     * The record a replayed MOB-10 request already created, or null.
+     *
+     * Unscoped and safe for the same reason `CrewStatementRepository.byOpId` is: `crew_op_id` is a
+     * client-minted UUID, so this discovers nothing without already holding the opaque id — and the
+     * caller checks the owner on what it finds.
+     */
+    fun byCrewOpId(opId: String): RegisterRecord? = find("crewOpId", opId).firstResult()
+
+    /**
      * The register records that overlay a swing's evaluation (§5.1 step 4). Runs on behalf of
      * whoever is evaluating the swing, so it is scoped like everything else person-shaped.
      */

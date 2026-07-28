@@ -19,6 +19,8 @@ import au.crewcomp.evidence.EvidenceSource
 import au.crewcomp.notify.NotificationRepository
 import au.crewcomp.notify.NotificationService
 import au.crewcomp.people.Assignment
+import au.crewcomp.people.AttestationRepository
+import au.crewcomp.people.AttestationService
 import au.crewcomp.people.AssignmentRepository
 import au.crewcomp.people.CrewStatementKind
 import au.crewcomp.people.CrewStatementRepository
@@ -35,6 +37,7 @@ import au.crewcomp.reference.CrewChangeRepository
 import au.crewcomp.reference.CrewPositionRepository
 import au.crewcomp.reference.PartnershipRepository
 import au.crewcomp.reference.RequirementRepository
+import au.crewcomp.workflow.RegisterService
 import au.crewcomp.rules.MatrixVersionRepository
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.transaction.Transactional
@@ -75,6 +78,9 @@ class SyncService(
     private val notificationService: NotificationService,
     private val crewStatements: CrewStatementService,
     private val crewStatementRepository: CrewStatementRepository,
+    private val register: RegisterService,
+    private val attestationService: AttestationService,
+    private val attestationRepository: AttestationRepository,
     private val policy: AccessPolicy,
     private val clock: BusinessClock,
 ) {
@@ -109,6 +115,7 @@ class SyncService(
             notifications = notifications.forPersonScoped(personId).map { it.toDto() },
             submissions = documents.forPersonScoped(personId).map { it.toDto() },
             crewStatements = crewStatementRepository.forPersonScoped(personId).map { it.toSyncDto() },
+            attestations = attestationRepository.forPersonScoped(personId).map { it.toSyncDto(clock.zone) },
             reference = reference(referenceCursor),
             standing = standingFor(personId),
         )
@@ -135,6 +142,7 @@ class SyncService(
             notifications = delta.notifications(personId, cursor).map { it.toDto() },
             submissions = delta.submissions(personId, cursor).map { it.toDto() },
             crewStatements = delta.crewStatements(personId, cursor).map { it.toSyncDto() },
+            attestations = delta.attestations(personId, cursor).map { it.toSyncDto(clock.zone) },
             tombstones = delta.tombstones(personId, cursor).map { it.toDto() },
             // Always recomputed, never diffed: a holding expiring overnight changes the roll-up
             // without changing a single row, so a client that only applied row deltas would show
@@ -230,6 +238,48 @@ class SyncService(
             // holding, a cell state or a roll-up (§7.5, AUTH-1). See [CrewStatementService].
             OP_REQUIREMENT_PROGRESS -> crewStatement(operation, personId, CrewStatementKind.COURSE_BOOKED)
             OP_REQUIREMENT_HELP -> crewStatement(operation, personId, CrewStatementKind.HELP_REQUESTED)
+
+            // MOB-10. Unlike the two above this is *not* a statement — it writes a real §6.4
+            // register record, which §5.1 step 4 then overlays onto the crew member's cell. It is
+            // the one client-originated write that changes what the engine answers, and it does so
+            // only by asking: the cell moves to `pending`, never to `exempt`, until a Workflow
+            // Manager decides.
+            OP_REGISTER_EXEMPTION_REQUEST -> {
+                val requirementId = requireNotNull(operation.requirementId) {
+                    "${operation.type} requires a requirementId"
+                }
+                val reason = requireNotNull(operation.reason) {
+                    "${operation.type} requires a reason"
+                }
+                // Idempotent on `opId`, which the record itself carries (V7) — a replay returns the
+                // request it already made rather than allocating a second business key for one ask.
+                register.raiseCrewExemption(
+                    opId = operation.opId,
+                    personId = personId,
+                    requirementId = requirementId,
+                    ccId = operation.ccId,
+                    reason = reason,
+                    note = operation.note,
+                    attachedOpIds = operation.attachedOpIds ?: emptyList(),
+                )
+                SyncOperationResultDto(operation.opId, STATUS_APPLIED)
+            }
+
+            // MOB-9. Evidence rather than a request: nobody actions an attestation, so it goes
+            // into no queue and chases nobody. What matters is that the timestamp on it is the
+            // server's — see [AttestationService].
+            OP_ATTESTATION_SIGN_OFF -> {
+                val assignmentId = requireNotNull(operation.assignmentId) {
+                    "${operation.type} requires an assignmentId"
+                }
+                attestationService.sign(
+                    opId = operation.opId,
+                    personId = personId,
+                    assignmentId = assignmentId,
+                    declarations = operation.declarations ?: emptyList(),
+                )
+                SyncOperationResultDto(operation.opId, STATUS_APPLIED)
+            }
 
             else -> rejected(operation, "Unsupported operation type '${operation.type}'")
         }
@@ -339,6 +389,12 @@ class SyncService(
          */
         val OP_REQUIREMENT_PROGRESS: String = CrewStatementKind.COURSE_BOOKED.operation
         val OP_REQUIREMENT_HELP: String = CrewStatementKind.HELP_REQUESTED.operation
+
+        /** MOB-10: "I cannot get this in time — please consider an exemption." */
+        const val OP_REGISTER_EXEMPTION_REQUEST = "register.exemption_request"
+
+        /** MOB-9: the pre-sail declaration, signed. */
+        const val OP_ATTESTATION_SIGN_OFF = "attestation.sign_off"
 
         const val STATUS_APPLIED = "applied"
         const val STATUS_REJECTED = "rejected"

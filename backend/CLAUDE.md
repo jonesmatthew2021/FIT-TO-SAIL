@@ -100,7 +100,7 @@ the working loop is dev mode for iteration, a full `verify` before committing.
 | `au.crewcomp.engine` | **The §5 engine. Pure Kotlin — no CDI, no JPA, no framework types.** Cell/person/swing evaluation, rule resolution, quotas, suggestions, gap report, expiry alerts, matrix diff. |
 | `au.crewcomp.reference` | §4.1 partnerships, vessels, positions, slots, crew changes, requirements. `ReferenceService` also carries the ADM-6 catalogue write path and its usage counts |
 | `au.crewcomp.rules` | §4.2 matrix versions, requirement/conditional/quota rules. `MatrixService` is ADM-3's whole lifecycle: draft → edit → publish |
-| `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave. `HoldingService` and `AssignmentService` are the two write paths; `UserAdminService` is ADM-10's access surface; `CrewStatementService` is the crew app's one-tap answers (deliberately none of the above) and ADM-11's queue over them |
+| `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave. `HoldingService` and `AssignmentService` are the two write paths; `UserAdminService` is ADM-10's access surface; `CrewStatementService` is the crew app's one-tap answers (deliberately none of the above) and ADM-11's queue over them; `AttestationService` is MOB-9's pre-sail declaration |
 | `au.crewcomp.workflow` | §4.4 register records, conditions, notes, exception items. `RegisterService` is ADM-4's whole lifecycle; `ExceptionService` is ADM-7's worklist |
 | `au.crewcomp.compliance` | Application service around the engine: entity↔engine mapping, matrix snapshots, `ComplianceService` |
 | `au.crewcomp.sync` | §10.3 mobile sync: delta reads, tombstones, `SyncService`. Takes no person id anywhere — it answers for the authenticated crew member only |
@@ -140,6 +140,11 @@ these.
   to make a notification *stop* (see `CrewStatementService`). Adding a fourth, or letting a
   statement reach the engine, breaks AUTH-1 at its most load-bearing point: the crew member would be
   grading their own compliance.
+- **A timestamp on a legal record is the server's, and so is its formatting.** MOB-9's attestation
+  takes no time from the device — a declaration timestamped from the phone of the person making it
+  is an assertion by the party it is evidence against. `AttestationSyncDto.signedAtDisplay` is also
+  rendered here, in `BusinessClock.zone`, for the same reason `serverToday` is sent rather than
+  computed: a phone knows neither the operating timezone (O-11) nor the admin date override.
 - **A client-originated write that silences something must be reversible by the office.** A
   `course_booked` statement suppresses the crew-facing expiry warning on the crew member's word
   alone; ADM-11's dismissal is what puts it back. The general rule: if a device can turn a warning

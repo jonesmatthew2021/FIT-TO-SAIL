@@ -3,6 +3,7 @@ package au.crewcomp.sync
 import au.crewcomp.evidence.EvidenceDocument
 import au.crewcomp.notify.Notification
 import au.crewcomp.people.Assignment
+import au.crewcomp.people.Attestation
 import au.crewcomp.people.CrewStatement
 import au.crewcomp.people.LeaveRecord
 import au.crewcomp.people.Person
@@ -72,6 +73,12 @@ class SyncDeltaRepository(private val em: EntityManager) {
         CrewStatement::class.java,
     ).setParameter("personId", personId).setParameter("since", since).resultList
 
+    fun attestations(personId: Long, since: Long): List<Attestation> = em.createQuery(
+        "select a from Attestation a join fetch a.crewChange join fetch a.assignment " +
+            "where a.person.id = :personId and a.updatedSeq > :since order by a.updatedSeq",
+        Attestation::class.java,
+    ).setParameter("personId", personId).setParameter("since", since).resultList
+
     fun tombstones(personId: Long, since: Long): List<SyncTombstone> = em.createQuery(
         "select t from SyncTombstone t " +
             "where t.personId = :personId and t.seq > :since order by t.seq",
@@ -102,6 +109,7 @@ class SyncDeltaRepository(private val em: EntityManager) {
                 -- keeps its rows above the cursor the client is handed, so the same rows arrive in
                 -- every delta forever — harmless, invisible, and permanent.
                 (select max(updated_seq) from crew_statement),
+                (select max(updated_seq) from attestation),
                 (select max(seq) from sync_tombstone)
             ), 0)
             """.trimIndent(),

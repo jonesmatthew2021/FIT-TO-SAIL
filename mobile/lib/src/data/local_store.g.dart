@@ -5666,6 +5666,480 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
   }
 }
 
+class $AttestationsTable extends Attestations
+    with TableInfo<$AttestationsTable, LocalAttestation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AttestationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _opIdMeta = const VerificationMeta('opId');
+  @override
+  late final GeneratedColumn<String> opId = GeneratedColumn<String>(
+    'op_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _assignmentIdMeta = const VerificationMeta(
+    'assignmentId',
+  );
+  @override
+  late final GeneratedColumn<int> assignmentId = GeneratedColumn<int>(
+    'assignment_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ccIdMeta = const VerificationMeta('ccId');
+  @override
+  late final GeneratedColumn<String> ccId = GeneratedColumn<String>(
+    'cc_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _declarationsMeta = const VerificationMeta(
+    'declarations',
+  );
+  @override
+  late final GeneratedColumn<String> declarations = GeneratedColumn<String>(
+    'declarations',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _signedAtMeta = const VerificationMeta(
+    'signedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> signedAt = GeneratedColumn<DateTime>(
+    'signed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _signedAtDisplayMeta = const VerificationMeta(
+    'signedAtDisplay',
+  );
+  @override
+  late final GeneratedColumn<String> signedAtDisplay = GeneratedColumn<String>(
+    'signed_at_display',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    opId,
+    assignmentId,
+    ccId,
+    declarations,
+    signedAt,
+    signedAtDisplay,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'attestations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalAttestation> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('op_id')) {
+      context.handle(
+        _opIdMeta,
+        opId.isAcceptableOrUnknown(data['op_id']!, _opIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_opIdMeta);
+    }
+    if (data.containsKey('assignment_id')) {
+      context.handle(
+        _assignmentIdMeta,
+        assignmentId.isAcceptableOrUnknown(
+          data['assignment_id']!,
+          _assignmentIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_assignmentIdMeta);
+    }
+    if (data.containsKey('cc_id')) {
+      context.handle(
+        _ccIdMeta,
+        ccId.isAcceptableOrUnknown(data['cc_id']!, _ccIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ccIdMeta);
+    }
+    if (data.containsKey('declarations')) {
+      context.handle(
+        _declarationsMeta,
+        declarations.isAcceptableOrUnknown(
+          data['declarations']!,
+          _declarationsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_declarationsMeta);
+    }
+    if (data.containsKey('signed_at')) {
+      context.handle(
+        _signedAtMeta,
+        signedAt.isAcceptableOrUnknown(data['signed_at']!, _signedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_signedAtMeta);
+    }
+    if (data.containsKey('signed_at_display')) {
+      context.handle(
+        _signedAtDisplayMeta,
+        signedAtDisplay.isAcceptableOrUnknown(
+          data['signed_at_display']!,
+          _signedAtDisplayMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_signedAtDisplayMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LocalAttestation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalAttestation(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      opId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}op_id'],
+      )!,
+      assignmentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}assignment_id'],
+      )!,
+      ccId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cc_id'],
+      )!,
+      declarations: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}declarations'],
+      )!,
+      signedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}signed_at'],
+      )!,
+      signedAtDisplay: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}signed_at_display'],
+      )!,
+    );
+  }
+
+  @override
+  $AttestationsTable createAlias(String alias) {
+    return $AttestationsTable(attachedDatabase, alias);
+  }
+}
+
+class LocalAttestation extends DataClass
+    implements Insertable<LocalAttestation> {
+  final int id;
+  final String opId;
+  final int assignmentId;
+  final String ccId;
+
+  /// The confirmed declaration ids, newline-separated.
+  ///
+  /// A delimited column rather than a child table: this is a replica of a server row that is only
+  /// ever read whole, and drift's relational modelling would buy nothing for it. Newline because a
+  /// declaration id is a slug and can never contain one.
+  final String declarations;
+  final DateTime signedAt;
+
+  /// The signature line as the server wrote it, in the vessel's timezone.
+  ///
+  /// Stored rather than formatted here: a phone knows neither the operating timezone (O-11) nor
+  /// the admin date override, and this string sits on a legal record. Rendering it from a device
+  /// set to UTC would be eight hours wrong, for some viewers only, silently.
+  final String signedAtDisplay;
+  const LocalAttestation({
+    required this.id,
+    required this.opId,
+    required this.assignmentId,
+    required this.ccId,
+    required this.declarations,
+    required this.signedAt,
+    required this.signedAtDisplay,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['op_id'] = Variable<String>(opId);
+    map['assignment_id'] = Variable<int>(assignmentId);
+    map['cc_id'] = Variable<String>(ccId);
+    map['declarations'] = Variable<String>(declarations);
+    map['signed_at'] = Variable<DateTime>(signedAt);
+    map['signed_at_display'] = Variable<String>(signedAtDisplay);
+    return map;
+  }
+
+  AttestationsCompanion toCompanion(bool nullToAbsent) {
+    return AttestationsCompanion(
+      id: Value(id),
+      opId: Value(opId),
+      assignmentId: Value(assignmentId),
+      ccId: Value(ccId),
+      declarations: Value(declarations),
+      signedAt: Value(signedAt),
+      signedAtDisplay: Value(signedAtDisplay),
+    );
+  }
+
+  factory LocalAttestation.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalAttestation(
+      id: serializer.fromJson<int>(json['id']),
+      opId: serializer.fromJson<String>(json['opId']),
+      assignmentId: serializer.fromJson<int>(json['assignmentId']),
+      ccId: serializer.fromJson<String>(json['ccId']),
+      declarations: serializer.fromJson<String>(json['declarations']),
+      signedAt: serializer.fromJson<DateTime>(json['signedAt']),
+      signedAtDisplay: serializer.fromJson<String>(json['signedAtDisplay']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'opId': serializer.toJson<String>(opId),
+      'assignmentId': serializer.toJson<int>(assignmentId),
+      'ccId': serializer.toJson<String>(ccId),
+      'declarations': serializer.toJson<String>(declarations),
+      'signedAt': serializer.toJson<DateTime>(signedAt),
+      'signedAtDisplay': serializer.toJson<String>(signedAtDisplay),
+    };
+  }
+
+  LocalAttestation copyWith({
+    int? id,
+    String? opId,
+    int? assignmentId,
+    String? ccId,
+    String? declarations,
+    DateTime? signedAt,
+    String? signedAtDisplay,
+  }) => LocalAttestation(
+    id: id ?? this.id,
+    opId: opId ?? this.opId,
+    assignmentId: assignmentId ?? this.assignmentId,
+    ccId: ccId ?? this.ccId,
+    declarations: declarations ?? this.declarations,
+    signedAt: signedAt ?? this.signedAt,
+    signedAtDisplay: signedAtDisplay ?? this.signedAtDisplay,
+  );
+  LocalAttestation copyWithCompanion(AttestationsCompanion data) {
+    return LocalAttestation(
+      id: data.id.present ? data.id.value : this.id,
+      opId: data.opId.present ? data.opId.value : this.opId,
+      assignmentId: data.assignmentId.present
+          ? data.assignmentId.value
+          : this.assignmentId,
+      ccId: data.ccId.present ? data.ccId.value : this.ccId,
+      declarations: data.declarations.present
+          ? data.declarations.value
+          : this.declarations,
+      signedAt: data.signedAt.present ? data.signedAt.value : this.signedAt,
+      signedAtDisplay: data.signedAtDisplay.present
+          ? data.signedAtDisplay.value
+          : this.signedAtDisplay,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalAttestation(')
+          ..write('id: $id, ')
+          ..write('opId: $opId, ')
+          ..write('assignmentId: $assignmentId, ')
+          ..write('ccId: $ccId, ')
+          ..write('declarations: $declarations, ')
+          ..write('signedAt: $signedAt, ')
+          ..write('signedAtDisplay: $signedAtDisplay')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    opId,
+    assignmentId,
+    ccId,
+    declarations,
+    signedAt,
+    signedAtDisplay,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalAttestation &&
+          other.id == this.id &&
+          other.opId == this.opId &&
+          other.assignmentId == this.assignmentId &&
+          other.ccId == this.ccId &&
+          other.declarations == this.declarations &&
+          other.signedAt == this.signedAt &&
+          other.signedAtDisplay == this.signedAtDisplay);
+}
+
+class AttestationsCompanion extends UpdateCompanion<LocalAttestation> {
+  final Value<int> id;
+  final Value<String> opId;
+  final Value<int> assignmentId;
+  final Value<String> ccId;
+  final Value<String> declarations;
+  final Value<DateTime> signedAt;
+  final Value<String> signedAtDisplay;
+  const AttestationsCompanion({
+    this.id = const Value.absent(),
+    this.opId = const Value.absent(),
+    this.assignmentId = const Value.absent(),
+    this.ccId = const Value.absent(),
+    this.declarations = const Value.absent(),
+    this.signedAt = const Value.absent(),
+    this.signedAtDisplay = const Value.absent(),
+  });
+  AttestationsCompanion.insert({
+    this.id = const Value.absent(),
+    required String opId,
+    required int assignmentId,
+    required String ccId,
+    required String declarations,
+    required DateTime signedAt,
+    required String signedAtDisplay,
+  }) : opId = Value(opId),
+       assignmentId = Value(assignmentId),
+       ccId = Value(ccId),
+       declarations = Value(declarations),
+       signedAt = Value(signedAt),
+       signedAtDisplay = Value(signedAtDisplay);
+  static Insertable<LocalAttestation> custom({
+    Expression<int>? id,
+    Expression<String>? opId,
+    Expression<int>? assignmentId,
+    Expression<String>? ccId,
+    Expression<String>? declarations,
+    Expression<DateTime>? signedAt,
+    Expression<String>? signedAtDisplay,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (opId != null) 'op_id': opId,
+      if (assignmentId != null) 'assignment_id': assignmentId,
+      if (ccId != null) 'cc_id': ccId,
+      if (declarations != null) 'declarations': declarations,
+      if (signedAt != null) 'signed_at': signedAt,
+      if (signedAtDisplay != null) 'signed_at_display': signedAtDisplay,
+    });
+  }
+
+  AttestationsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? opId,
+    Value<int>? assignmentId,
+    Value<String>? ccId,
+    Value<String>? declarations,
+    Value<DateTime>? signedAt,
+    Value<String>? signedAtDisplay,
+  }) {
+    return AttestationsCompanion(
+      id: id ?? this.id,
+      opId: opId ?? this.opId,
+      assignmentId: assignmentId ?? this.assignmentId,
+      ccId: ccId ?? this.ccId,
+      declarations: declarations ?? this.declarations,
+      signedAt: signedAt ?? this.signedAt,
+      signedAtDisplay: signedAtDisplay ?? this.signedAtDisplay,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (opId.present) {
+      map['op_id'] = Variable<String>(opId.value);
+    }
+    if (assignmentId.present) {
+      map['assignment_id'] = Variable<int>(assignmentId.value);
+    }
+    if (ccId.present) {
+      map['cc_id'] = Variable<String>(ccId.value);
+    }
+    if (declarations.present) {
+      map['declarations'] = Variable<String>(declarations.value);
+    }
+    if (signedAt.present) {
+      map['signed_at'] = Variable<DateTime>(signedAt.value);
+    }
+    if (signedAtDisplay.present) {
+      map['signed_at_display'] = Variable<String>(signedAtDisplay.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AttestationsCompanion(')
+          ..write('id: $id, ')
+          ..write('opId: $opId, ')
+          ..write('assignmentId: $assignmentId, ')
+          ..write('ccId: $ccId, ')
+          ..write('declarations: $declarations, ')
+          ..write('signedAt: $signedAt, ')
+          ..write('signedAtDisplay: $signedAtDisplay')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncStatesTable extends SyncStates
     with TableInfo<$SyncStatesTable, LocalSyncState> {
   @override
@@ -6385,6 +6859,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
   late final $OutboxTable outbox = $OutboxTable(this);
   late final $CrewIntentsTable crewIntents = $CrewIntentsTable(this);
   late final $CrewStatementsTable crewStatements = $CrewStatementsTable(this);
+  late final $AttestationsTable attestations = $AttestationsTable(this);
   late final $SyncStatesTable syncStates = $SyncStatesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -6403,6 +6878,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
     outbox,
     crewIntents,
     crewStatements,
+    attestations,
     syncStates,
   ];
 }
@@ -9316,6 +9792,244 @@ typedef $$CrewStatementsTableProcessedTableManager =
       LocalCrewStatement,
       PrefetchHooks Function()
     >;
+typedef $$AttestationsTableCreateCompanionBuilder =
+    AttestationsCompanion Function({
+      Value<int> id,
+      required String opId,
+      required int assignmentId,
+      required String ccId,
+      required String declarations,
+      required DateTime signedAt,
+      required String signedAtDisplay,
+    });
+typedef $$AttestationsTableUpdateCompanionBuilder =
+    AttestationsCompanion Function({
+      Value<int> id,
+      Value<String> opId,
+      Value<int> assignmentId,
+      Value<String> ccId,
+      Value<String> declarations,
+      Value<DateTime> signedAt,
+      Value<String> signedAtDisplay,
+    });
+
+class $$AttestationsTableFilterComposer
+    extends Composer<_$LocalStore, $AttestationsTable> {
+  $$AttestationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get assignmentId => $composableBuilder(
+    column: $table.assignmentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ccId => $composableBuilder(
+    column: $table.ccId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get declarations => $composableBuilder(
+    column: $table.declarations,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get signedAt => $composableBuilder(
+    column: $table.signedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get signedAtDisplay => $composableBuilder(
+    column: $table.signedAtDisplay,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AttestationsTableOrderingComposer
+    extends Composer<_$LocalStore, $AttestationsTable> {
+  $$AttestationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get assignmentId => $composableBuilder(
+    column: $table.assignmentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ccId => $composableBuilder(
+    column: $table.ccId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get declarations => $composableBuilder(
+    column: $table.declarations,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get signedAt => $composableBuilder(
+    column: $table.signedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get signedAtDisplay => $composableBuilder(
+    column: $table.signedAtDisplay,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AttestationsTableAnnotationComposer
+    extends Composer<_$LocalStore, $AttestationsTable> {
+  $$AttestationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get opId =>
+      $composableBuilder(column: $table.opId, builder: (column) => column);
+
+  GeneratedColumn<int> get assignmentId => $composableBuilder(
+    column: $table.assignmentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ccId =>
+      $composableBuilder(column: $table.ccId, builder: (column) => column);
+
+  GeneratedColumn<String> get declarations => $composableBuilder(
+    column: $table.declarations,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get signedAt =>
+      $composableBuilder(column: $table.signedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get signedAtDisplay => $composableBuilder(
+    column: $table.signedAtDisplay,
+    builder: (column) => column,
+  );
+}
+
+class $$AttestationsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $AttestationsTable,
+          LocalAttestation,
+          $$AttestationsTableFilterComposer,
+          $$AttestationsTableOrderingComposer,
+          $$AttestationsTableAnnotationComposer,
+          $$AttestationsTableCreateCompanionBuilder,
+          $$AttestationsTableUpdateCompanionBuilder,
+          (
+            LocalAttestation,
+            BaseReferences<_$LocalStore, $AttestationsTable, LocalAttestation>,
+          ),
+          LocalAttestation,
+          PrefetchHooks Function()
+        > {
+  $$AttestationsTableTableManager(_$LocalStore db, $AttestationsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AttestationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AttestationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AttestationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> opId = const Value.absent(),
+                Value<int> assignmentId = const Value.absent(),
+                Value<String> ccId = const Value.absent(),
+                Value<String> declarations = const Value.absent(),
+                Value<DateTime> signedAt = const Value.absent(),
+                Value<String> signedAtDisplay = const Value.absent(),
+              }) => AttestationsCompanion(
+                id: id,
+                opId: opId,
+                assignmentId: assignmentId,
+                ccId: ccId,
+                declarations: declarations,
+                signedAt: signedAt,
+                signedAtDisplay: signedAtDisplay,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String opId,
+                required int assignmentId,
+                required String ccId,
+                required String declarations,
+                required DateTime signedAt,
+                required String signedAtDisplay,
+              }) => AttestationsCompanion.insert(
+                id: id,
+                opId: opId,
+                assignmentId: assignmentId,
+                ccId: ccId,
+                declarations: declarations,
+                signedAt: signedAt,
+                signedAtDisplay: signedAtDisplay,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AttestationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $AttestationsTable,
+      LocalAttestation,
+      $$AttestationsTableFilterComposer,
+      $$AttestationsTableOrderingComposer,
+      $$AttestationsTableAnnotationComposer,
+      $$AttestationsTableCreateCompanionBuilder,
+      $$AttestationsTableUpdateCompanionBuilder,
+      (
+        LocalAttestation,
+        BaseReferences<_$LocalStore, $AttestationsTable, LocalAttestation>,
+      ),
+      LocalAttestation,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncStatesTableCreateCompanionBuilder =
     SyncStatesCompanion Function({
       Value<int> id,
@@ -9670,6 +10384,8 @@ class $LocalStoreManager {
       $$CrewIntentsTableTableManager(_db, _db.crewIntents);
   $$CrewStatementsTableTableManager get crewStatements =>
       $$CrewStatementsTableTableManager(_db, _db.crewStatements);
+  $$AttestationsTableTableManager get attestations =>
+      $$AttestationsTableTableManager(_db, _db.attestations);
   $$SyncStatesTableTableManager get syncStates =>
       $$SyncStatesTableTableManager(_db, _db.syncStates);
 }

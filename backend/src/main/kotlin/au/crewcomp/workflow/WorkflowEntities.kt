@@ -74,6 +74,17 @@ class RegisterRecord : AuditedEntity() {
     @Column(name = "record_id", nullable = false)
     lateinit var recordId: String
 
+    /**
+     * MOB-10: the device queue-entry id that raised this, and its idempotency key. Null when a
+     * coordinator raised it, which is every record the register has had until now.
+     *
+     * Unique where set (V7). That constraint is the mechanism rather than a belt-and-braces: the
+     * outbox re-posts an operation it never saw a verdict for, and without it a dropped connection
+     * allocates a second business key for one request.
+     */
+    @Column(name = "crew_op_id")
+    var crewOpId: String? = null
+
     @Column(name = "record_type", nullable = false)
     lateinit var typeValue: String
 

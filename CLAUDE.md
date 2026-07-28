@@ -63,9 +63,9 @@ The component guides document running each piece by hand.
 ## Current phase
 
 Early P1 across three components, with **the whole of §6 now built** and one module beyond it
-(ADM-11). Green: **125 pure-domain tests**, **163 backend integration tests** against real PostgreSQL
+(ADM-11). Green: **125 pure-domain tests**, **172 backend integration tests** against real PostgreSQL
 (Colima + Quarkus Dev Services), **68 frontend tests** with a production bundle that builds, and
-**136 Flutter tests** including a real encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
+**141 Flutter tests** including a real encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
 component detail — including the traps each has already paid for and the spec questions each takes a
 position on.
 
@@ -120,7 +120,7 @@ What exists end to end, verified over real HTTP against a seeded database and dr
   and a retry.
 
   **Eight of those screens are ahead of the backend, deliberately.** There is no course catalogue,
-  no extraction fields on a submission, no credits history, no team endpoint, and five of the seven
+  no extraction fields on a submission, no credits history, no team endpoint, and three of the seven
   new sync operations the one-tap answers post are still rejected — per operation, without failing
   the batch. Each screen degrades in a way a crew
   member can read rather than in a way that looks finished: no course dates rather than invented
@@ -147,6 +147,14 @@ What exists end to end, verified over real HTTP against a seeded database and dr
   **Dismissal is why it could not wait**: the suppression above silences a crew member's expiry
   warning on their word alone, and a coordinator who finds no such booking has to be able to put it
   back. §6 enumerates ADM-1 to ADM-10 and stops, so the module number is ours and worth confirming.
+
+- **Two more one-tap operations landed, and neither is a statement.** `register.exemption_request`
+  writes a real §6.4 record — the one client-originated write that changes what the engine answers,
+  and it does so only by *asking*: the cell moves to `pending`, never to `exempt`, until a Workflow
+  Manager decides. That overlay is also how the decision reaches the phone, which beats notifying a
+  crew member about a record they cannot open. `attestation.sign_off` writes a pre-sail declaration
+  whose **timestamp and its formatting are both the server's** — a legal record timestamped from the
+  phone of the person making it is an assertion by the party it is evidence against.
 
 - **And the loop closes: the decision reaches the phone.** The statement is now a replicated
   person-scoped row like a holding — same trigger-assigned cursor, same tombstones — joined to the
@@ -187,8 +195,8 @@ The largest functional gaps, in the order they bite:
    how five rendering bugs have been found so far — but making either a committed lane is the
    pipeline bootstrap's.
 7. **The crew app's eight new screens are ahead of the server they need.** Course catalogue,
-   extraction fields, readiness and credits in the sync payload, a status-only team endpoint, a
-   mobile-raised exemption, an attestation record, and the five remaining sync operations. None of
+   extraction fields, readiness and credits in the sync payload, a status-only team endpoint, and
+   the three remaining sync operations. None of
    it is speculative work — every item has a built screen waiting on it, and
    `docs/handoff/mobile-crew-app-backend.md` says what each one needs. Two of them are also
    blocked on something else: the team endpoint needs a supervisory role, which is the identity

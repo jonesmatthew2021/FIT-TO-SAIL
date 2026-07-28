@@ -75,6 +75,10 @@ class FixtureSeeder(private val em: EntityManager) {
             "delete from LeaveRecord",
             // Before Person and Requirement, which it references.
             "delete from CrewStatement",
+            // Before Person, Assignment and CrewChange. `attestation_declaration` goes with it on
+            // the database's own ON DELETE CASCADE — that one is a real FK cascade rather than a
+            // JPA annotation, so a JPQL bulk delete does fire it.
+            "delete from Attestation",
             "delete from UserAccount",
             // After UserAccount, which references it. ADM-10's allow-list tests create rows here and
             // a leaked one would make the next test's list longer than it seeded.

@@ -266,6 +266,42 @@ class CrewStatements extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// MOB-9's signed pre-sail declarations, as the server holds them.
+///
+/// Server-owned, and the app has to read it back rather than trusting what it sent, for a reason
+/// that is not merely tidiness: **the timestamp is the server's**. A legal declaration timestamped
+/// from the phone of the person making it is worth nothing as evidence, so the device has no time
+/// of its own to fall back on and the signature block says so until this row arrives.
+///
+/// [declarations] is the second reason. What was ticked is not re-derivable — a screen that rebuilt
+/// the ticks from "which lines were already satisfied" would show a different set from the one
+/// signed, losing every line the crew member confirmed by hand. That was a real bug.
+@DataClassName('LocalAttestation')
+class Attestations extends Table {
+  IntColumn get id => integer()();
+  TextColumn get opId => text()();
+  IntColumn get assignmentId => integer()();
+  TextColumn get ccId => text()();
+
+  /// The confirmed declaration ids, newline-separated.
+  ///
+  /// A delimited column rather than a child table: this is a replica of a server row that is only
+  /// ever read whole, and drift's relational modelling would buy nothing for it. Newline because a
+  /// declaration id is a slug and can never contain one.
+  TextColumn get declarations => text()();
+  DateTimeColumn get signedAt => dateTime()();
+
+  /// The signature line as the server wrote it, in the vessel's timezone.
+  ///
+  /// Stored rather than formatted here: a phone knows neither the operating timezone (O-11) nor
+  /// the admin date override, and this string sits on a legal record. Rendering it from a device
+  /// set to UTC would be eight hours wrong, for some viewers only, silently.
+  TextColumn get signedAtDisplay => text()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Single-row sync bookkeeping. `id` is pinned to 0.
 @DataClassName('LocalSyncState')
 class SyncStates extends Table {
@@ -303,6 +339,7 @@ class SyncStates extends Table {
     Outbox,
     CrewIntents,
     CrewStatements,
+    Attestations,
     SyncStates,
   ],
 )
@@ -310,9 +347,9 @@ class LocalStore extends _$LocalStore {
   LocalStore(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
-  /// v1 → v2 adds [CrewIntents]; v2 → v3 adds [CrewStatements].
+  /// v1 → v2 adds [CrewIntents]; v2 → v3 [CrewStatements]; v3 → v4 [Attestations].
   ///
   /// Additive, and it has to be: an upgrade that dropped and re-created the database would take
   /// the outbox with it, and the outbox is the only copy of writes the server has never seen. A
@@ -329,6 +366,7 @@ class LocalStore extends _$LocalStore {
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.createTable(crewIntents);
           if (from < 3) await m.createTable(crewStatements);
+          if (from < 4) await m.createTable(attestations);
         },
       );
 

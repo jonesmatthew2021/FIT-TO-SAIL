@@ -4,6 +4,7 @@ import 'package:crewcomp_crew/src/domain/offers.dart';
 import 'package:crewcomp_crew/src/ui/action_screens.dart';
 import 'package:crewcomp_crew/src/ui/app_state.dart';
 import 'package:crewcomp_crew/src/ui/nocturne.dart';
+import 'package:crewcomp_crew/src/ui/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -389,6 +390,102 @@ void main() {
       expect(find.text('Signed by Bruno Oyelaran'), findsOneWidget);
       expect(find.textContaining('Face ID'), findsNothing);
       expect(find.textContaining('the office records the time it arrives'), findsOneWidget);
+    });
+
+    testWidgets('shows what was actually signed, not what happened to be true', (tester) async {
+      // The bug this replaces: the ticks were rebuilt from `Declaration.satisfied` every time the
+      // screen opened, so reopening a signed attestation showed only the lines that were already
+      // true from the record — every line the crew member confirmed by hand came back empty, on a
+      // record whose whole point is being able to say what somebody confirmed.
+      await pump(
+        tester,
+        AttestationView(
+          assignment: assignment,
+          declarations: declarations,
+          today: '2026-07-28',
+          attempt: const Answer(
+            opId: 'op-1',
+            kind: 'attestation.sign_off',
+            state: AnswerState.sent,
+            summary: 'Signed off',
+          ),
+          // Only one of the three, and deliberately not the one `satisfied` would have produced:
+          // signing with a line outstanding is a real thing to do, and which line it was is the
+          // record.
+          confirmed: const ['records_correct'],
+          signedLine: '28 Jul 2026, 07:05 AWST',
+          onAttest: (_) async {},
+        ),
+      );
+
+      final rows = tester.widgetList<ChoiceRow>(find.byType(ChoiceRow)).toList();
+      expect(rows.where((row) => row.selected).length, 1);
+      expect(
+        rows.firstWhere((row) => row.selected).label,
+        'My certificates are the ones on record',
+      );
+    });
+
+    testWidgets("prints the office's own signature line once it has one", (tester) async {
+      await pump(
+        tester,
+        AttestationView(
+          assignment: assignment,
+          declarations: declarations,
+          personName: 'Bruno Oyelaran',
+          today: '2026-07-28',
+          attempt: const Answer(
+            opId: 'op-1',
+            kind: 'attestation.sign_off',
+            state: AnswerState.sent,
+            summary: 'Signed off',
+          ),
+          confirmed: const ['records_correct'],
+          // Formatted by the server, in the vessel's timezone. The device never composes one: it
+          // knows neither the operating timezone nor the admin date override.
+          signedLine: '28 Jul 2026, 07:05 AWST',
+          onAttest: (_) async {},
+        ),
+      );
+
+      await scrollTo(tester, find.textContaining('AWST'));
+      expect(find.text('28 Jul 2026, 07:05 AWST'), findsOneWidget);
+      expect(find.textContaining('the office records the time it arrives'), findsNothing);
+    });
+
+    testWidgets('a refused sign-off is not a signature, and can be sent again', (tester) async {
+      // A failed attempt used to render as "Already signed" with the rows locked: the crew member
+      // believed they had signed and the office had nothing. The record of the tap is still shown
+      // — it must never vanish — but it reads as a failure and the screen is live again.
+      final retried = <String>[];
+      await pump(
+        tester,
+        AttestationView(
+          assignment: assignment,
+          declarations: declarations,
+          today: '2026-07-28',
+          attempt: const Answer(
+            opId: 'op-1',
+            kind: 'attestation.sign_off',
+            state: AnswerState.failed,
+            summary: 'Signed off for UNI CC24',
+            detail: "Unsupported operation type 'attestation.sign_off'",
+          ),
+          confirmed: const ['records_correct', 'medically_fit', 'no_change'],
+          onRetry: retried.add,
+          onAttest: (_) async {},
+        ),
+      );
+
+      await scrollTo(tester, find.text('Attest and send'));
+      expect(find.text('Already signed'), findsNothing);
+      expect(find.textContaining("Couldn't send"), findsOneWidget);
+      // And the signature block does not claim a time for something that never arrived.
+      expect(find.textContaining('the office records the time it arrives'), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      expect(retried, ['op-1']);
     });
 
     testWidgets('states the weight of a false declaration', (tester) async {
