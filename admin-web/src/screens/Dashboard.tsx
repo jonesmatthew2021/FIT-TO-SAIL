@@ -8,7 +8,6 @@ import {
   type CrewChange,
   type ExpiryAlert,
   type Partnership,
-  type Requirement,
   type SwingEvaluation,
 } from '../api/client'
 import { useSession } from '../api/session'
@@ -16,15 +15,19 @@ import { defaultCrewChange } from '../components/SwingSelector'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Modal } from '../components/Modal'
+import { RequirementLabel } from '../components/RequirementLabel'
 import { Spinner } from '../components/Spinner'
 import { StateChip } from '../components/StateChip'
 import { Band, Cut, Lead, Ruler, RulerRow } from '../components/Ruler'
+import { requirementLookup, requirementParts } from '../domain/requirements'
 import {
   CELL_STATE_ORDER,
+  EXPIRY_LEAD_DAYS_DEFAULT,
   cellState,
   cellStateRank,
   expiryImpact,
   needsAttention,
+  slotRef,
   type Tone,
 } from '../domain/enums'
 import {
@@ -79,7 +82,7 @@ interface Inspection {
 export function Dashboard(): React.ReactNode {
   const session = useSession()
   const partnerships = usePartnerships()
-  const [leadDays, setLeadDays] = useState(90)
+  const [leadDays, setLeadDays] = useState(EXPIRY_LEAD_DAYS_DEFAULT)
   const [inspecting, setInspecting] = useState<Inspection | null>(null)
 
   const list = partnerships.data ?? []
@@ -151,8 +154,8 @@ export function Dashboard(): React.ReactNode {
         </div>
         <p className="screen__subtitle">
           Every partnership's current or next crew change, on one axis. The dashed line is today —
-          the server's business date, not this browser's. Cutoffs sit to its right, so the distance
-          is the time you have left.
+          the server's business date in AWST, not this browser's. Cutoffs sit to its left once
+          passed, so the distance is the time you have left.
         </p>
       </header>
 
@@ -170,7 +173,7 @@ export function Dashboard(): React.ReactNode {
               Impact is measured against the assignment the holding affects.
             </p>
           </div>
-          <label className="field field--inline">
+          <label className="field field--inline" style={{ width: 150 }}>
             <span className="field__label">Lead time</span>
             <select
               className="input"
@@ -208,9 +211,15 @@ function headline(rows: readonly SwingRow[], dirtyCount: number): string {
   return `${dirtyCount} swings will not sail clean.`
 }
 
+/**
+ * The soonest cutoff still ahead, as a chip beside the headline.
+ *
+ * Critical at three days or fewer and warning above it: a cutoff is always a deadline, so it is
+ * never a quiet fact — what changes with proximity is whether it is the thing to do today.
+ */
 function CutoffBadge({ today, cutoff }: { today: string; cutoff: string }): React.ReactNode {
   const days = daysBetween(today, cutoff)
-  const tone = days <= CUTOFF_URGENT_DAYS ? 'critical' : 'muted'
+  const tone = days <= CUTOFF_URGENT_DAYS ? 'critical' : 'warning'
   const when = days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`
   return <span className={`chip chip--${tone}`}>Next cutoff {when}</span>
 }
@@ -315,7 +324,7 @@ function PartnershipRow({
         from={swing.from}
         to={swing.to}
         label={`${swing.ccId} · ${formatShortRange(swing.from, swing.to)}`}
-        attention={attention}
+        tone={evaluation === undefined ? 'evaluating' : attention ? 'attention' : 'clean'}
       />
     </RulerRow>
   )
@@ -328,10 +337,13 @@ function SwingStates({
   row: SwingRow
   onInspect: (target: Inspection) => void
 }): React.ReactNode {
-  if (row.isPending) return <span className="muted">Evaluating…</span>
+  // "Spinner + label" is the rule everywhere else; on the ruler a pending evaluation is this chip
+  // beside a dashed bar, because a skeleton where a dated bar goes would be a shape asserting dates
+  // it does not have.
+  if (row.isPending) return <span className="chip chip--muted">Evaluating…</span>
 
   const { swing, evaluation } = row
-  if (evaluation === undefined) return <span className="muted">—</span>
+  if (evaluation === undefined) return <span className="chip chip--muted">Evaluating…</span>
 
   const open =
     swing === null ? null : () => onInspect({ partnership: row.partnership, swing, evaluation })
@@ -431,6 +443,7 @@ function ExpiryAlerts({
   if (alerts.error !== null) return <ErrorPanel title="Could not load expiry alerts" error={alerts.error} />
 
   const codeFor = requirementLookup(requirements.data)
+  const partsFor = requirementParts(requirements.data)
 
   const columns: Column<ExpiryAlert>[] = [
     {
@@ -449,6 +462,7 @@ function ExpiryAlerts({
       id: 'requirement',
       header: 'Requirement',
       accessorFn: (row) => codeFor(row.requirementId),
+      cell: ({ row }) => <RequirementLabel {...partsFor(row.original.requirementId)} />,
     },
     {
       id: 'expiry',
@@ -496,7 +510,6 @@ function ExpiryAlerts({
       columns={columns}
       filterPlaceholder="Filter by person or requirement"
       empty={`Nothing expires within ${leadDays} days.`}
-      rowClassName={(row) => (row.impact === 'expired_before_swing' ? 'table__row--attention' : undefined)}
       csv={{
         filename: `expiry-alerts-${leadDays}d.csv`,
         columns: [
@@ -537,6 +550,7 @@ function SwingStateModal({
 }): React.ReactNode {
   const requirements = useRequirements()
   const codeFor = requirementLookup(requirements.data)
+  const partsFor = requirementParts(requirements.data)
   const { partnership, swing, evaluation } = target
 
   const cells: SwingCellRow[] = evaluation.assignments
@@ -577,9 +591,24 @@ function SwingStateModal({
       accessorFn: (row) => row.sam,
       cell: ({ row }) => <span className="mono">{row.original.sam}</span>,
     },
-    { id: 'slot', header: 'Slot', accessorFn: (row) => row.slotRef },
-    { id: 'requirement', header: 'Requirement', accessorFn: (row) => codeFor(row.requirementId) },
-    { id: 'level', header: 'Level', accessorFn: (row) => row.level },
+    {
+      id: 'slot',
+      header: 'Slot',
+      accessorFn: (row) => row.slotRef,
+      cell: ({ row }) => <span className="mono">{slotRef(row.original.slotRef)}</span>,
+    },
+    {
+      id: 'requirement',
+      header: 'Requirement',
+      accessorFn: (row) => codeFor(row.requirementId),
+      cell: ({ row }) => <RequirementLabel {...partsFor(row.original.requirementId)} />,
+    },
+    {
+      id: 'level',
+      header: 'Level',
+      accessorFn: (row) => row.level,
+      cell: ({ row }) => <span className="mono">{row.original.level}</span>,
+    },
     {
       id: 'expiry',
       header: 'Expires',
@@ -602,16 +631,18 @@ function SwingStateModal({
       wide
       onClose={onClose}
     >
+      {/* A quota can be short with no individual gap behind it (§5.1 step 2), so a shortfall has no
+          row in the table below and has to be stated separately or it disappears. */}
       {short.length > 0 && (
-        <ul className="quotas">
+        <ul className="list-plain list-plain--tight">
           {short.map((quota) => (
             <li
               key={`${quota.footnote}-${quota.requirementId}-${quota.shift ?? 'swing'}`}
-              className="quota quota--short"
+              className="tint-card tag-row"
             >
-              <span className="quota__footnote">{quota.footnote}</span>
-              <span className="quota__requirement">{codeFor(quota.requirementId)}</span>
-              <span className="quota__count">
+              <span className="mono">{quota.footnote}</span>
+              <RequirementLabel {...partsFor(quota.requirementId)} />
+              <span>
                 {quota.actual} of {quota.min}
               </span>
               <span className="chip chip--critical">Short by {quota.shortfall}</span>
@@ -625,7 +656,6 @@ function SwingStateModal({
         columns={columns}
         filterPlaceholder="Filter by person, requirement or state"
         empty="Nobody is assigned to this swing yet."
-        rowClassName={(row) => (needsAttention(row.state) ? 'table__row--attention' : undefined)}
         csv={{
           filename: `swing-${swing.ccId}-states.csv`,
           columns: [
@@ -644,13 +674,3 @@ function SwingStateModal({
   )
 }
 
-/** Requirement ids arrive on the wire; the catalogue is cached once and joined here. */
-export function requirementLookup(
-  requirements: readonly Requirement[] | undefined,
-): (id: number) => string {
-  const byId = new Map((requirements ?? []).map((requirement) => [requirement.id, requirement]))
-  return (id) => {
-    const requirement = byId.get(id)
-    return requirement === undefined ? `#${id}` : `${requirement.code} ${requirement.title}`
-  }
-}

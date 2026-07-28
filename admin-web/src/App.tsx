@@ -13,7 +13,6 @@ import { Notifications } from './screens/Notifications'
 import { People } from './screens/People'
 import { PersonDetail } from './screens/PersonDetail'
 import { Register } from './screens/Register'
-import { RegisterDetail } from './screens/RegisterDetail'
 import { RegisterNew } from './screens/RegisterNew'
 import { Requirements } from './screens/Requirements'
 import { SwingPlanner } from './screens/SwingPlanner'
@@ -49,7 +48,9 @@ export function App(): React.ReactNode {
               <Route path="exceptions" element={<Exceptions />} />
               <Route path="register" element={<Register />} />
               <Route path="register/new" element={<RegisterNew />} />
-              <Route path="register/:recordId" element={<RegisterDetail />} />
+              {/* ADM-4 is one screen with the list beside the detail, so a record id selects rather
+                  than replaces. Router ranking puts the static `new` above this. */}
+              <Route path="register/:recordId" element={<Register />} />
               <Route path="matrix" element={<Matrix />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="evidence" element={<Evidence />} />

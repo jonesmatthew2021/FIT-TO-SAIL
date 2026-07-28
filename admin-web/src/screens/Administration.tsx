@@ -54,12 +54,11 @@ export function Administration(): React.ReactNode {
   const isAdmin = useHasRole(...ADMINS)
 
   return (
-    <div className="screen">
+    <div className="screen screen--narrow">
       <header className="screen__header">
         <h1 className="screen__title">Administration</h1>
         <p className="screen__subtitle">
-          ADM-10 — configuration, scheduled work, access, and which identity backends may
-          authenticate anyone (SEC-1a).
+          Configuration, scheduled work, access, and which identity backends may authenticate anyone.
         </p>
       </header>
 
@@ -87,18 +86,33 @@ function ConfigurationSection(): React.ReactNode {
   return (
     <section className="section">
       <div className="section__header">
-        <h2 className="section__title">Configuration</h2>
-        <p className="section__note">
-          A setting with no override uses the built-in default, so an untouched system is a working
-          one. Every change is audited.
-        </p>
+        <div>
+          <h2 className="section__title">Configuration</h2>
+          <p className="section__note">
+            A setting with no override uses the built-in default, so an untouched system is a working
+            one. Every change is audited.
+          </p>
+        </div>
       </div>
 
-      <ul className="settings">
-        {config.data.map((setting) => (
-          <SettingRow key={setting.key} setting={setting} canEdit={canEdit} />
-        ))}
-      </ul>
+      <div className="table-block table-block--plain">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">Key</th>
+              <th scope="col">Description</th>
+              <th scope="col">Value</th>
+              <th scope="col" />
+              <th scope="col" />
+            </tr>
+          </thead>
+          <tbody>
+            {config.data.map((setting) => (
+              <SettingRow key={setting.key} setting={setting} canEdit={canEdit} />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   )
 }
@@ -115,103 +129,110 @@ function SettingRow({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(() => renderValue(setting.value))
 
+  if (canEdit && editing) {
+    return (
+      <tr>
+        <td colSpan={5}>
+          <form
+            className="editor"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const parsed = parseValue(setting, draft)
+              if (parsed === PARSE_FAILED) return
+              set.mutate({ key: setting.key, value: parsed }, { onSuccess: () => setEditing(false) })
+            }}
+          >
+            <label className="field field--inline field--grow">
+              <span className="field__label">
+                <span className="mono">{setting.key}</span> ·{' '}
+                {setting.kind === 'weights'
+                  ? 'named weights as JSON'
+                  : setting.kind === 'threshold'
+                    ? 'confidence between 0 and 1'
+                    : 'whole number of days'}
+              </span>
+              <input
+                className="input"
+                value={draft}
+                autoFocus
+                onChange={(event) => setDraft(event.target.value)}
+              />
+            </label>
+            {setting.kind === 'threshold' && (
+              <p className="panel__hint">
+                Leave it unset to mean "always review", which is the launch posture (LLM-2). A value
+                of 0 is refused, because it would accept every extraction rather than enabling
+                auto-acceptance.
+              </p>
+            )}
+            {set.error !== null && <p className="editor__error">{errorText(set.error)}</p>}
+            <div className="editor__actions">
+              <button type="submit" className="button button--primary" disabled={set.isPending}>
+                {set.isPending ? 'Saving…' : 'Save'}
+              </button>
+              <button type="button" className="button" onClick={() => setEditing(false)}>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </td>
+      </tr>
+    )
+  }
+
   return (
-    <li className="settings__item">
-      <div className="settings__head">
-        <span className="settings__key mono">{setting.key}</span>
+    <tr>
+      <td className="mono">{setting.key}</td>
+      <td className="table__wrap">{setting.description}</td>
+      <td>
+        {/* An unset threshold is not an empty cell: "unset" *is* the policy, and it means every
+            document goes to a human (LLM-2). Saying so is the whole point of the row. */}
+        {renderValue(setting.value) === '' ? (
+          <span className="muted">unset — always review</span>
+        ) : (
+          <span className={setting.kind === 'weights' ? 'mono mono--wrap' : undefined}>
+            {renderValue(setting.value)}
+          </span>
+        )}
+      </td>
+      <td>
         {setting.overridden ? (
-          <span className="chip chip--caution" title={`Set by ${setting.updatedBy ?? 'someone'}`}>
+          <span className="chip chip--outline" title={`Set by ${setting.updatedBy ?? 'someone'}`}>
             overridden
           </span>
         ) : (
           <span className="chip chip--muted">default</span>
         )}
-      </div>
-
-      <p className="settings__description">{setting.description}</p>
-
-      <div className="settings__value">
-        <span className="mono">{renderValue(setting.value) || '— unset —'}</span>
-        {setting.overridden && (
-          <span className="muted"> · default {renderValue(setting.defaultValue) || 'unset'}</span>
-        )}
-      </div>
-
-      {canEdit && !editing && (
-        <div className="row-actions">
-          <button
-            type="button"
-            className="button button--quiet"
-            onClick={() => {
-              setDraft(renderValue(setting.value))
-              setEditing(true)
-            }}
-          >
-            Change
-          </button>
-          {setting.overridden && (
+      </td>
+      <td>
+        {canEdit && (
+          <div className="row-actions">
             <button
               type="button"
-              className="button button--quiet"
-              disabled={clear.isPending}
-              onClick={() => clear.mutate(setting.key)}
-              title="Restores the built-in default"
+              className="link-action"
+              onClick={() => {
+                setDraft(renderValue(setting.value))
+                setEditing(true)
+              }}
             >
-              Reset to default
+              Change
             </button>
-          )}
-        </div>
-      )}
-
-      {canEdit && editing && (
-        <form
-          className="editor"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const parsed = parseValue(setting, draft)
-            if (parsed === PARSE_FAILED) return
-            set.mutate(
-              { key: setting.key, value: parsed },
-              { onSuccess: () => setEditing(false) },
-            )
-          }}
-        >
-          <label className="field field--inline field--grow">
-            <span className="field__label">
-              {setting.kind === 'weights'
-                ? 'Named weights as JSON'
-                : setting.kind === 'threshold'
-                  ? 'Confidence between 0 and 1'
-                  : 'Whole number of days'}
-            </span>
-            <input
-              className="input"
-              value={draft}
-              autoFocus
-              onChange={(event) => setDraft(event.target.value)}
-            />
-          </label>
-          {setting.kind === 'threshold' && (
-            <p className="panel__hint">
-              Leave it unset to mean "always review", which is the launch posture (LLM-2). A value of 0
-              is refused, because it would accept every extraction rather than enabling
-              auto-acceptance.
-            </p>
-          )}
-          {set.error !== null && <p className="editor__error">{errorText(set.error)}</p>}
-          <div className="editor__actions">
-            <button type="submit" className="button button--primary" disabled={set.isPending}>
-              {set.isPending ? 'Saving…' : 'Save'}
-            </button>
-            <button type="button" className="button button--quiet" onClick={() => setEditing(false)}>
-              Cancel
-            </button>
+            {setting.overridden && (
+              <button
+                type="button"
+                className="link-action"
+                disabled={clear.isPending}
+                onClick={() => clear.mutate(setting.key)}
+                title={`Restores the built-in default (${renderValue(setting.defaultValue) || 'unset'})`}
+              >
+                Reset to default
+              </button>
+            )}
           </div>
-        </form>
-      )}
-
-      {clear.error !== null && <p className="editor__error">{errorText(clear.error)}</p>}
-    </li>
+        )}
+        {clear.error !== null && <p className="editor__error">{errorText(clear.error)}</p>}
+      </td>
+    </tr>
   )
 }
 
@@ -261,28 +282,43 @@ function JobsSection({ isAdmin }: { isAdmin: boolean }): React.ReactNode {
   return (
     <section className="section">
       <div className="section__header">
-        <h2 className="section__title">Scheduled work</h2>
-        <p className="section__note">
-          Cadence is deployment configuration, not a setting — the scheduler reads it at start-up.
-          Every job is an idempotent scan, so running one by hand raises no duplicates.
-        </p>
+        <div>
+          <h2 className="section__title">Scheduled work</h2>
+          <p className="section__note">
+            Cadence is deployment configuration, not a setting — the scheduler reads it at start-up.
+            Every job is an idempotent scan, so running one by hand raises no duplicates.
+          </p>
+        </div>
       </div>
 
-      <ul className="jobs">
-        {jobs.data.map((job) => (
-          <JobRow
-            key={job.name}
-            job={job}
-            isAdmin={isAdmin}
-            pending={run.isPending}
-            onRun={() => run.mutate(job.name)}
-          />
-        ))}
-      </ul>
+      <div className="table-block table-block--plain">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">Job</th>
+              <th scope="col">Cron</th>
+              <th scope="col">Last run</th>
+              <th scope="col">Detail</th>
+              <th scope="col" />
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.data.map((job) => (
+              <JobRow
+                key={job.name}
+                job={job}
+                isAdmin={isAdmin}
+                pending={run.isPending}
+                onRun={() => run.mutate(job.name)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {run.error !== null && <p className="editor__error">{errorText(run.error)}</p>}
       {run.data !== undefined && (
-        <p className={run.data.outcome === 'succeeded' ? 'note' : 'editor__error'}>
+        <p className={run.data.outcome === 'succeeded' ? 'callout callout--quiet' : 'editor__error'}>
           {run.data.outcome}: {run.data.detail ?? 'no detail'}
         </p>
       )}
@@ -307,29 +343,53 @@ function JobRow({
   onRun: () => void
 }): React.ReactNode {
   return (
-    <li className="jobs__item">
-      <div className="jobs__head">
-        <span className="jobs__name mono">{job.name}</span>
-        <span className="chip chip--muted mono">{job.schedule}</span>
-        {job.lastRun !== null && (
-          <span className={`chip chip--${job.lastRun.outcome === 'succeeded' ? 'good' : 'critical'}`}>
+    <tr>
+      <td className="mono" title={job.description}>
+        {job.name}
+      </td>
+      {/*
+       * The cron is read-only, and that is not laziness: `quarkus-scheduler` resolves it at start-up
+       * from deployment configuration, so a cron editable here would be a setting that looks live and
+       * does nothing. "Run now" is the control an operator reaches for anyway.
+       */}
+      <td>
+        <span className="chip chip--muted chip--mono">{job.schedule}</span>
+      </td>
+      <td>
+        {job.lastRun === null ? (
+          <span className="dim">not in this process</span>
+        ) : (
+          <span
+            className={`chip chip--${job.lastRun.outcome === 'succeeded' ? 'good' : 'critical'}`}
+            title={formatMoment(job.lastRun.startedAt)}
+          >
             {job.lastRun.outcome}
           </span>
         )}
-      </div>
-      <p className="jobs__description">{job.description}</p>
-      {job.lastRun !== null && (
-        <p className="jobs__last">
-          {formatMoment(job.lastRun.startedAt)} — {job.lastRun.detail ?? 'no detail'}
-        </p>
-      )}
-      {job.lastRun === null && <p className="jobs__last muted">Has not run in this process.</p>}
-      {isAdmin && (
-        <button type="button" className="button button--quiet" disabled={pending} onClick={onRun}>
-          Run now
-        </button>
-      )}
-    </li>
+      </td>
+      <td className="table__wrap">
+        {job.lastRun === null ? (
+          job.description
+        ) : (
+          <span
+            style={
+              job.lastRun.outcome === 'succeeded'
+                ? undefined
+                : { color: 'var(--tone-critical-mid)' }
+            }
+          >
+            {job.lastRun.detail ?? 'no detail'}
+          </span>
+        )}
+      </td>
+      <td>
+        {isAdmin && (
+          <button type="button" className="link-action" disabled={pending} onClick={onRun}>
+            Run now
+          </button>
+        )}
+      </td>
+    </tr>
   )
 }
 
@@ -366,11 +426,13 @@ function UsersSection({ isAdmin }: { isAdmin: boolean }): React.ReactNode {
   return (
     <section className="section">
       <div className="section__header">
-        <h2 className="section__title">Users and roles</h2>
-        <p className="section__note">
-          Role grants and revocations are audited with the actor who made them (AUTH-4). Accounts are
-          suspended, never deleted: an account is the subject of audit events.
-        </p>
+        <div>
+          <h2 className="section__title">Users and roles</h2>
+          <p className="section__note">
+            Role grants and revocations are audited with the actor who made them (AUTH-4). Accounts
+            are suspended, never deleted: an account is the subject of audit events.
+          </p>
+        </div>
       </div>
 
       {transitional.length > 0 && (
@@ -390,7 +452,7 @@ function UsersSection({ isAdmin }: { isAdmin: boolean }): React.ReactNode {
       </ul>
 
       {isAdmin && !adding && (
-        <button type="button" className="button button--quiet" onClick={() => setAdding(true)}>
+        <button type="button" className="button" onClick={() => setAdding(true)}>
           Add a transitional account
         </button>
       )}
@@ -426,14 +488,13 @@ function UsersSection({ isAdmin }: { isAdmin: boolean }): React.ReactNode {
               onChange={(event) => setEmail(event.target.value)}
             />
           </label>
-          <label className="field field--inline field--grow">
+          <div className="field field--grow">
             <span className="field__label">Roles</span>
-            <span className="checkbox-group">
+            <span className="check-group">
               {ALL_ROLES.filter((role) => role !== 'crew_member').map((role) => (
-                <label key={role} className="checkbox-group__item">
+                <label key={role} className="check check--box">
                   <input
                     type="checkbox"
-                    className="checkbox"
                     checked={roles.includes(role)}
                     onChange={(event) =>
                       setRoles((current) =>
@@ -443,11 +504,12 @@ function UsersSection({ isAdmin }: { isAdmin: boolean }): React.ReactNode {
                       )
                     }
                   />
+                  <span className="dot" />
                   {roleLabel(role)}
                 </label>
               ))}
             </span>
-          </label>
+          </div>
           <p className="panel__hint">
             Crew Member is not offered: it is a role about a person's own data and needs a linked
             Person record, which the crew onboarding path creates (MOB-6).
@@ -461,7 +523,7 @@ function UsersSection({ isAdmin }: { isAdmin: boolean }): React.ReactNode {
             >
               {create.isPending ? 'Creating…' : 'Create'}
             </button>
-            <button type="button" className="button button--quiet" onClick={() => setAdding(false)}>
+            <button type="button" className="button" onClick={() => setAdding(false)}>
               Cancel
             </button>
           </div>
@@ -492,28 +554,62 @@ function AccountRow({
     <li className="accounts__item">
       <div className="accounts__head">
         <span className="accounts__name">{account.displayName}</span>
-        {account.email !== null && <span className="muted">{account.email}</span>}
-        <span className={`chip chip--${account.status === 'active' ? 'good' : 'muted'}`}>
+        {account.email !== null && <span className="accounts__email">{account.email}</span>}
+        <span className={`chip chip--${account.status === 'active' ? 'good' : 'warning'}`}>
           {account.status}
         </span>
         {account.kind === 'local_test' && (
-          <span className="chip chip--caution" title="SEC-1b transitional account">
+          <span className="chip chip--muted" title="SEC-1b transitional account">
             local_test
           </span>
         )}
-        {account.identityLinked && (
-          <span className="chip chip--muted" title="A corporate identity has been bound">
-            signed in before
-          </span>
+
+        <span className="accounts__aside">
+          {isVesselMaster
+            ? `Scoped to ${
+                account.scopedPartnershipIds.length === 0
+                  ? 'nothing — a Vessel Master with no scope sees nothing'
+                  : account.scopedPartnershipIds
+                      .map(
+                        (id) =>
+                          partnerships.data?.find((partnership) => partnership.id === id)?.abbrev ??
+                          `#${id}`,
+                      )
+                      .join(', ')
+              }`
+            : account.identityLinked
+              ? 'signed in before'
+              : 'never signed in'}
+        </span>
+
+        {isAdmin && (
+          <button
+            type="button"
+            className="link-action"
+            disabled={setStatus.isPending}
+            onClick={() =>
+              setStatus.mutate({
+                userAccountId: account.id,
+                status: account.status === 'active' ? 'suspended' : 'active',
+              })
+            }
+          >
+            {account.status === 'active' ? 'Suspend' : 'Reactivate'}
+          </button>
         )}
       </div>
 
+      {/*
+       * The seven roles as toggle chips, granted ones in the accent. Every role is shown rather than
+       * only the held ones, because the question an administrator has is "what does this person have
+       * *and not* have" — a list of only what is granted answers half of it.
+       */}
       <div className="accounts__roles">
         {ALL_ROLES.map((role) => {
           const held = account.roles.includes(role)
           if (!isAdmin) {
             return held ? (
-              <span key={role} className="chip chip--neutral">
+              <span key={role} className="chip chip--accent">
                 {roleLabel(role)}
               </span>
             ) : null
@@ -522,8 +618,9 @@ function AccountRow({
             <button
               key={role}
               type="button"
-              className={held ? 'chip chip--neutral chip--toggle' : 'chip chip--muted chip--toggle'}
+              className={held ? 'chip chip--accent chip--toggle' : 'chip chip--muted chip--toggle'}
               aria-pressed={held}
+              title={held ? `Revoke ${roleLabel(role)}` : `Grant ${roleLabel(role)}`}
               disabled={grant.isPending || revoke.isPending}
               onClick={() =>
                 held
@@ -537,36 +634,21 @@ function AccountRow({
         })}
       </div>
 
-      {isVesselMaster && (
+      {isVesselMaster && isAdmin && (
         <div className="accounts__scopes">
-          <span className="muted">
-            Scoped to{' '}
-            {account.scopedPartnershipIds.length === 0
-              ? 'no partnerships — a Vessel Master with no scope sees nothing'
-              : account.scopedPartnershipIds
-                  .map(
-                    (id) =>
-                      partnerships.data?.find((partnership) => partnership.id === id)?.abbrev ??
-                      `#${id}`,
-                  )
-                  .join(', ')}
-          </span>
-          {isAdmin && (
-            <button
-              type="button"
-              className="button button--quiet"
-              onClick={() => setEditingScopes((current) => !current)}
-            >
-              {editingScopes ? 'Done' : 'Change'}
-            </button>
-          )}
-          {isAdmin && editingScopes && (
-            <span className="checkbox-group">
+          <button
+            type="button"
+            className="link-action"
+            onClick={() => setEditingScopes((current) => !current)}
+          >
+            {editingScopes ? 'Done with the scope' : 'Change the partnership scope'}
+          </button>
+          {editingScopes && (
+            <span className="check-group">
               {(partnerships.data ?? []).map((partnership) => (
-                <label key={partnership.id} className="checkbox-group__item">
+                <label key={partnership.id} className="check check--box">
                   <input
                     type="checkbox"
-                    className="checkbox"
                     checked={account.scopedPartnershipIds.includes(partnership.id)}
                     onChange={(event) =>
                       setScopes.mutate({
@@ -577,29 +659,12 @@ function AccountRow({
                       })
                     }
                   />
+                  <span className="dot" />
                   {partnership.abbrev}
                 </label>
               ))}
             </span>
           )}
-        </div>
-      )}
-
-      {isAdmin && (
-        <div className="row-actions">
-          <button
-            type="button"
-            className="button button--quiet"
-            disabled={setStatus.isPending}
-            onClick={() =>
-              setStatus.mutate({
-                userAccountId: account.id,
-                status: account.status === 'active' ? 'suspended' : 'active',
-              })
-            }
-          >
-            {account.status === 'active' ? 'Suspend' : 'Reactivate'}
-          </button>
         </div>
       )}
 
@@ -632,12 +697,14 @@ function IdentityProvidersSection({ isAdmin }: { isAdmin: boolean }): React.Reac
   return (
     <section className="section">
       <div className="section__header">
-        <h2 className="section__title">Identity backends</h2>
-        <p className="section__note">
-          This list <strong>is</strong> the SEC-1a allow-list: the server checks issuer and
-          tenant/domain against it on every token, not just at first sign-in. A backend is onboarded
-          disabled, and enabling it is a separate, separately-audited act.
-        </p>
+        <div>
+          <h2 className="section__title">Identity backends</h2>
+          <p className="section__note">
+            This list <strong>is</strong> the SEC-1a allow-list: the server checks issuer and
+            tenant/domain against it on every token, not just at first sign-in. A backend is onboarded
+            disabled, and enabling it is a separate, separately-audited act.
+          </p>
+        </div>
       </div>
 
       {providers.data.length === 0 && (
@@ -646,14 +713,32 @@ function IdentityProvidersSection({ isAdmin }: { isAdmin: boolean }): React.Reac
         </p>
       )}
 
-      <ul className="providers">
-        {providers.data.map((entry) => (
-          <ProviderRow key={entry.id} entry={entry} isAdmin={isAdmin} />
-        ))}
-      </ul>
+      {providers.data.length > 0 && (
+        <div className="table-block table-block--plain">
+          <div className="table-scroll">
+            <table className="table" style={{ minWidth: 720 }}>
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Provider</th>
+                  <th scope="col">Issuer</th>
+                  <th scope="col">Tenant / domain</th>
+                  <th scope="col">State</th>
+                  <th scope="col" />
+                </tr>
+              </thead>
+              <tbody>
+                {providers.data.map((entry) => (
+                  <ProviderRow key={entry.id} entry={entry} isAdmin={isAdmin} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {isAdmin && !adding && (
-        <button type="button" className="button button--quiet" onClick={() => setAdding(true)}>
+        <button type="button" className="button self-start" onClick={() => setAdding(true)}>
           Onboard a backend
         </button>
       )}
@@ -724,7 +809,7 @@ function IdentityProvidersSection({ isAdmin }: { isAdmin: boolean }): React.Reac
             >
               {create.isPending ? 'Onboarding…' : 'Onboard, disabled'}
             </button>
-            <button type="button" className="button button--quiet" onClick={() => setAdding(false)}>
+            <button type="button" className="button" onClick={() => setAdding(false)}>
               Cancel
             </button>
           </div>
@@ -744,33 +829,47 @@ function ProviderRow({
   const setEnabled = useSetIdentityProviderEnabled()
 
   return (
-    <li className="providers__item">
-      <div className="providers__head">
-        <span className="providers__name">{entry.displayName}</span>
-        <span className="chip chip--muted">{entry.provider}</span>
+    <tr>
+      <td>{entry.displayName}</td>
+      {/* Entra ID takes the accent because it is the tenant-scoped case ADR 0003 warns about most:
+          a /common issuer allow-lists every tenant in the world. */}
+      <td>
+        <span className={entry.provider === 'entra' ? 'chip chip--accent' : 'chip chip--muted'}>
+          {PROVIDER_LABELS[entry.provider] ?? entry.provider}
+        </span>
+      </td>
+      <td className="mono meta">
+        {entry.issuer}
+      </td>
+      <td className="text-sm">{entry.tenantOrDomain}</td>
+      <td>
         <span className={`chip chip--${entry.enabled ? 'good' : 'muted'}`}>
           {entry.enabled ? 'may authenticate' : 'disabled'}
         </span>
-      </div>
-      <p className="providers__issuer mono">{entry.issuer}</p>
-      <p className="providers__tenant">
-        <span className="muted">tenant / domain</span> <span className="mono">{entry.tenantOrDomain}</span>
-      </p>
-      {isAdmin && (
-        <button
-          type="button"
-          className="button button--quiet"
-          disabled={setEnabled.isPending}
-          onClick={() =>
-            setEnabled.mutate({ identityProviderId: entry.id, enabled: !entry.enabled })
-          }
-        >
-          {entry.enabled ? 'Stop it authenticating' : 'Allow it to authenticate'}
-        </button>
-      )}
-      {setEnabled.error !== null && <p className="editor__error">{errorText(setEnabled.error)}</p>}
-    </li>
+      </td>
+      <td>
+        {isAdmin && (
+          <button
+            type="button"
+            className="link-action"
+            disabled={setEnabled.isPending}
+            onClick={() =>
+              setEnabled.mutate({ identityProviderId: entry.id, enabled: !entry.enabled })
+            }
+          >
+            {entry.enabled ? 'Stop it authenticating' : 'Allow it to authenticate'}
+          </button>
+        )}
+        {setEnabled.error !== null && <p className="editor__error">{errorText(setEnabled.error)}</p>}
+      </td>
+    </tr>
   )
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  entra: 'Entra ID',
+  google: 'Google Workspace',
+  okta: 'Okta',
 }
 
 /**

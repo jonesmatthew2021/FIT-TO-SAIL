@@ -26,6 +26,7 @@ import { useHasRole, useSession } from '../api/session'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Modal } from '../components/Modal'
+import { RequirementLabel } from '../components/RequirementLabel'
 import { Spinner } from '../components/Spinner'
 import { StateChip } from '../components/StateChip'
 import { SwingSelector } from '../components/SwingSelector'
@@ -38,8 +39,8 @@ import {
   formatDayMonth,
   formatShortRange,
 } from '../domain/dates'
-import { cellState, cellStateRank, needsAttention } from '../domain/enums'
-import { requirementLookup } from './Dashboard'
+import { cellState, cellStateRank, needsAttention, slotRef } from '../domain/enums'
+import { requirementLookup, requirementParts } from '../domain/requirements'
 
 /** The roles the server accepts for an assignment write — mirrored to hide the controls. */
 const ROSTER_EDITORS = ['crew_coordinator', 'system_administrator'] as const
@@ -88,8 +89,9 @@ export function SwingPlanner(): React.ReactNode {
             </span>
           )}
         </div>
-        <SwingSelector partnership={partnership} cc={cc} onChange={select} />
       </header>
+
+      <SwingSelector partnership={partnership} cc={cc} onChange={select} />
 
       {(partnership === null || cc === null) && (
         <p className="empty">Choose a partnership and crew change.</p>
@@ -116,7 +118,7 @@ export function SwingPlanner(): React.ReactNode {
 
           {slotUnderConsideration !== null && (
             <Modal
-              title={`Suggest crew for slot ${String(slotUnderConsideration).padStart(2, '0')}`}
+              title={`Suggest crew for slot ${slotRef(slotUnderConsideration)}`}
               note="Ranked by the server (§5.4). Open a candidate to see which requirements are behind their counts."
               wide
               onClose={() => setSlotUnderConsideration(null)}
@@ -180,21 +182,21 @@ function SwingSummary({ evaluation }: { evaluation: SwingEvaluation }): React.Re
     <dl className="facts">
       <div>
         <dt>Swing</dt>
-        <dd className="facts__date">{formatShortRange(evaluation.from, evaluation.to)}</dd>
+        <dd>{formatShortRange(evaluation.from, evaluation.to)}</dd>
       </div>
       <div>
         <dt>Cutoff</dt>
-        <dd className="facts__date">{formatDayMonth(evaluation.cutoff)}</dd>
+        <dd>{formatDayMonth(evaluation.cutoff)}</dd>
       </div>
       <div>
         <dt>Assigned</dt>
         <dd>{evaluation.assignments.length}</dd>
       </div>
-      {/* A problem colours its whole tile (`fact--alert`), not just its digit — a red "2" at the
-          same size as its white-tile neighbours was too easy to read past. */}
+      {/* A problem colours its whole tile, not just its digit — a red "4" at the same size as its
+          five plain neighbours is a difference you have to hunt for, and one red tile in six is not. */}
       <div className={openSlots > 0 ? 'fact--alert' : undefined}>
         <dt>Open slots</dt>
-        <dd className={openSlots > 0 ? 'value--attention' : undefined}>{openSlots}</dd>
+        <dd>{openSlots}</dd>
       </div>
       <div>
         <dt>Part-covered</dt>
@@ -202,7 +204,7 @@ function SwingSummary({ evaluation }: { evaluation: SwingEvaluation }): React.Re
       </div>
       <div className={quotasShort > 0 ? 'fact--alert' : undefined}>
         <dt>Quota short</dt>
-        <dd className={quotasShort > 0 ? 'value--attention' : undefined}>{quotasShort}</dd>
+        <dd>{quotasShort}</dd>
       </div>
     </dl>
   )
@@ -277,6 +279,8 @@ function SlotAxis({
     coverage: open.has(slot.ref) ? 'open' : partial.has(slot.ref) ? 'partial' : 'covered',
   }))
 
+  const firstOpen = rows.find((row) => row.coverage === 'open')
+
   return (
     <>
       <div className="section__header">
@@ -286,6 +290,18 @@ function SlotAxis({
             {rows.length} slots on the class model. Coverage is the server's.
           </p>
         </div>
+        <div className="row-actions">
+          {/* A shortcut to the first slot with a hole in it, which is where a coordinator arriving
+              at this screen with open slots was going anyway. Every row keeps its own control. */}
+          {firstOpen !== undefined && (
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => onConsiderSlot(firstOpen.ref)}
+            >
+              Suggest crew
+            </button>
+          )}
         <button
           type="button"
           className="button"
@@ -316,6 +332,7 @@ function SlotAxis({
         >
           Export CSV
         </button>
+        </div>
       </div>
 
       {unassign.error !== null && (
@@ -329,11 +346,12 @@ function SlotAxis({
         labelHeader="Slot"
         valueHeader="Cells needing attention"
         markCount={5}
+        variant="slots"
       >
         {rows.map((row) => (
           <RulerRow
             key={row.ref}
-            label={String(row.ref).padStart(2, '0')}
+            label={slotRef(row.ref)}
             note={[row.position, shiftLabel(row.shift)].filter(Boolean).join(' · ')}
             dates={slotDates(row, evaluation, codeFor)}
             attention={row.coverage === 'open' || row.assignments.some(hasAttention)}
@@ -358,6 +376,7 @@ function SlotAxis({
                   key={assignment.assignmentId}
                   assignment={assignment}
                   previous={row.assignments[index - 1]}
+                  segment={segmentOf(index, row.assignments.length)}
                   codeFor={codeFor}
                 />
               ))
@@ -369,13 +388,26 @@ function SlotAxis({
   )
 }
 
+/**
+ * Where one leg sits in its slot, so a handover's legs can meet at the changeover date with square
+ * inner corners and no border between them. A slot filled by two people is one slot, and drawing it
+ * as two separate bars said the opposite.
+ */
+function segmentOf(index: number, count: number): 'solo' | 'first' | 'middle' | 'last' {
+  if (count === 1) return 'solo'
+  if (index === 0) return 'first'
+  return index === count - 1 ? 'last' : 'middle'
+}
+
 function SlotLeg({
   assignment,
   previous,
+  segment,
   codeFor,
 }: {
   assignment: AssignmentEvaluation
   previous: AssignmentEvaluation | undefined
+  segment: 'solo' | 'first' | 'middle' | 'last'
   codeFor: (id: number) => string
 }): React.ReactNode {
   const lapse = firstLapse(assignment)
@@ -384,7 +416,7 @@ function SlotLeg({
   return (
     <>
       {previous !== undefined && <Seam date={assignment.from} />}
-      <Leg from={assignment.from} to={assignment.to} tone={tone}>
+      <Leg from={assignment.from} to={assignment.to} tone={tone} segment={segment}>
         <span className="track__leg-name">
           <Link to={`/people/${assignment.personId}`}>{assignment.name}</Link>
         </span>
@@ -508,7 +540,7 @@ function SlotActions({
         {row.coverage !== 'covered' && (
           <button
             type="button"
-            className="button button--quiet"
+            className="button button--primary button--quiet"
             onClick={() => onConsiderSlot(selectedSlotRef === row.ref ? null : row.ref)}
           >
             {selectedSlotRef === row.ref ? 'Hide suggestions' : 'Suggest crew'}
@@ -538,7 +570,7 @@ function SlotActions({
 
 function QuotaPanel({ evaluation }: { evaluation: SwingEvaluation }): React.ReactNode {
   const requirements = useRequirements()
-  const codeFor = requirementLookup(requirements.data)
+  const partsFor = requirementParts(requirements.data)
   const [inspected, setInspected] = useState<Quota | null>(null)
   const quotas = evaluation.quotas
 
@@ -546,36 +578,53 @@ function QuotaPanel({ evaluation }: { evaluation: SwingEvaluation }): React.Reac
 
   return (
     <>
-      <ul className="quotas">
-        {quotas.map((quota) => (
-          <li
-            key={`${quota.footnote}-${quota.requirementId}-${quota.shift ?? 'swing'}`}
-            className={`${quota.satisfied ? 'quota' : 'quota quota--short'} quota--clickable`}
-            role="button"
-            tabIndex={0}
-            aria-label={`Open footnote ${quota.footnote} against the crew`}
-            onClick={() => setInspected(quota)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                setInspected(quota)
-              }
-            }}
-          >
-            <span className="quota__footnote">{quota.footnote}</span>
-            <span className="quota__requirement">{codeFor(quota.requirementId)}</span>
-            <span className="quota__scope">
-              {quota.shift === null ? 'Whole swing' : (shiftLabel(quota.shift) ?? 'Whole swing')}
-            </span>
-            <span className="quota__count">
-              {quota.actual} of {quota.min}
-            </span>
-            <span className={`chip chip--${quota.satisfied ? 'good' : 'critical'}`}>
-              {quota.satisfied ? 'Met' : `Short by ${quota.shortfall}`}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="table-block table-block--plain">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">Footnote</th>
+              <th scope="col">Requirement</th>
+              <th scope="col">Scope</th>
+              <th scope="col">Held</th>
+              <th scope="col">State</th>
+            </tr>
+          </thead>
+          <tbody>
+            {quotas.map((quota) => (
+              <tr
+                key={`${quota.footnote}-${quota.requirementId}-${quota.shift ?? 'swing'}`}
+                className="table__row--clickable"
+                role="button"
+                tabIndex={0}
+                aria-label={`Open footnote ${quota.footnote} against the crew`}
+                onClick={() => setInspected(quota)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setInspected(quota)
+                  }
+                }}
+              >
+                <td className="mono">{quota.footnote}</td>
+                <td>
+                  <RequirementLabel {...partsFor(quota.requirementId)} />
+                </td>
+                <td>
+                  {quota.shift === null ? 'Whole swing' : (shiftLabel(quota.shift) ?? 'Whole swing')}
+                </td>
+                <td>
+                  {quota.actual} of {quota.min}
+                </td>
+                <td>
+                  <span className={`chip chip--${quota.satisfied ? 'good' : 'critical'}`}>
+                    {quota.satisfied ? 'Met' : `Short by ${quota.shortfall}`}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {inspected !== null && (
         <QuotaDetailModal
@@ -631,45 +680,49 @@ function QuotaDetailModal({
       note={`${scope} · needs ${quota.min}, has ${quota.actual}. The count is the engine's; below is each crew member's cell for the requirement.`}
       onClose={onClose}
     >
-      <p>
-        <span className={`chip chip--${quota.satisfied ? 'good' : 'critical'} chip--roomy`}>
+      <p style={{ margin: 0 }}>
+        <span className={`chip chip--${quota.satisfied ? 'good' : 'critical'}`}>
           {quota.satisfied ? 'Met' : `Short by ${quota.shortfall}`}
         </span>
       </p>
 
-      <table className="table">
-        <thead>
-          <tr>
-            <th scope="col">Person</th>
-            <th scope="col">Slot</th>
-            <th scope="col">Shift</th>
-            <th scope="col">Window</th>
-            <th scope="col">This requirement</th>
-            <th scope="col">Expires</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 && (
+      <div className="table-block table-block--plain">
+        <table className="table">
+          <thead>
             <tr>
-              <td className="table__empty" colSpan={6}>
-                Nobody is assigned to this swing yet.
-              </td>
+              <th scope="col">Person</th>
+              <th scope="col">Slot</th>
+              <th scope="col">Shift</th>
+              <th scope="col">Window</th>
+              <th scope="col">This requirement</th>
+              <th scope="col">Expires</th>
             </tr>
-          )}
-          {rows.map(({ assignment, cell }) => (
-            <tr key={assignment.assignmentId}>
-              <td>
-                <Link to={`/people/${assignment.personId}`}>{assignment.name}</Link>
-              </td>
-              <td>{assignment.slotRef}</td>
-              <td>{shiftBySlot.get(assignment.slotRef) ?? <span className="muted">—</span>}</td>
-              <td>{formatShortRange(assignment.from, assignment.to)}</td>
-              <td>{cell === null ? <span className="muted">—</span> : <StateChip state={cell.state} />}</td>
-              <td>{formatDate(cell?.expiry ?? null)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td className="table__empty" colSpan={6}>
+                  Nobody is assigned to this swing yet.
+                </td>
+              </tr>
+            )}
+            {rows.map(({ assignment, cell }) => (
+              <tr key={assignment.assignmentId}>
+                <td>
+                  <Link to={`/people/${assignment.personId}`}>{assignment.name}</Link>
+                </td>
+                <td className="mono">{slotRef(assignment.slotRef)}</td>
+                <td>{shiftBySlot.get(assignment.slotRef) ?? <span className="dim">—</span>}</td>
+                <td>{formatShortRange(assignment.from, assignment.to)}</td>
+                <td>
+                  {cell === null ? <span className="dim">—</span> : <StateChip state={cell.state} />}
+                </td>
+                <td>{formatDate(cell?.expiry ?? null)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </Modal>
   )
 }
@@ -678,6 +731,7 @@ function GapReport({ partnership, cc }: { partnership: string; cc: string }): Re
   const gaps = useSwingGaps(partnership, cc)
   const requirements = useRequirements()
   const codeFor = requirementLookup(requirements.data)
+  const partsFor = requirementParts(requirements.data)
   const [inspected, setInspected] = useState<GapReportRow | null>(null)
 
   if (gaps.isPending) return <Spinner label="Building gap report" />
@@ -702,31 +756,37 @@ function GapReport({ partnership, cc }: { partnership: string; cc: string }): Re
       accessorFn: (row) => row.sam,
       cell: ({ row }) => <span className="mono">{row.original.sam}</span>,
     },
-    { id: 'slot', header: 'Slot', accessorFn: (row) => row.slotRef },
-    { id: 'requirement', header: 'Requirement', accessorFn: (row) => codeFor(row.requirementId) },
-    { id: 'level', header: 'Level', accessorFn: (row) => row.level },
+    {
+      id: 'slot',
+      header: 'Slot',
+      accessorFn: (row) => row.slotRef,
+      cell: ({ row }) => <span className="mono">{slotRef(row.original.slotRef)}</span>,
+    },
+    {
+      id: 'requirement',
+      header: 'Requirement',
+      accessorFn: (row) => codeFor(row.requirementId),
+      cell: ({ row }) => <RequirementLabel {...partsFor(row.original.requirementId)} />,
+    },
+    {
+      id: 'level',
+      header: 'Level',
+      accessorFn: (row) => row.level,
+      cell: ({ row }) => <span className="mono">{row.original.level}</span>,
+    },
     {
       id: 'register',
       header: 'Register',
       accessorFn: (row) => row.registerRecordId ?? '',
-      // §6, ADM-2: a gap with no register record gets a one-click pre-filled exemption request.
-      // Everything the form needs is already on this row, so nothing has to be retyped.
+      // The record, or nothing. The column means "the register record covering this cell", and
+      // putting an action here when there is none would make an empty column look occupied.
       cell: ({ row }) =>
         row.original.registerRecordId !== null ? (
           <Link className="mono" to={`/register/${encodeURIComponent(row.original.registerRecordId)}`}>
             {row.original.registerRecordId}
           </Link>
         ) : (
-          <Link
-            className="button button--quiet"
-            to={
-              `/register/new?partnership=${encodeURIComponent(partnership)}` +
-              `&cc=${encodeURIComponent(cc)}` +
-              `&personId=${row.original.personId}&requirementId=${row.original.requirementId}`
-            }
-          >
-            Raise request
-          </Link>
+          <span className="dim">—</span>
         ),
     },
     {
@@ -734,7 +794,28 @@ function GapReport({ partnership, cc }: { partnership: string; cc: string }): Re
       header: 'Notes',
       enableSorting: false,
       accessorFn: (row) => row.notes.join(' '),
-      cell: ({ row }) => <span className="table__wrap">{row.original.notes.join(' · ')}</span>,
+      // §6, ADM-2: a gap with no register record gets a one-click pre-filled exemption request.
+      // Everything the form needs is already on this row, so nothing has to be retyped.
+      cell: ({ row }) => (
+        <span className="table__wrap">
+          {row.original.notes.join(' · ')}
+          {row.original.registerRecordId === null && (
+            <>
+              {row.original.notes.length > 0 && ' · '}
+              <Link
+                className="link-action"
+                to={
+                  `/register/new?partnership=${encodeURIComponent(partnership)}` +
+                  `&cc=${encodeURIComponent(cc)}` +
+                  `&personId=${row.original.personId}&requirementId=${row.original.requirementId}`
+                }
+              >
+                Raise request
+              </Link>
+            </>
+          )}
+        </span>
+      ),
     },
   ]
 
@@ -746,7 +827,6 @@ function GapReport({ partnership, cc }: { partnership: string; cc: string }): Re
         filterPlaceholder="Filter gaps"
         empty="No gaps — every cell is ok or not applicable."
         onRowClick={setInspected}
-        rowClassName={(row) => (needsAttention(row.state) ? 'table__row--attention' : undefined)}
         csv={{
           filename: `swing-${cc}-gaps.csv`,
           columns: [
@@ -797,48 +877,46 @@ function GapDetailModal({
   return (
     <Modal
       title={`${row.name} — ${codeFor(row.requirementId)}`}
-      note={`Slot ${row.slotRef} · level ${row.level} required`}
+      note={`Slot ${slotRef(row.slotRef)} · level ${row.level} required`}
       wide
       onClose={onClose}
     >
-      <dl className="facts">
+      <dl className="fact-grid fact-grid--row">
         <div>
-          <dt>State</dt>
-          <dd>
-            <StateChip state={row.state} />
-          </dd>
+          <div className="fact-grid__label">State</div>
+          <StateChip state={row.state} />
         </div>
         <div>
-          <dt>Expiry</dt>
-          <dd className="facts__date">{formatDate(row.expiry)}</dd>
+          <div className="fact-grid__label">Expiry</div>
+          {formatDate(row.expiry)}
         </div>
         <div>
-          <dt>Register</dt>
-          <dd>
-            {row.registerRecordId !== null ? (
-              <Link className="mono" to={`/register/${encodeURIComponent(row.registerRecordId)}`}>
-                {row.registerRecordId}
-              </Link>
-            ) : (
-              <Link
-                className="button button--quiet"
-                to={
-                  `/register/new?partnership=${encodeURIComponent(partnership)}` +
-                  `&cc=${encodeURIComponent(cc)}` +
-                  `&personId=${row.personId}&requirementId=${row.requirementId}`
-                }
-              >
-                Raise request
-              </Link>
-            )}
-          </dd>
+          <div className="fact-grid__label">Register</div>
+          {row.registerRecordId !== null ? (
+            <Link className="mono" to={`/register/${encodeURIComponent(row.registerRecordId)}`}>
+              {row.registerRecordId}
+            </Link>
+          ) : (
+            <Link
+              className="link-action"
+              to={
+                `/register/new?partnership=${encodeURIComponent(partnership)}` +
+                `&cc=${encodeURIComponent(cc)}` +
+                `&personId=${row.personId}&requirementId=${row.requirementId}`
+              }
+            >
+              Raise request
+            </Link>
+          )}
         </div>
       </dl>
 
-      {row.notes.length > 0 && <p className="note">{row.notes.join(' · ')}</p>}
+      {row.notes.length > 0 && <p className="callout callout--quiet">{row.notes.join(' · ')}</p>}
 
       <section className="section">
-        <h3 className="section__title">Everything for {row.name} on this swing</h3>
+        <h3 className="section__title section__title--panel">
+          Everything for {row.name} on this swing
+        </h3>
         <PersonSwingCells personId={row.personId} partnership={partnership} cc={cc} />
       </section>
     </Modal>
@@ -865,6 +943,7 @@ function PersonSwingCells({
 }): React.ReactNode {
   const requirements = useRequirements()
   const codeFor = requirementLookup(requirements.data)
+  const partsFor = requirementParts(requirements.data)
   const evaluation = useQuery({
     queryKey: ['person-evaluation', personId, partnership, cc],
     queryFn: () => api.personEvaluation(personId, partnership, cc),
@@ -895,40 +974,44 @@ function PersonSwingCells({
   }
 
   return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th scope="col">State</th>
-          <th scope="col">Requirement</th>
-          <th scope="col">Level</th>
-          <th scope="col">Expires</th>
-          <th scope="col">Register</th>
-          <th scope="col">Notes</th>
-        </tr>
-      </thead>
-      <tbody>
-        {cells.map((cell) => (
-          <tr key={cell.requirementId}>
-            <td>
-              <StateChip state={cell.state} />
-            </td>
-            <td>{codeFor(cell.requirementId)}</td>
-            <td>{cell.level}</td>
-            <td>{formatDate(cell.expiry)}</td>
-            <td>
-              {cell.registerRecordId !== null ? (
-                <Link className="mono" to={`/register/${encodeURIComponent(cell.registerRecordId)}`}>
-                  {cell.registerRecordId}
-                </Link>
-              ) : (
-                <span className="muted">—</span>
-              )}
-            </td>
-            <td className="table__wrap">{cell.notes.join(' · ')}</td>
+    <div className="table-block table-block--plain">
+      <table className="table">
+        <thead>
+          <tr>
+            <th scope="col">State</th>
+            <th scope="col">Requirement</th>
+            <th scope="col">Level</th>
+            <th scope="col">Expires</th>
+            <th scope="col">Register</th>
+            <th scope="col">Notes</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {cells.map((cell) => (
+            <tr key={cell.requirementId}>
+              <td>
+                <StateChip state={cell.state} />
+              </td>
+              <td>
+                <RequirementLabel {...partsFor(cell.requirementId)} />
+              </td>
+              <td className="mono">{cell.level}</td>
+              <td>{formatDate(cell.expiry)}</td>
+              <td>
+                {cell.registerRecordId !== null ? (
+                  <Link className="mono" to={`/register/${encodeURIComponent(cell.registerRecordId)}`}>
+                    {cell.registerRecordId}
+                  </Link>
+                ) : (
+                  <span className="dim">—</span>
+                )}
+              </td>
+              <td className="table__wrap">{cell.notes.join(' · ')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -1030,7 +1113,7 @@ function Suggestions({
               onChange={(event) => setTo(event.target.value)}
             />
           </label>
-          <p className="selector__note">
+          <p className="section__note">
             {wholeSwing
               ? 'The whole swing. Narrow the dates to build one leg of a mid-swing handover.'
               : `A handover leg, ${formatDateRange(from, to)}. The rest of the slot stays open.`}
@@ -1050,7 +1133,7 @@ function Suggestions({
           </span>
           <button
             type="button"
-            className="button button--quiet"
+            className="button"
             onClick={() =>
               downloadCsv(
                 `swing-${cc}-slot-${slotRef}-suggestions.csv`,
@@ -1126,7 +1209,10 @@ function Suggestions({
                         {/* §5.4: a clashing candidate is shown and scored, never filtered out. */}
                         {candidate.clash && <span className="chip chip--critical">Clash</span>}
                         {candidate.crossPartnership && (
-                          <span className="chip chip--neutral">Cross-partnership</span>
+                          <span className="chip chip--muted">Cross-partnership</span>
+                        )}
+                        {!candidate.clash && !candidate.crossPartnership && (
+                          <span className="dim">—</span>
                         )}
                       </td>
                       <td className="table__wrap">{candidate.reasons.join(' · ')}</td>

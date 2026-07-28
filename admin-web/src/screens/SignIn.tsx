@@ -78,12 +78,15 @@ function DevSignIn(): React.ReactNode {
 
       <fieldset className="field">
         <legend className="field__label">Roles</legend>
-        {ALL_ROLES.map((role) => (
-          <label key={role} className="checkbox">
-            <input type="checkbox" checked={roles.includes(role)} onChange={() => toggle(role)} />
-            {roleLabel(role)}
-          </label>
-        ))}
+        <span className="check-group">
+          {ALL_ROLES.map((role) => (
+            <label key={role} className="check check--box">
+              <input type="checkbox" checked={roles.includes(role)} onChange={() => toggle(role)} />
+              <span className="dot" />
+              {roleLabel(role)}
+            </label>
+          ))}
+        </span>
       </fieldset>
 
       <label className="field">

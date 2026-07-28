@@ -55,25 +55,33 @@ export function Requirements(): React.ReactNode {
       id: 'code',
       header: 'Code',
       accessorFn: (row) => row.code,
-      cell: ({ row }) => <span className="mono">{row.original.code}</span>,
-    },
-    { id: 'category', header: 'Category', accessorFn: (row) => categoryLabel(row.category) },
-    { id: 'title', header: 'Title', accessorFn: (row) => row.title },
-    {
-      id: 'status',
-      header: 'Status',
-      accessorFn: (row) => row.status,
       cell: ({ row }) => (
-        <span className={`chip chip--${row.original.status === 'active' ? 'good' : 'muted'}`}>
-          {row.original.status}
-        </span>
+        <button
+          type="button"
+          className="link-action mono"
+          onClick={() => setSelectedId(row.original.id)}
+        >
+          {row.original.code}
+        </button>
       ),
     },
+    {
+      id: 'category',
+      header: 'Cat',
+      accessorFn: (row) => categoryLabel(row.category),
+      cell: ({ row }) => <span className="mono muted">{categoryLabel(row.original.category)}</span>,
+    },
+    { id: 'title', header: 'Title', accessorFn: (row) => row.title },
     {
       id: 'authority',
       header: 'Issuing authority',
       accessorFn: (row) => row.issuingAuthority ?? '',
-      cell: ({ row }) => row.original.issuingAuthority ?? <span className="muted">—</span>,
+      cell: ({ row }) =>
+        row.original.issuingAuthority === null ? (
+          <span className="dim">—</span>
+        ) : (
+          <span className="meta">{row.original.issuingAuthority}</span>
+        ),
     },
     {
       id: 'aliases',
@@ -81,7 +89,7 @@ export function Requirements(): React.ReactNode {
       accessorFn: (row) => row.aliases.length,
       cell: ({ row }) =>
         row.original.aliases.length === 0 ? (
-          <span className="muted">—</span>
+          <span className="dim">—</span>
         ) : (
           row.original.aliases.length
         ),
@@ -94,45 +102,50 @@ export function Requirements(): React.ReactNode {
     },
   ]
 
+  const toolbar = (
+    <>
+      <div className="seg">
+        {(['active', 'retired', 'all'] as const).map((value) => (
+          <label key={value} className="seg__opt">
+            <input
+              type="radio"
+              name="catalogue-status"
+              checked={status === value}
+              onChange={() => setStatus(value)}
+            />
+            {value === 'active' ? 'Active' : value === 'retired' ? 'Retired' : 'All'}
+          </label>
+        ))}
+      </div>
+
+      {/* Bare codes: Appendix A enumerates QL · VS · PS · MS · CS · HR · PT · VI · PI and nothing
+          says what they expand to, so inventing an expansion would put a wrong label in front of
+          people who know the right one. A question for the client. */}
+      <select
+        className="input input--auto"
+        aria-label="Category"
+        value={category}
+        onChange={(event) => setCategory(event.target.value)}
+      >
+        <option value="all">All categories</option>
+        {REQUIREMENT_CATEGORIES.map((value) => (
+          <option key={value} value={value}>
+            {value}
+          </option>
+        ))}
+      </select>
+    </>
+  )
+
   return (
-    <div className="screen">
-      <header className="screen__header">
-        <h1 className="screen__title">Requirements</h1>
-        <p className="screen__subtitle">
-          ADM-6 — the catalogue every rule, holding and register record is written against.
-        </p>
-      </header>
-
-      <div className="selector">
-        <label className="field field--inline">
-          <span className="field__label">Status</span>
-          <select
-            className="input"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as typeof status)}
-          >
-            <option value="active">Active</option>
-            <option value="retired">Retired</option>
-            <option value="all">All</option>
-          </select>
-        </label>
-
-        <label className="field field--inline">
-          <span className="field__label">Category</span>
-          <select
-            className="input"
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-          >
-            <option value="all">All categories</option>
-            {REQUIREMENT_CATEGORIES.map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-
+    <div className="screen screen--split">
+      <header className="screen__header screen__header--action">
+        <div>
+          <h1 className="screen__title">Requirements</h1>
+          <p className="screen__subtitle">
+            The catalogue — the vocabulary every rule, holding and register record is written against.
+          </p>
+        </div>
         {canEdit && (
           <button
             type="button"
@@ -145,44 +158,55 @@ export function Requirements(): React.ReactNode {
             Add requirement
           </button>
         )}
-      </div>
+      </header>
 
       {adding && <RequirementEditor onDone={() => setAdding(false)} />}
 
-      <DataTable
-        rows={rows}
-        columns={columns}
-        filterPlaceholder="Filter by code, title or authority"
-        empty="No catalogue entries match this filter."
-        onRowClick={(row) => setSelectedId(row.id === selectedId ? null : row.id)}
-        rowClassName={(row) => (row.status === 'retired' ? 'table__row--retired' : undefined)}
-        csv={{
-          filename: 'requirement-catalogue.csv',
-          columns: [
-            { header: 'Code', value: (row) => row.code },
-            { header: 'Category', value: (row) => row.category },
-            { header: 'Title', value: (row) => row.title },
-            { header: 'Status', value: (row) => row.status },
-            { header: 'Issuing authority', value: (row) => row.issuingAuthority },
-            { header: 'Notes', value: (row) => row.notes },
-            { header: 'Aliases', value: (row) => row.aliases.map((a) => a.alias).join(' | ') },
-            { header: 'Holdings', value: (row) => row.usage.holdings },
-            { header: 'Matrix rules', value: (row) => row.usage.requirementRules },
-            { header: 'Quota rules', value: (row) => row.usage.quotaRules },
-            { header: 'Conditional rules', value: (row) => row.usage.conditionalRules },
-            { header: 'Register records', value: (row) => row.usage.registerRecords },
-          ],
-        }}
-      />
+      <div className="split split--wide-list">
+        <DataTable
+          rows={rows}
+          columns={columns}
+          toolbar={toolbar}
+          minWidth={620}
+          filterPlaceholder="Filter"
+          empty="No catalogue entries match this filter."
+          onRowClick={(row) => setSelectedId(row.id === selectedId ? null : row.id)}
+          rowClassName={(row) =>
+            [
+              row.status === 'retired' ? 'table__row--retired' : '',
+              row.id === selectedId ? 'table__row--selected' : '',
+            ]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
+          csv={{
+            filename: 'requirement-catalogue.csv',
+            columns: [
+              { header: 'Code', value: (row) => row.code },
+              { header: 'Category', value: (row) => row.category },
+              { header: 'Title', value: (row) => row.title },
+              { header: 'Status', value: (row) => row.status },
+              { header: 'Issuing authority', value: (row) => row.issuingAuthority },
+              { header: 'Notes', value: (row) => row.notes },
+              { header: 'Aliases', value: (row) => row.aliases.map((a) => a.alias).join(' | ') },
+              { header: 'Holdings', value: (row) => row.usage.holdings },
+              { header: 'Matrix rules', value: (row) => row.usage.requirementRules },
+              { header: 'Quota rules', value: (row) => row.usage.quotaRules },
+              { header: 'Conditional rules', value: (row) => row.usage.conditionalRules },
+              { header: 'Register records', value: (row) => row.usage.registerRecords },
+            ],
+          }}
+        />
 
-      {selected !== null && (
-        <section className="section">
-          <h2 className="section__title">
-            <span className="mono">{selected.code}</span> {selected.title}
-          </h2>
-          <RequirementDetailPanel requirement={selected} canEdit={canEdit} />
-        </section>
-      )}
+        {selected === null ? (
+          <p className="empty">
+            Choose a code to see what stands on it — and, before retiring anything, whether anything
+            still does.
+          </p>
+        ) : (
+          <RequirementDetailPanel key={selected.id} requirement={selected} canEdit={canEdit} />
+        )}
+      </div>
     </div>
   )
 }
@@ -195,18 +219,26 @@ export function Requirements(): React.ReactNode {
  */
 function UsageSummary({ requirement }: { requirement: RequirementDetail }): React.ReactNode {
   const { usage } = requirement
-  if (usage.total === 0) return <span className="muted">unused</span>
+  if (usage.total === 0) return <span className="dim">unused</span>
   return (
-    <span title={usageBreakdown(requirement)}>
+    <span className="text-sm" title={usageBreakdown(requirement).join(' · ')}>
       {usage.total}
       {usage.requirementRules + usage.quotaRules + usage.conditionalRules > 0 && (
-        <span className="muted"> · in the matrix</span>
+        <span className="dim"> · in the matrix</span>
       )}
     </span>
   )
 }
 
-function usageBreakdown(requirement: RequirementDetail): string {
+/**
+ * The usage breakdown, a line per kind.
+ *
+ * These counts come from the server across every matrix version, and they are the answer to the only
+ * question worth asking before retiring something: is anything still standing on it. In the list
+ * that is a hover; in the detail panel it gets a permanent home, because that is where the decision
+ * is made.
+ */
+function usageBreakdown(requirement: RequirementDetail): readonly string[] {
   const { usage } = requirement
   return [
     `${usage.holdings} holdings`,
@@ -214,7 +246,7 @@ function usageBreakdown(requirement: RequirementDetail): string {
     `${usage.quotaRules} quota rules`,
     `${usage.conditionalRules} conditional rules`,
     `${usage.registerRecords} register records`,
-  ].join(', ')
+  ]
 }
 
 function RequirementDetailPanel({
@@ -227,40 +259,60 @@ function RequirementDetailPanel({
   const [editing, setEditing] = useState(false)
 
   return (
-    <>
-      <dl className="facts">
+    <div className="detail">
+      <div>
+        {/* The code above the title, in the accent: it is the business key, and the title is what it
+            is called. */}
+        <div className="mono detail__key">{requirement.code}</div>
+        <h2 className="section__title" style={{ marginTop: 2 }}>
+          {requirement.title}
+        </h2>
+      </div>
+
+      <dl className="fact-grid">
         <div>
           <dt>Category</dt>
-          <dd>{categoryLabel(requirement.category)}</dd>
+          <dd className="mono">{categoryLabel(requirement.category)}</dd>
         </div>
         <div>
           <dt>Status</dt>
-          <dd>{requirement.status}</dd>
+          <dd>
+            <span className={`chip chip--${requirement.status === 'active' ? 'good' : 'muted'}`}>
+              {requirement.status}
+            </span>
+          </dd>
         </div>
         <div>
           <dt>Issuing authority</dt>
-          <dd>{requirement.issuingAuthority ?? '—'}</dd>
+          <dd>{requirement.issuingAuthority ?? <span className="dim">—</span>}</dd>
         </div>
         <div>
           <dt>Used by</dt>
-          <dd>{usageBreakdown(requirement)}</dd>
+          <dd>
+            {requirement.usage.total === 0 ? <span className="dim">unused</span> : requirement.usage.total}
+          </dd>
         </div>
       </dl>
 
-      {requirement.notes !== null && <p className="note">{requirement.notes}</p>}
+      <div className="tint-card tint-card--list">
+        {usageBreakdown(requirement).map((line) => (
+          <div key={line}>{line}</div>
+        ))}
+      </div>
+
+      {requirement.notes !== null && <p className="callout callout--quiet">{requirement.notes}</p>}
+
+      <AliasEditor requirement={requirement} canEdit={canEdit} />
 
       {canEdit && !editing && (
-        <button type="button" className="button button--quiet" onClick={() => setEditing(true)}>
-          Edit
-        </button>
+        <div className="detail__actions">
+          <button type="button" className="button" onClick={() => setEditing(true)}>
+            Edit
+          </button>
+        </div>
       )}
-      {editing && (
-        <RequirementEditor existing={requirement} onDone={() => setEditing(false)} />
-      )}
-
-      <h3 className="holding-group__title">Legacy titles</h3>
-      <AliasEditor requirement={requirement} canEdit={canEdit} />
-    </>
+      {editing && <RequirementEditor existing={requirement} onDone={() => setEditing(false)} />}
+    </div>
   )
 }
 
@@ -282,55 +334,81 @@ function AliasEditor({
   const add = useAddAlias()
   const remove = useRemoveAlias()
   const [alias, setAlias] = useState('')
+  const [adding, setAdding] = useState(false)
 
   return (
-    <>
+    <div>
+      <h3 className="overline">Legacy titles</h3>
+
       {requirement.aliases.length === 0 && (
-        <p className="empty">No legacy titles map to this requirement.</p>
+        <p className="section__note">No legacy titles map to this requirement.</p>
       )}
       {requirement.aliases.length > 0 && (
-        <ul className="crew-list">
+        <div className="tag-row">
           {requirement.aliases.map((entry) => (
-            <li key={entry.id} className="crew-list__item">
-              <span>{entry.alias}</span>
+            <span key={entry.id} className="chip chip--muted">
+              {entry.alias}
               {canEdit && (
                 <button
                   type="button"
-                  className="button button--quiet"
+                  className="link-action"
+                  aria-label={`Remove the legacy title ${entry.alias}`}
                   disabled={remove.isPending}
-                  onClick={() =>
-                    remove.mutate({ requirementId: requirement.id, aliasId: entry.id })
-                  }
+                  onClick={() => remove.mutate({ requirementId: requirement.id, aliasId: entry.id })}
                 >
-                  Remove
+                  ×
                 </button>
               )}
-            </li>
+            </span>
           ))}
-        </ul>
+        </div>
       )}
 
-      {canEdit && (
+      <p className="panel__hint">How 445 historic free-text titles join the catalogue.</p>
+
+      {canEdit && !adding && (
+        <button
+          type="button"
+          className="button"
+          style={{ marginTop: 8 }}
+          onClick={() => setAdding(true)}
+        >
+          Add a legacy title
+        </button>
+      )}
+
+      {canEdit && adding && (
         <form
           className="editor"
+          style={{ marginTop: 8 }}
           onSubmit={(event) => {
             event.preventDefault()
             if (alias.trim() === '') return
             add.mutate(
               { requirementId: requirement.id, alias: alias.trim() },
-              { onSuccess: () => setAlias('') },
+              {
+                onSuccess: () => {
+                  setAlias('')
+                  setAdding(false)
+                },
+              },
             )
           }}
         >
           <label className="field field--inline field--grow">
-            <span className="field__label">Add a legacy title</span>
+            <span className="field__label">Legacy title</span>
             <input
               className="input"
               value={alias}
+              autoFocus
               placeholder="e.g. Working at Height"
               onChange={(event) => setAlias(event.target.value)}
             />
           </label>
+          {/* The server refuses an alias that already resolves to another entry — one matching two
+              requirements would send every document naming it to review permanently (§8 stage 3). */}
+          {add.error !== null && <p className="editor__error">{errorText(add.error)}</p>}
+          {remove.error !== null && <p className="editor__error">{errorText(remove.error)}</p>}
           <div className="editor__actions">
             <button
               type="submit"
@@ -339,12 +417,13 @@ function AliasEditor({
             >
               Add
             </button>
+            <button type="button" className="button" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
           </div>
-          {add.error !== null && <p className="editor__error">{errorText(add.error)}</p>}
-          {remove.error !== null && <p className="editor__error">{errorText(remove.error)}</p>}
         </form>
       )}
-    </>
+    </div>
   )
 }
 
@@ -457,8 +536,8 @@ function RequirementEditor({
           that reference it are rewritten. It is worth saying out loud, once. */}
       {retiringInUse && (
         <p className="editor__error">
-          Retiring this leaves {usageBreakdown(existing)} pointing at it. Nothing breaks — retired
-          entries still resolve — but the matrix will keep requiring it until the rules change.
+          Retiring this leaves {usageBreakdown(existing).join(', ')} pointing at it. Nothing breaks —
+          retired entries still resolve — but the matrix will keep requiring it until the rules change.
         </p>
       )}
 
@@ -472,7 +551,7 @@ function RequirementEditor({
         >
           {mutation.isPending ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" className="button button--quiet" onClick={onDone}>
+        <button type="button" className="button" onClick={onDone}>
           Cancel
         </button>
       </div>

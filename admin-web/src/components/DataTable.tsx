@@ -39,6 +39,18 @@ export interface DataTableProps<T> {
   readonly empty?: string
   readonly onRowClick?: (row: T) => void
   readonly rowClassName?: (row: T) => string | undefined
+  /**
+   * Controls that belong to this list rather than to the screen — a segmented state control, a
+   * partnership select. They sit on the table's own toolbar row, ahead of the filter box, because a
+   * filter that scopes a list belongs beside the list's row count and not in a band above the panel.
+   */
+  readonly toolbar?: React.ReactNode
+  /**
+   * The width below which the columns stop fitting. The table scrolls sideways inside its panel
+   * rather than letting the page scroll — a horizontal scrollbar on the document is how a column
+   * ends up permanently off screen for everyone who does not think to look for it.
+   */
+  readonly minWidth?: number
 }
 
 export function DataTable<T>({
@@ -49,6 +61,8 @@ export function DataTable<T>({
   empty = 'Nothing to show.',
   onRowClick,
   rowClassName,
+  toolbar,
+  minWidth,
 }: DataTableProps<T>): React.ReactNode {
   const [sorting, setSorting] = useState<SortingState>([])
   const [filter, setFilter] = useState('')
@@ -69,6 +83,7 @@ export function DataTable<T>({
   return (
     <div className="table-block">
       <div className="table-block__toolbar">
+        {toolbar}
         {filterPlaceholder !== undefined && (
           <input
             className="input input--filter"
@@ -87,7 +102,7 @@ export function DataTable<T>({
         {csv !== undefined && (
           <button
             type="button"
-            className="button button--quiet"
+            className="button table-block__export"
             onClick={() =>
               downloadCsv(
                 csv.filename,
@@ -104,7 +119,7 @@ export function DataTable<T>({
       </div>
 
       <div className="table-scroll">
-        <table className="table">
+        <table className="table" style={minWidth === undefined ? undefined : { minWidth }}>
           <thead>
             {table.getHeaderGroups().map((group) => (
               <tr key={group.id}>

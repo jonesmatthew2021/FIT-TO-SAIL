@@ -24,7 +24,10 @@ export function SwingSelector({
 
   return (
     <div className="selector">
-      <label className="field field--inline">
+      {/* Fixed widths rather than shrink-to-fit: these two selects sit above a time axis whose
+          columns do not move, and a control that resizes when its value changes drags the whole
+          row with it. */}
+      <label className="field field--inline" style={{ width: 250 }}>
         <span className="field__label">Partnership</span>
         <select
           className="input"
@@ -40,7 +43,7 @@ export function SwingSelector({
         </select>
       </label>
 
-      <label className="field field--inline">
+      <label className="field field--inline" style={{ width: 290 }}>
         <span className="field__label">Crew change</span>
         <select
           className="input"
@@ -58,7 +61,7 @@ export function SwingSelector({
       </label>
 
       {partnerships.data?.length === 0 && (
-        <p className="selector__note">
+        <p className="section__note">
           No partnerships are visible to your roles.
         </p>
       )}

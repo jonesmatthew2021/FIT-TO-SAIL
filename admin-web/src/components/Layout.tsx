@@ -6,11 +6,11 @@ import { formatDate } from '../domain/dates'
 import { roleLabel } from '../domain/enums'
 
 /**
- * The application shell.
+ * The application shell — a 52px header and a 236px navigation rail.
  *
- * Every ADM module from §6 appears in the navigation, including the ones with no backend behind
- * them yet — they route to a page that says so. Hiding unbuilt modules would make the app look
- * finished and leave the gap invisible; naming them keeps the remaining scope on screen.
+ * Every ADM module from §6 appears in the rail, including any with no backend behind them yet —
+ * those route to a page that says so. Hiding unbuilt modules would make the app look finished and
+ * leave the gap invisible; naming them keeps the remaining scope on screen.
  */
 
 interface NavItem {
@@ -20,6 +20,11 @@ interface NavItem {
   readonly built: boolean
 }
 
+/**
+ * The rail's order is the *working* order, not the numeric one: the dashboard and the planner are
+ * the daily loop, People & holdings is where the loop's answers are corrected, and the records the
+ * loop links to follow. ADM-5 therefore sits above ADM-3 and ADM-4.
+ */
 export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Dashboard', module: 'ADM-1', built: true },
   { to: '/planner', label: 'Swing planner', module: 'ADM-2', built: true },
@@ -33,6 +38,13 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/administration', label: 'Administration', module: 'ADM-10', built: true },
 ]
 
+/**
+ * The screen codes beside each label are a review affordance rather than product chrome — they let
+ * a reviewer check a screen against the spec by name. One constant so they can go without touching
+ * the rail's markup.
+ */
+const SHOW_SCREEN_CODES = true
+
 export function Layout(): React.ReactNode {
   const session = useSession()
 
@@ -41,15 +53,22 @@ export function Layout(): React.ReactNode {
       <header className="shell__header">
         <div className="shell__brand">
           Crewcomp
-          <span className="shell__env">admin</span>
+          <span className="shell__env">Admin</span>
         </div>
 
         <div className="shell__session">
           <UnreadBadge />
+          {/*
+           * The server's business date in AWST, never the browser's (NFR-5, O-11). The timezone is
+           * spelled out beside it for the same reason: a reader in another zone has to know not to
+           * reconcile this against their own clock.
+           */}
           <span className="shell__today" title="The server's business date in the operating timezone">
             {formatDate(session.today)}
           </span>
+          <span className="shell__zone">AWST</span>
           {session.dateOverridden && <span className="shell__pinned">Date pinned</span>}
+          <span className="shell__divider" aria-hidden="true" />
           <span className="shell__roles">{session.roles.map(roleLabel).join(' · ')}</span>
           <span className="shell__actor">{session.label}</span>
           {import.meta.env.DEV && (
@@ -69,9 +88,9 @@ export function Layout(): React.ReactNode {
 
       <div className="shell__body">
         {/* Grouped rather than interleaved: a reader should be able to see at a glance how much of
-            §6 exists, without reading the marker on every row. */}
+            §6 exists, without reading a marker on every row. */}
         <nav className="shell__nav" aria-label="Modules">
-          <NavGroup label="Built" items={NAV_ITEMS.filter((item) => item.built)} />
+          <NavGroup label="Compliance" items={NAV_ITEMS.filter((item) => item.built)} />
           <NavGroup label="Not built" items={NAV_ITEMS.filter((item) => !item.built)} later />
         </nav>
 
@@ -129,9 +148,8 @@ function NavGroup({
               .join(' ')
           }
         >
-          <i className="nav__mark" aria-hidden="true" />
           <span className="nav__label">{item.label}</span>
-          <span className="nav__module">{item.module}</span>
+          {SHOW_SCREEN_CODES && <span className="nav__module">{item.module}</span>}
         </NavLink>
       ))}
     </>

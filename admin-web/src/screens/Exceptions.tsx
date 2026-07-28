@@ -35,55 +35,40 @@ export function Exceptions(): React.ReactNode {
   const [raising, setRaising] = useState(false)
 
   return (
-    <div className="screen">
-      <header className="screen__header">
-        <h1 className="screen__title">Exceptions</h1>
-        <p className="screen__subtitle">
-          ADM-7 — anomalies preserved and flagged, never silently cleaned (§11).
-        </p>
+    <div className="screen screen--narrow" style={{ maxWidth: 'var(--content-max)' }}>
+      <header className="screen__header screen__header--action">
+        <div>
+          <h1 className="screen__title">Exceptions</h1>
+          <p className="screen__subtitle">
+            The data-quality worklist. Anomalies are preserved and flagged, never silently cleaned.
+          </p>
+        </div>
+        {canResolve && (
+          <button type="button" className="button button--primary" onClick={() => setRaising(true)}>
+            Raise an item
+          </button>
+        )}
       </header>
+
+      {raising && <RaiseForm onDone={() => setRaising(false)} />}
 
       <section className="section">
         <div className="section__header">
           <h2 className="section__title">Data-quality items</h2>
         </div>
-
-        <div className="selector">
-          <label className="field field--inline">
-            <span className="field__label">State</span>
-            <select
-              className="input"
-              value={state}
-              onChange={(event) => setState(event.target.value as typeof state)}
-            >
-              <option value="open">Open</option>
-              <option value="resolved">Resolved</option>
-              <option value="all">All</option>
-            </select>
-          </label>
-          {canResolve && (
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={() => setRaising(true)}
-            >
-              Raise an item
-            </button>
-          )}
-        </div>
-
-        {raising && <RaiseForm onDone={() => setRaising(false)} />}
-
-        <Worklist state={state} canResolve={canResolve} />
+        <Worklist state={state} onState={setState} canResolve={canResolve} />
       </section>
 
       <section className="section">
-        <h2 className="section__title">Unknown holdings</h2>
-        <p className="note">
-          Q11's standing chase list: a holding whose status was never established. Blank in the
-          source workbook is not the same as "not held", so these stay visible until someone
-          records the answer.
-        </p>
+        <div className="section__header">
+          <div>
+            <h2 className="section__title">Unknown holdings</h2>
+            <p className="section__note">
+              The standing chase list: a holding whose status was never established. Recording the
+              holding is what removes the row.
+            </p>
+          </div>
+        </div>
         <ChaseList />
       </section>
     </div>
@@ -92,9 +77,11 @@ export function Exceptions(): React.ReactNode {
 
 function Worklist({
   state,
+  onState,
   canResolve,
 }: {
   state: 'open' | 'resolved' | 'all'
+  onState: (state: 'open' | 'resolved' | 'all') => void
   canResolve: boolean
 }): React.ReactNode {
   const items = useExceptions(state)
@@ -110,13 +97,20 @@ function Worklist({
       id: 'state',
       header: 'State',
       accessorFn: (row) => row.state,
+      // Open work is a warning: somebody has to do something about it, and unlike an `unknown`
+      // holding it is not an absence of information — it is a recorded anomaly.
       cell: ({ row }) => (
-        <span className={`chip chip--${row.original.state === 'open' ? 'caution' : 'good'}`}>
-          {row.original.state}
+        <span className={`chip chip--${row.original.state === 'open' ? 'warning' : 'good'}`}>
+          {row.original.state === 'open' ? 'Open' : 'Resolved'}
         </span>
       ),
     },
-    { id: 'area', header: 'Area', accessorFn: (row) => row.area },
+    {
+      id: 'area',
+      header: 'Area',
+      accessorFn: (row) => row.area,
+      cell: ({ row }) => <span className="text-sm">{row.original.area}</span>,
+    },
     { id: 'description', header: 'What is wrong', accessorFn: (row) => row.description },
     {
       id: 'linked',
@@ -129,25 +123,8 @@ function Worklist({
       header: 'Raised',
       accessorFn: (row) => row.createdAt,
       cell: ({ row }) => (
-        <>
-          {formatDate(row.original.createdAt.slice(0, 10))}
-          <span className="muted"> {row.original.createdBy}</span>
-        </>
+        <span className="muted">{formatDate(row.original.createdAt.slice(0, 10))}</span>
       ),
-    },
-    {
-      id: 'resolution',
-      header: 'Resolution',
-      accessorFn: (row) => row.resolutionNote ?? '',
-      cell: ({ row }) =>
-        row.original.resolutionNote === null ? (
-          <span className="muted">—</span>
-        ) : (
-          <>
-            {row.original.resolutionNote}
-            <span className="muted"> — {row.original.resolvedBy}</span>
-          </>
-        ),
     },
   ]
 
@@ -157,6 +134,9 @@ function Worklist({
       header: '',
       enableSorting: false,
       accessorFn: () => '',
+      // Once resolved, the row carries what was done rather than a button — the note is the record
+      // of the resolution, and an item closed with no explanation is indistinguishable from one
+      // dismissed to clear the list.
       cell: ({ row }) =>
         row.original.state === 'open' ? (
           <button
@@ -167,17 +147,37 @@ function Worklist({
             Resolve
           </button>
         ) : (
-          <button
-            type="button"
-            className="button button--quiet"
-            disabled={reopen.isPending}
-            onClick={() => reopen.mutate(row.original.id)}
-          >
-            Reopen
-          </button>
+          <span className="table__wrap">
+            {row.original.resolutionNote ?? 'Resolved'}
+            {row.original.resolvedBy !== null && ` — ${row.original.resolvedBy}`}{' '}
+            <button
+              type="button"
+              className="link-action"
+              disabled={reopen.isPending}
+              onClick={() => reopen.mutate(row.original.id)}
+            >
+              Reopen
+            </button>
+          </span>
         ),
     })
   }
+
+  const toolbar = (
+    <div className="seg">
+      {(['open', 'resolved', 'all'] as const).map((value) => (
+        <label key={value} className="seg__opt">
+          <input
+            type="radio"
+            name="exception-state"
+            checked={state === value}
+            onChange={() => onState(value)}
+          />
+          {value === 'open' ? 'Open' : value === 'resolved' ? 'Resolved' : 'All'}
+        </label>
+      ))}
+    </div>
+  )
 
   return (
     <>
@@ -197,6 +197,7 @@ function Worklist({
       <DataTable
         rows={items.data}
         columns={columns}
+        toolbar={toolbar}
         filterPlaceholder="Filter by area or description"
         empty={state === 'open' ? 'Nothing open. The worklist is clear.' : 'No items in this state.'}
         csv={{
@@ -224,7 +225,7 @@ function Worklist({
  */
 function LinkedEntity({ item }: { item: ExceptionItem }): React.ReactNode {
   if (item.linkedEntityType === null || item.linkedEntityId === null) {
-    return <span className="muted">—</span>
+    return <span className="dim">—</span>
   }
   if (item.linkedEntityType === 'Person') {
     return <Link to={`/people/${item.linkedEntityId}`}>Person #{item.linkedEntityId}</Link>
@@ -278,7 +279,7 @@ function ResolveForm({
         >
           {pending ? 'Resolving…' : 'Resolve'}
         </button>
-        <button type="button" className="button button--quiet" onClick={onCancel}>
+        <button type="button" className="button" onClick={onCancel}>
           Cancel
         </button>
       </div>
@@ -325,7 +326,7 @@ function RaiseForm({ onDone }: { onDone: () => void }): React.ReactNode {
         >
           Raise
         </button>
-        <button type="button" className="button button--quiet" onClick={onDone}>
+        <button type="button" className="button" onClick={onDone}>
           Cancel
         </button>
       </div>
@@ -349,14 +350,28 @@ function ChaseList(): React.ReactNode {
       // The link is the whole point: the fix is recording the holding, not ticking a box here.
       cell: ({ row }) => <Link to={`/people/${row.original.personId}`}>{row.original.name}</Link>,
     },
-    { id: 'sam', header: 'Sam #', accessorFn: (row) => row.sam },
+    {
+      id: 'sam',
+      header: 'Sam #',
+      accessorFn: (row) => row.sam,
+      cell: ({ row }) => <span className="mono">{row.original.sam}</span>,
+    },
     {
       id: 'code',
       header: 'Requirement',
       accessorFn: (row) => row.code,
       cell: ({ row }) => <span className="mono">{row.original.code}</span>,
     },
-    { id: 'title', header: 'Title', accessorFn: (row) => row.title },
+    {
+      id: 'title',
+      header: 'Title',
+      accessorFn: (row) => row.title,
+      cell: ({ row }) => (
+        <span className="meta">{row.original.title}</span>
+      ),
+    },
+    // No Resolve button, and that is the point: recording the holding on the person's page is what
+    // removes the row. There is nothing to tick off here (Q11).
   ]
 
   return (

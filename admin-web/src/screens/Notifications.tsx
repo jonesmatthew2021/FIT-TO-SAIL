@@ -49,33 +49,34 @@ export function Notifications(): React.ReactNode {
   const unread = rows.filter((row) => !row.read).length
 
   return (
-    <div className="screen">
+    <div className="screen screen--column">
       <header className="screen__header">
         <h1 className="screen__title">Notifications</h1>
         <p className="screen__subtitle">
-          ADM-8 — what you have been told, and why (§9). Addressed to you personally, or to a role you
-          hold.
+          What you have been told, and why. Your own list only — addressed to you personally, or to a
+          role you hold.
         </p>
       </header>
 
       <div className="selector">
-        <label className="field field--inline">
-          <span className="field__label">Show</span>
-          <select
-            className="input"
-            value={state}
-            onChange={(event) => setState(event.target.value as typeof state)}
-          >
-            <option value="unread">Unread</option>
-            <option value="read">Read</option>
-            <option value="all">All</option>
-          </select>
-        </label>
+        <div className="seg">
+          {(['unread', 'read', 'all'] as const).map((value) => (
+            <label key={value} className="seg__opt">
+              <input
+                type="radio"
+                name="notification-state"
+                checked={state === value}
+                onChange={() => setState(value)}
+              />
+              {value === 'unread' ? 'Unread' : value === 'read' ? 'Read' : 'All'}
+            </label>
+          ))}
+        </div>
 
         {unread > 0 && (
           <button
             type="button"
-            className="button button--quiet"
+            className="button push"
             disabled={markAllRead.isPending}
             onClick={() => markAllRead.mutate(undefined)}
           >
@@ -139,35 +140,39 @@ function NotificationRow({
   const internalPath = internalLink(notification.deepLink)
 
   return (
-    <li className={notification.read ? 'notification' : 'notification notification--unread'}>
+    <li className={notification.read ? 'notification notification--read' : 'notification'}>
       <div className="notification__mark" aria-hidden="true" />
 
       <div className="notification__body">
         <p className="notification__title">
           {notification.title}
-          <span className={`chip chip--${kind.tone}`}>{kind.label}</span>
-          {notification.audience === 'back_office' && (
-            <span className="chip chip--muted" title={`Addressed to ${notification.recipient}`}>
-              {notification.recipient}
-            </span>
-          )}
+          <span className={`chip chip--${kind.tone}`} title={kind.description}>
+            {kind.label}
+          </span>
         </p>
         {notification.body !== null && <p className="notification__detail">{notification.body}</p>}
+        {/* The recipient is shown when the message went to a *role*, because §9 addresses one row to
+            each account holding it — and the name is what tells two copies of the same fact apart. */}
         <p className="notification__meta">
           <time dateTime={notification.createdAt}>{formatMoment(notification.createdAt)}</time>
-          {internalPath !== null && (
-            <>
-              {' · '}
-              <Link to={internalPath}>Open</Link>
-            </>
-          )}
+          {notification.audience === 'back_office' && ` · to ${notification.recipient}`}
+          {notification.read && ' · read'}
         </p>
       </div>
 
+      {/* A read row loses its Open link and its Mark-read button: there is nothing left to do to it,
+          and a column of dead controls is what makes a list of forty rows unreadable. */}
       {!notification.read && (
-        <button type="button" className="button button--quiet" disabled={pending} onClick={onMarkRead}>
-          Mark read
-        </button>
+        <div className="notification__actions">
+          {internalPath !== null && (
+            <Link className="notification__open" to={internalPath}>
+              Open
+            </Link>
+          )}
+          <button type="button" className="link-action" disabled={pending} onClick={onMarkRead}>
+            Mark read
+          </button>
+        </div>
       )}
     </li>
   )

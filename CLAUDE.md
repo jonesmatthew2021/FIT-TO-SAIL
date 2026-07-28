@@ -13,7 +13,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 | Path | Contents | Status |
 |---|---|---|
 | `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync |
-| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, notifications centre, evidence queue, administration |
+| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules, on the Nocturne dark design system** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, notifications centre, evidence queue, administration |
 | `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **offline spine + 3 of §7's screens with drill-down + MOB-4 submission** — encrypted store, sync, outbox, resumable evidence upload; **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
@@ -70,11 +70,15 @@ position on.
 
 What exists end to end, verified over real HTTP against a seeded database and driven in a browser:
 
-- **The back office is complete as a set of screens.** All ten §6 modules: sign in (development
-  shim), per-partnership swing compliance, a swing planner that both ranks candidates and fills
-  slots, the matrix with its version lifecycle, the register with its full workflow, the crew
-  directory with audited holding edits, the requirement catalogue, the data-quality worklist, the
-  notifications centre, the evidence verification queue, and administration.
+- **The back office is complete as a set of screens, on the Nocturne dark design system.** All ten §6
+  modules: sign in (development shim), per-partnership swing compliance, a swing planner that both
+  ranks candidates and fills slots, the matrix with its version lifecycle, the register with its full
+  workflow, the crew directory with audited holding edits, the requirement catalogue, the data-quality
+  worklist, the notifications centre, the evidence verification queue, and administration. The visual
+  system is a restyle onto a supplied design handoff — the information architecture, column sets, copy
+  and state vocabulary are the spec's and did not move. `admin-web/CLAUDE.md` records the five places
+  the implementation deliberately departs from the mock, each of which would otherwise have put a
+  claim on screen that no server field backs.
 - **The register closes the compliance loop.** Raising a request turns a `gap` into `pending` on
   the planner and an approval turns it into `exempt`, through §5.1 step 4's overlay — the gap
   report links straight to a pre-filled request, and the decision comes back to the same screen.

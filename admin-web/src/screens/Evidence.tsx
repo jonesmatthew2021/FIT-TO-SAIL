@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   useAcceptEvidence,
   useEvidenceQueue,
@@ -56,7 +56,21 @@ export function Evidence(): React.ReactNode {
   const queue = useEvidenceQueue(statuses)
   const requirements = useRequirements()
   const canDecide = useHasRole(...EVIDENCE_DECIDERS)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  /*
+   * The open document is a route, not component state.
+   *
+   * §9 raises a notification when a document lands in this queue, and its deep link has to be able to
+   * point at the document rather than at the queue — "a document is awaiting review" is not useful if
+   * the reader then has to find it. `/evidence/{publicId}` was already routed here and was doing
+   * nothing; this is what makes it mean something.
+   */
+  const { publicId } = useParams()
+  const navigate = useNavigate()
+  const selectedId = publicId ?? null
+  const select = (next: string | null): void => {
+    void navigate(next === null ? '/evidence' : `/evidence/${encodeURIComponent(next)}`)
+  }
 
   if (queue.isPending) return <Spinner label="Loading the verification queue" />
   if (queue.error !== null) {
@@ -67,6 +81,36 @@ export function Evidence(): React.ReactNode {
   const selected = rows.find((row) => row.publicId === selectedId) ?? null
   const code = (id: number | null) =>
     id === null ? null : (requirements.data?.find((r) => r.id === id)?.code ?? `#${id}`)
+
+  /*
+   * The status filter is a multi-select, and it says so.
+   *
+   * The design system's check control is a round dot, which is a radio's shape and reads as "pick
+   * one" — so this overrides it to a square. That is not decoration: the reviewer's working set is
+   * "needs review plus awaiting extraction", and a control that looked exclusive would hide half the
+   * backlog behind an assumption.
+   */
+  const toolbar = (
+    <div className="check-group">
+      {QUEUE_STATUSES.map((status) => (
+        <label key={status} className="check check--box">
+          <input
+            type="checkbox"
+            checked={statuses.includes(status)}
+            onChange={(event) =>
+              setStatuses((current) =>
+                event.target.checked
+                  ? [...current, status]
+                  : current.filter((value) => value !== status),
+              )
+            }
+          />
+          <span className="dot" />
+          {verificationStatus(status).label}
+        </label>
+      ))}
+    </div>
+  )
 
   const columns: Column<EvidenceDocument>[] = [
     {
@@ -121,7 +165,7 @@ export function Evidence(): React.ReactNode {
       accessorFn: (row) => code(row.requirementHintId) ?? '',
       cell: ({ row }) => {
         const hint = code(row.original.requirementHintId)
-        return hint === null ? <span className="muted">—</span> : <span className="mono">{hint}</span>
+        return hint === null ? <span className="dim">—</span> : <span className="mono">{hint}</span>
       },
     },
     {
@@ -129,55 +173,43 @@ export function Evidence(): React.ReactNode {
       header: 'Why it is here',
       accessorFn: (row) => row.reviewReason ?? '',
       cell: ({ row }) =>
-        row.original.reviewReason ?? <span className="muted">—</span>,
+        row.original.reviewReason === null ? (
+          <span className="dim">—</span>
+        ) : (
+          <span className="table__wrap">{row.original.reviewReason}</span>
+        ),
     },
-    { id: 'source', header: 'Source', accessorFn: (row) => row.source },
+    {
+      id: 'source',
+      header: 'Source',
+      accessorFn: (row) => row.source,
+      cell: ({ row }) => (
+        <span className="mono dim" style={{ fontSize: 11.5 }}>
+          {row.original.source}
+        </span>
+      ),
+    },
   ]
 
   return (
-    <div className="screen">
+    <div className="screen screen--split">
       <header className="screen__header">
         <h1 className="screen__title">Evidence queue</h1>
         <p className="screen__subtitle">
-          ADM-9 — documents the pipeline has read and a human has to decide on (§8). The model never
-          writes a holding (LLM-1).
+          Documents the pipeline has read and a human has to decide on. The reader never writes a
+          holding — accepting does.
         </p>
       </header>
-
-      <div className="selector">
-        <label className="field field--inline">
-          <span className="field__label">Statuses</span>
-          <span className="checkbox-group">
-            {QUEUE_STATUSES.map((status) => (
-              <label key={status} className="checkbox-group__item">
-                <input
-                  type="checkbox"
-                  className="checkbox"
-                  checked={statuses.includes(status)}
-                  onChange={(event) =>
-                    setStatuses((current) =>
-                      event.target.checked
-                        ? [...current, status]
-                        : current.filter((value) => value !== status),
-                    )
-                  }
-                />
-                {verificationStatus(status).label}
-              </label>
-            ))}
-          </span>
-        </label>
-      </div>
 
       <DataTable
         rows={rows}
         columns={columns}
+        toolbar={toolbar}
+        minWidth={820}
         filterPlaceholder="Filter by crew, requirement or reason"
         empty="Nothing in the queue for these statuses."
-        onRowClick={(row) => setSelectedId(row.publicId === selectedId ? null : row.publicId)}
-        rowClassName={(row) =>
-          row.verificationStatus === 'pending_review' ? 'table__row--attention' : undefined
-        }
+        onRowClick={(row) => select(row.publicId === selectedId ? null : row.publicId)}
+        rowClassName={(row) => (row.publicId === selectedId ? 'table__row--selected' : undefined)}
         csv={{
           filename: 'evidence-queue.csv',
           columns: [
@@ -239,42 +271,46 @@ function ReviewPanel({
   const expiryRequired = status === 'held_expiry'
 
   return (
-    <section className="section review">
-      <div className="review__document">
-        <h2 className="section__title">The document</h2>
+    <div className="review">
+      <div className="panel panel--stack">
+        <h2 className="section__title section__title--panel">The document</h2>
         {document.hasContent ? (
           <DocumentPreview document={document} />
         ) : (
-          <p className="empty">
+          <div className="review__preview">
             No bytes are stored for this submission
             {document.uploadComplete ? '.' : ' — the upload has not finished (MOB-5a).'}
-          </p>
+          </div>
         )}
-        <dl className="facts">
+        <dl className="fact-grid">
           <div>
             <dt>Submitted by</dt>
             <dd>{document.submittedBy}</dd>
           </div>
           <div>
             <dt>Source</dt>
-            <dd>{document.source}</dd>
+            <dd className="mono">{document.source}</dd>
           </div>
           <div>
             <dt>Extraction</dt>
-            <dd>{document.extractionModel ?? 'not extracted yet'}</dd>
+            <dd>{document.extractionModel ?? <span className="dim">not extracted yet</span>}</dd>
           </div>
-          {document.byteSize !== null && (
-            <div>
-              <dt>Size</dt>
-              <dd>{Math.round(document.byteSize / 1024)} KB</dd>
-            </div>
-          )}
+          <div>
+            <dt>Size</dt>
+            <dd>
+              {document.byteSize === null ? (
+                <span className="dim">—</span>
+              ) : (
+                `${Math.round(document.byteSize / 1024)} KB`
+              )}
+            </dd>
+          </div>
         </dl>
 
         {document.verificationStatus === 'pending_extraction' && (
           <button
             type="button"
-            className="button button--quiet"
+            className="button self-start"
             disabled={extract.isPending || !document.uploadComplete}
             onClick={() => extract.mutate(document.publicId)}
             title="Runs §8 stages 2–4 now rather than waiting for the periodic sweep"
@@ -285,37 +321,67 @@ function ReviewPanel({
         {extract.error !== null && <p className="editor__error">{errorText(extract.error)}</p>}
       </div>
 
-      <div className="review__fields">
-        <h2 className="section__title">What was read</h2>
-        {document.extractionModel === null && (
-          <p className="note">
-            Nothing has been extracted. With no LLM provider configured (§14.5) that is the expected
-            state — the fields below are yours to fill from the document.
-          </p>
-        )}
-        <ul className="extraction">
-          {document.extraction.map((field) => (
-            <li key={field.name} className="extraction__field">
-              <span className="extraction__name">{fieldLabel(field.name)}</span>
-              <span className="extraction__value">
-                {field.value ?? <span className="muted">not read</span>}
-              </span>
-              <span className={`chip chip--${confidenceTone(field.confidence)}`}>
-                {field.confidence <= 0 ? 'no reading' : `${Math.round(field.confidence * 100)}%`}
-              </span>
-            </li>
-          ))}
-        </ul>
+      <div className="review__column">
+        <div className="panel panel--stack">
+          <h2 className="section__title section__title--panel">What was read</h2>
+          {/*
+           * Read-only, and deliberately.
+           *
+           * Correcting the *reading* is not a thing the server offers: what an accept records is the
+           * pair (what was extracted, what was accepted), and measuring the gap between those two is
+           * exactly what LLM-2 needs before auto-acceptance can be switched on. Fields that looked
+           * editable but were discarded would destroy that measurement while appearing to help. The
+           * corrections go in "What the record will say" below, which *is* the accept form.
+           */}
+          {document.extractionModel === null ? (
+            <p className="section__note">
+              Nothing has been extracted. With no LLM provider configured (§14.5) that is the expected
+              state — the fields below are yours to fill from the document.
+            </p>
+          ) : (
+            <p className="section__note">
+              What the document reader returned, and how sure it was. Corrections go in the record
+              below; both are kept.
+            </p>
+          )}
+          <div className="field-rows">
+            {document.extraction.map((field) => (
+              <div key={field.name} className="field">
+                <span className="field__label">{fieldLabel(field.name)}</span>
+                <span className="field-with-chip">
+                  <input
+                    className="input"
+                    readOnly
+                    value={field.value ?? ''}
+                    placeholder="not read"
+                    aria-label={fieldLabel(field.name)}
+                  />
+                  <span className={`chip chip--${confidenceTone(field.confidence)}`}>
+                    {field.confidence <= 0 ? 'no reading' : `${Math.round(field.confidence * 100)}%`}
+                  </span>
+                </span>
+              </div>
+            ))}
+            {document.extraction.length === 0 && (
+              <p className="callout callout--quiet">
+                No fields were returned at all, so there is nothing to compare against.
+              </p>
+            )}
+          </div>
+        </div>
 
-        {document.reviewReason !== null && <p className="note">{document.reviewReason}</p>}
+        <div className="panel panel--stack">
+        <h2 className="section__title section__title--panel">What the record will say</h2>
+
+        {document.reviewReason !== null && (
+          <p className="callout callout--quiet">{document.reviewReason}</p>
+        )}
         {document.rejectionReason !== null && (
           <p className="editor__error">Rejected: {document.rejectionReason}</p>
         )}
 
-        <h2 className="section__title">What the record will say</h2>
-
         {decided && (
-          <p className="note">
+          <p className="section__note">
             This document is {verificationStatus(document.verificationStatus).label.toLowerCase()} and
             cannot be decided again. A holding recorded in error is corrected on the person's
             holdings, where the correction is audited as one.
@@ -323,7 +389,7 @@ function ReviewPanel({
         )}
 
         {!decided && !canDecide && (
-          <p className="note">
+          <p className="section__note">
             Accepting or rejecting is the Data Steward's decision (§8 stage 5). You can see the queue
             and the backlog, which is what this view is for.
           </p>
@@ -414,11 +480,25 @@ function ReviewPanel({
             </label>
 
             {isCorrection(document, requirementId, expiry) && (
-              <p className="note">
+              <p className="callout">
                 This differs from what was extracted. That is fine and expected — the audit event
                 records both, which is how extraction accuracy gets measured (LLM-2).
               </p>
             )}
+
+            {/*
+             * What accepting *does*, so the decision is not made in the abstract.
+             *
+             * Deliberately not the design's stronger line ("…closes UNICC24-4 and clears the Gap on
+             * UNI CC25 slot 01"): the server does not tell this screen which register record or which
+             * swing cell an acceptance would resolve, and inventing the link would put a claim on
+             * screen that nothing checked. What is said below is what is actually known.
+             */}
+            <p className="section__note">
+              Accepting writes this to {document.personName}'s holding. Every swing they are assigned
+              to evaluates against it from then on, and the audit event carries both what was read and
+              what you accepted.
+            </p>
 
             {accept.error !== null && <p className="editor__error">{errorText(accept.error)}</p>}
 
@@ -432,11 +512,7 @@ function ReviewPanel({
               >
                 {accept.isPending ? 'Saving…' : 'Accept and update the holding'}
               </button>
-              <button
-                type="button"
-                className="button button--quiet"
-                onClick={() => setRejecting(true)}
-              >
+              <button type="button" className="button" onClick={() => setRejecting(true)}>
                 Reject…
               </button>
             </div>
@@ -474,11 +550,7 @@ function ReviewPanel({
               >
                 {reject.isPending ? 'Rejecting…' : 'Reject'}
               </button>
-              <button
-                type="button"
-                className="button button--quiet"
-                onClick={() => setRejecting(false)}
-              >
+              <button type="button" className="button" onClick={() => setRejecting(false)}>
                 Cancel
               </button>
             </div>
@@ -486,15 +558,14 @@ function ReviewPanel({
         )}
 
         {document.linkedHoldingId !== null && (
-          <p className="note">
-            <Link to={`/people/${document.personId}`}>
-              The holding this evidences
-            </Link>{' '}
-            was updated from this document.
+          <p className="section__note">
+            <Link to={`/people/${document.personId}`}>The holding this evidences</Link> was updated
+            from this document.
           </p>
         )}
+        </div>
       </div>
-    </section>
+    </div>
   )
 }
 
@@ -531,6 +602,7 @@ function DocumentPreview({ document }: { document: EvidenceDocument }): React.Re
     </>
   )
 }
+
 
 /** Whether what the reviewer is about to accept differs from what the model read. */
 export function isCorrection(

@@ -19,11 +19,37 @@ Vite 7 + React 19 + TypeScript 5.9, `strict` plus `noUncheckedIndexedAccess` and
 for the dense grids). No component library and no CSS framework — `src/styles.css` is the whole
 of it.
 
-Two webfonts are **self-hosted** in `public/fonts/` (Inter for everything, Plus Jakarta Sans for
-headings; latin + latin-ext variable woff2, ~180 KB). Self-hosted rather than linked: a CDN font
-is a third party that sees every page view, and `npm` font packages would be two more
-dependencies in a tree this project deliberately keeps short. `latin-ext` is not optional — crew
-names contain it (the fixture has a Kovač).
+Inter is **self-hosted** in `public/fonts/` (latin + latin-ext variable woff2, ~134 KB). Self-hosted
+rather than linked: a CDN font is a third party that sees every page view, and `npm` font packages
+would be two more dependencies in a tree this project deliberately keeps short. `latin-ext` is not
+optional — crew names contain it (the fixture has a Kovač).
+
+## The design system: Nocturne
+
+The screens are a **restyle onto Nocturne**, a compact dark system, from the design handoff in
+`~/Downloads/design_handoff_crewcomp_admin/`. The information architecture, column sets, copy and
+state vocabulary are the spec's and did not move; the visual system did. `src/styles.css` carries
+Nocturne's `:root` token sheet verbatim (ramps generated in OKLCH on one shared lightness scale) plus
+the six state tones the ten §5.1 cell states need — Nocturne is a mono palette and the states are
+not, so the tones were derived to sit on the same perceptual lightness steps as the ramps.
+
+Four rules the sheet is built on. The first two are the system's; the last two are this app's:
+
+1. **The accent is a line, never a flood.** A 1px border, a 2px nav edge bar, a dot, or a 900-step
+   tinted fill. The primary button is an accent *outline* — on a dark ground a filled accent button is
+   the brightest object on the page whatever else is happening.
+2. **Freestanding rules fade to transparent** over 48px an end; box outlines and in-control
+   separators stay solid. Headings never pass weight 500 — hierarchy is size and space.
+3. **Pills carry a text label, always.** Colour is reinforcement, never the only carrier.
+4. **Monospace is semantic** — and this reverses the previous sheet's "no monospace" rule. Every
+   business key is monospaced (Sam #, requirement code, record id, slot ref, matrix level and version,
+   config key, cron) and nothing else is: it is how a value you copy and search for is told apart from
+   prose. Everything else keeps `font-variant-numeric: tabular-nums`, which aligns a column of figures
+   without changing the typeface.
+
+Six tones (`critical warning caution neutral good muted`) and their mapping live in
+`domain/enums.ts` and nowhere else. `muted` is the one tone that takes a border: its fill is within a
+shade of the surface it sits on, and without one the pill loses its edges.
 
 That small list is deliberate. The §14.3 research rejected React Native partly on npm's 2025–26
 supply-chain record, and the same argument applies to this app's dependency tree: for nine
@@ -131,6 +157,11 @@ an expiry is a date landing inside or before a window (§5.1). The gap report ca
 "expiring"; the ruler says the certificate lapses on the 13th and three days of the swing are
 uncovered. It is the one thing on these screens the two source workbooks could not draw.
 
+Its shape is a three-column grid — label, lane, value — repeated for the header row and every data
+row, so a lane's percentages line up down the whole panel. The panel scrolls horizontally and every
+row carries `min-width: 880px`: below that the tick labels collide and a `nowrap` bar escapes its
+lane. Two variants, `axis` (ADM-1) and `slots` (ADM-2), differ only in the label and value widths.
+
 Rules it holds to, each of which cost something to learn:
 
 - **Only dates sit on the axis.** Counts and states live in the value column. Give a cell count a
@@ -138,12 +169,23 @@ Rules it holds to, each of which cost something to learn:
 - **No `new Date()`, ever.** Positions come from `epochDay`, and `today` is passed in from the
   session (NFR-5). `dateFromEpochDay` is its exact inverse, tested by round-trip, because the axis
   labels itself at computed intervals and an off-by-one there would look like nothing at all.
-- **The datum is anchored to the ruler's box, not to a grid line.** `grid-row: 1 / -1` collapses to
-  a single row when the rows are implicit, which is how the line silently drew nothing at first.
-  `--ruler-at` is today's fraction of the axis; `--ruler-track-x/-w` describe the lane.
-- **Dashed, not solid.** It crosses crew names on the planner, and a solid rule through a name
-  reads as a strikethrough.
+- **A window includes its last day.** The lane divides by the number of *days* (`cells`), not the
+  number of intervals between the end dates (`steps`) — the latter drops every bar's final day, which
+  put a one-day hole between the two legs of a fully covered handover. On a screen whose job is
+  finding coverage gaps, inventing one is the worst available bug. Ticks still interpolate over
+  `steps`, or the last one would land a day past the axis.
+- **The datum is drawn per row, not once across the panel.** A single line positioned against the
+  panel's own box slides off its lane the moment the panel scrolls sideways, which is exactly what
+  this panel does. `--ruler-at` is today's fraction of the lane.
+- **Dashed, and above the bars.** It crosses crew names on the planner, and a solid rule through a
+  name reads as a strikethrough — but drawing it *under* the bars (as the mock does) hides the one
+  thing it is there to say, which is that today falls inside this swing.
 - **A tick within 6% of the datum is dropped**, rather than printed under the "Today" pill.
+- **A label past 55% of the lane flips to the left of its tick.** Both the cutoff and the lapse
+  marker sit in the clear lane above the bars, so they cannot collide with one — the only constraint
+  is not running off the lane's end into the value column. Anchor a flipped label with
+  `left: 0` + `translateX(-100%)`, never `right: 0`: on a zero-width parent the box already sits at
+  `[-w, 0]` and the transform then pushes it a second width away.
 - **Nothing animates.** The bars had a clip-path wipe; it is gone. For its first few hundred
   milliseconds it showed a shorter swing than the one it described, and with
   `animation-fill-mode: both` a bar that never got its frame stayed invisible. On a screen whose
@@ -156,13 +198,54 @@ Rules it holds to, each of which cost something to learn:
 `Ruler.test.tsx` pins the arithmetic — handover split, lapse extent, clamping past the ends, the
 suppressed tick — because every value is a percentage the eye reads as a date.
 
+## Where the restyle deviates from the handoff, and why
+
+Five places. Each is a case where following the mock exactly would have put something on screen that
+nothing checked, or lost information the screen exists to carry.
+
+1. **No AI assist strip on ADM-1.** The design has an optional accent strip reading "Overnight scan
+   re-evaluated 5 swings — UNI CC24 changed from All clear to 1 Expiring". Nothing serves that: there
+   is no endpoint for "what changed since you last looked", and hard-coding the sentence would put a
+   fabricated claim about the evaluation on the landing page. It lands when a change-feed does.
+2. **ADM-9's "What was read" fields are read-only** (styled as inputs, so the panel reads as the
+   design intends). The design calls them "yours to correct", but correcting the *reading* is not a
+   thing the server offers: an accept records the pair (extracted, accepted), and measuring the gap
+   between those two is exactly what LLM-2 needs before auto-acceptance can be switched on. Fields
+   that looked editable and were discarded would destroy that measurement while appearing to help.
+   Corrections go in "What the record will say", which *is* the accept form.
+3. **ADM-9's consequence line is the true one.** The design says "Accepting closes UNICC24-4 and
+   clears the Gap on UNI CC25 slot 01". `EvidenceDocumentDto` carries no register record and no swing
+   cell, so this says what is actually known: which person's holding it writes, and that their swings
+   re-evaluate against it. Making the design's stronger line real is a server field — see the
+   follow-ups.
+4. **ADM-4's list shows six of its nine columns.** Raised, Approved for and the effective window are
+   on the detail pane beside it. Nine columns in a ~700px pane wrapped every cell onto two lines, and
+   the whole point of the pane is that the selected record is right there. The CSV carries all of them.
+5. **The MOB screens are not built here.** The handoff bundles two crew-app screens as the other end
+   of ADM-9; the crew app is the Flutter client in `mobile/`, and rebuilding it in React would be a
+   second implementation of it. The tokens and the state tones are the same ones, so porting them
+   there is a styling pass on `mobile/lib/src/ui/`.
+
+Smaller, and worth knowing: the design marks a row needing attention with nothing at all, so the
+per-row red leading edge is gone — the state chip in the row already carries it, and at ten rows the
+edges were a wall. `table__row--selected` survives for genuine selections (the open register record,
+the open evidence document, the chosen matrix version) and takes the accent, because a selection is
+not a state.
+
 ## Four screens with a rule you would otherwise have to rediscover
 
 **ADM-3 never offers an edit the server would refuse.** A published matrix version is immutable
-(§5.5) — that is what makes a past evaluation reproducible — so the screen renders levels as chips
-rather than selects, says why, and offers the thing the user actually wants: "Draft from this". The
-server answers 409 either way; a UI that discovered the refusal by trying would be a dead end wearing
-an error message.
+(§5.5) — that is what makes a past evaluation reproducible — so the screen renders levels as
+read-only tokens rather than selects, says why, and offers the thing the user actually wants: "Draft
+from this". The server answers 409 either way; a UI that discovered the refusal by trying would be a
+dead end wearing an error message. Discard and Publish act on the *selected* version and live on the
+editor's controls row, where the thing they act on is on screen — an in-row Publish button beside
+seven other rows invites publishing the wrong one.
+
+**ADM-3's level tokens keep four cases apart, and two of them must never merge.** `M`/`M8`/`M9`/`Mˣ`
+take the accent tint, `R` the neutral one, an **em dash** is no rule at all, and **"not required"** is
+a partnership override that positively removes the rule. The legend under the grid says so on screen
+for the same reason this paragraph does.
 
 **ADM-3's partnership overrides are a separate pass, not a column.** The selector at the top of the
 cell editor switches between the base rules and one partnership's overrides, because the two are
@@ -177,12 +260,18 @@ that replaces the CC sheets: crew × requirements with a cell state in each. It 
 `/swings/{pt}/{cc}/evaluation` the planner uses, rearranged. Adding an endpoint that re-derived those
 states would be a second implementation of §5.1 in all but name (AUTH-1).
 
-**ADM-9's accept and correct are one form.** The fields are pre-filled from the extraction and are
-entirely editable; submitting accepts *what is in the form*. The server records both what was
+**ADM-9's accept and correct are one form.** The record fields are pre-filled from the extraction and
+are entirely editable; submitting accepts *what is in the form*. The server records both what was
 extracted and what was accepted, so a correction is visible as one — and measuring that gap is
 exactly what LLM-2 needs before auto-acceptance can be switched on. A separate "correct" button would
 have made it invisible. Confidence is shown per field, and the colour bands here are presentation
 only: what gates auto-acceptance is a server-side threshold in ADM-10.
+
+**ADM-4, ADM-6 and ADM-9 are split panes, and the selection is a route.** `/register/{recordId}`,
+`/evidence/{publicId}` and ADM-6's selected code all *select* within the screen rather than replacing
+it, because working these modules is working a queue — read one, act on it, move to the next. Keeping
+the selection in the URL is what lets a §9 notification point at the document it is about; ADM-9's
+route existed and did nothing until this pass.
 
 **ADM-8 checks a deep link before rendering it as an href.** `deepLink` is a server-provided string
 and is either an app path or the mobile app's `crewcomp://` scheme. `internalLink` accepts only a
@@ -243,6 +332,17 @@ it is why `RegisterNew` reads its initial state from `useSearchParams` rather th
    all; they are on the planner for a given swing. Deliberate — tallying `20 OK` beside `2 Gap`
    made every row wrap and put the loudest number on the least urgent fact — but it *is* less
    information than the old cards showed, and worth confirming with the client.
+7a. **`expiry.lead-days` is mirrored, not read** (`EXPIRY_LEAD_DAYS_DEFAULT` in `domain/enums.ts`).
+    It decides the dashboard's initial lead-time selection and whether a held certificate's expiry
+    reads as a warning on ADM-5. The live value is only exposed through the role-gated ADM-10
+    configuration endpoint, so a Crew Coordinator opening a person's page would get a 403 for it.
+    Carrying it on the session response would fix this; until then a stale horizon changes a colour
+    and nothing else.
+7b. **ADM-9 cannot say what accepting resolves.** The design's consequence line names the register
+    record an acceptance closes and the swing cell it clears; `EvidenceDocumentDto` carries neither.
+    Two nullable fields on that DTO — the covering register record id, and the (partnership, cc, slot)
+    of the cell — would make the design's line real. Worth doing: it is the difference between a
+    Data Steward accepting a document and a Data Steward knowing what they are unblocking.
 8. **The gap report offers "Raise request" on `recommended` rows.** Pre-existing: the column
    offers the link for any row with no register record, and a recommended requirement is never a
    gap, so an exemption for one is meaningless. Harmless but noisy — the fixture's seven
@@ -251,8 +351,11 @@ it is why `RegisterNew` reads its initial state from `useSearchParams` rather th
    `DataTable`; the HTTP contract is covered on the backend side by the six `*IT` suites. What is
    untested *in the repository* is the two meeting in a browser — though every screen has been driven
    in a real Chromium against a live backend and the seeded fixture, which is how the diff view's
-   blank-level bug and an empty "Not built" nav heading were found. Making that a committed lane is
-   the pipeline bootstrap's.
+   blank-level bug, an empty "Not built" nav heading and the restyle's off-by-one handover hole were
+   found. Making that a committed lane is the pipeline bootstrap's, and the first two cases it should
+   carry are already known: **no screen may scroll the page horizontally** at 1600 / 1280 / 1100 / 980
+   / 900 / 760 / 420px (checked by hand, all ten screens, this pass), and every ruler bar must cover
+   its own end date.
 10. **ADM-8's role proxy shows other people's copies.** Until the identity spike gives a back-office
     user their own account, an account-less actor reads the notifications addressed to the accounts
     holding their roles — so a §9 fan-out to four Workflow Managers reads as four rows. The recipient

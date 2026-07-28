@@ -83,7 +83,8 @@ export function RegisterNew(): React.ReactNode {
       <header className="screen__header">
         <h1 className="screen__title">Raise a register record</h1>
         <p className="screen__subtitle">
-          ADM-4 — the id, the window validation and the cutoff rule are all the server's.
+          The record id, the window validation and the cutoff rule are all the server's. The id below
+          is a preview, not a reservation — it is allocated again under a lock at create time.
         </p>
       </header>
 
@@ -189,15 +190,18 @@ export function RegisterNew(): React.ReactNode {
             />
           </label>
 
+          {/* Q17 permits a late submission that is acknowledged. Late is allowed; silently late is
+              not — so the acknowledgement is a deliberate act and lands in the audit event. */}
           {(late || isLateRejection) && (
-            <label className="checkbox">
+            <label className="check check--box" style={{ flexBasis: '100%' }}>
               <input
                 type="checkbox"
                 checked={acknowledgeLate}
                 onChange={(event) => setAcknowledgeLate(event.target.checked)}
-              />{' '}
-              This is after the {swing === undefined ? 'submission' : formatDate(swing.cutoff)}{' '}
-              cutoff — acknowledge the late submission (Q17)
+              />
+              <span className="dot" />
+              This is after the {swing === undefined ? 'submission' : formatDate(swing.cutoff)} cutoff
+              — acknowledge the late submission
             </label>
           )}
 

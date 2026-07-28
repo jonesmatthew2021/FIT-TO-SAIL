@@ -26,14 +26,19 @@ export function People(): React.ReactNode {
   if (people.error !== null) return <ErrorPanel title="Could not load people" error={people.error} />
 
   const columns: Column<Person>[] = [
-    { id: 'sam', header: 'Sam #', accessorFn: (row) => row.sam },
+    {
+      id: 'sam',
+      header: 'Sam #',
+      accessorFn: (row) => row.sam,
+      cell: ({ row }) => <span className="mono">{row.original.sam}</span>,
+    },
     { id: 'name', header: 'Name', accessorFn: (row) => row.name },
     { id: 'position', header: 'Position', accessorFn: (row) => row.positionName },
     {
       id: 'tier',
       header: 'Tier',
       accessorFn: (row) => row.tier ?? '',
-      cell: ({ row }) => row.original.tier ?? <span className="muted">—</span>,
+      cell: ({ row }) => row.original.tier ?? <span className="dim">—</span>,
     },
     { id: 'partnership', header: 'Partnership', accessorFn: (row) => row.partnershipAbbrev },
     {
@@ -50,7 +55,7 @@ export function People(): React.ReactNode {
       id: 'email',
       header: 'Email',
       accessorFn: (row) => row.email ?? '',
-      cell: ({ row }) => row.original.email ?? <span className="muted">—</span>,
+      cell: ({ row }) => row.original.email ?? <span className="dim">—</span>,
     },
   ]
 
@@ -59,7 +64,8 @@ export function People(): React.ReactNode {
       <header className="screen__header">
         <h1 className="screen__title">People &amp; holdings</h1>
         <p className="screen__subtitle">
-          {people.data.length} crew visible to your roles.
+          {people.data.length} crew visible to your roles. The directory is the system of record for
+          qualification holdings.
         </p>
       </header>
 

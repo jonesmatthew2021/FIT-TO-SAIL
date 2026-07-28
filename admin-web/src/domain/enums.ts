@@ -98,11 +98,54 @@ export function needsAttention(state: string): boolean {
   return state === 'gap' || state === 'expiring' || state === 'unknown' || state === 'review'
 }
 
+/**
+ * A slot reference, zero-padded.
+ *
+ * A slot ref is a business key on the class model — the source workbook writes `01`, not `1`, and
+ * slots 15 and 16 are real refs rather than "the fifteenth slot". Padded so a column of them aligns
+ * and so `01` and `1` never look like two different things.
+ */
+export function slotRef(ref: number): string {
+  return String(ref).padStart(2, '0')
+}
+
+/**
+ * A holding's status.
+ *
+ * Held is `muted`, not `good`: a holding is a *record*, not a verdict. Whether holding something is
+ * enough is the engine's answer against a swing (§5.1), and colouring the record green here would
+ * have the system of record making a compliance claim it is not entitled to make. What does earn a
+ * warning is a held certificate inside the expiry lead window — see [holdingTone].
+ */
 const HOLDING_STATUSES: Record<string, StateDisplay> = {
-  held_expiry: { label: 'Held (expires)', tone: 'good', description: 'Held with an expiry date.' },
-  held_perpetual: { label: 'Held', tone: 'good', description: 'Held, does not expire.' },
+  held_expiry: { label: 'Held (expires)', tone: 'muted', description: 'Held with an expiry date.' },
+  held_perpetual: { label: 'Held', tone: 'muted', description: 'Held, does not expire.' },
   not_held: { label: 'Not held', tone: 'critical', description: 'Confirmed not held.' },
   unknown: { label: 'Unknown', tone: 'caution', description: 'Never established.' },
+}
+
+/**
+ * The default `expiry.lead-days` horizon, mirrored from the server's own default.
+ *
+ * It decides two presentation-only things: the dashboard's initial lead-time selection, and whether
+ * a held certificate's expiry reads as a warning on ADM-5. Mirrored rather than read because the
+ * live value is only exposed through the ADM-10 configuration endpoint, which is role-gated — a
+ * Crew Coordinator opening a person's page would get a 403 for it. Worth replacing with a
+ * session-borne value; until then a stale horizon changes a colour and nothing else.
+ */
+export const EXPIRY_LEAD_DAYS_DEFAULT = 90
+
+/**
+ * A holding's tone, warned up when its expiry falls inside the lead window.
+ *
+ * `daysToExpiry` is null for a perpetual holding or one with no date. A holding that has already
+ * lapsed is still shown as held-with-a-past-date rather than as not-held: the record says what it
+ * says, and the engine is what decides the consequence.
+ */
+export function holdingTone(status: string, daysToExpiry: number | null): Tone {
+  const base = holdingStatus(status).tone
+  if (status !== 'held_expiry' || daysToExpiry === null) return base
+  return daysToExpiry <= EXPIRY_LEAD_DAYS_DEFAULT ? 'warning' : base
 }
 
 export function holdingStatus(status: string): StateDisplay {
@@ -129,7 +172,7 @@ const EXPIRY_IMPACTS: Record<string, StateDisplay> = {
   },
   none: {
     label: 'No assignment impact',
-    tone: 'muted',
+    tone: 'neutral',
     description: 'Expiring, but no assignment it affects.',
   },
 }
@@ -292,7 +335,7 @@ const NOTIFICATION_KINDS: Record<string, StateDisplay> = {
   },
   matrix_published: {
     label: 'Matrix published',
-    tone: 'neutral',
+    tone: 'muted',
     description: 'A new requirements matrix is in force (§5.5).',
   },
   exception_raised: {
@@ -314,9 +357,10 @@ export function notificationKind(kind: string): StateDisplay {
 /**
  * Appendix A's `evidence_document.verification_status`, for ADM-9's queue.
  *
- * `auto_accepted` is `caution` rather than `good` deliberately: §8 stage 4 surfaces auto-acceptances
- * "for retrospective spot-checking", so it is a row that still wants a human's eye, and colouring it
- * as done would defeat the point of listing it.
+ * `auto_accepted` shares `good` with `verified`: both are decided, and the queue's status filter is
+ * what a Data Steward uses to pull up the auto-accepted set for the retrospective spot-check §8
+ * stage 4 asks for. Colour is for the state of the document, not for a standing reminder — and the
+ * description below is what says the row still wants an eye on it.
  */
 const VERIFICATION_STATUSES: Record<string, StateDisplay> = {
   pending_extraction: {
@@ -331,7 +375,7 @@ const VERIFICATION_STATUSES: Record<string, StateDisplay> = {
   },
   auto_accepted: {
     label: 'Auto-accepted',
-    tone: 'caution',
+    tone: 'good',
     description: 'Accepted by the pipeline, listed here for spot-checking (§8 stage 4).',
   },
   verified: {
@@ -368,19 +412,35 @@ export const QUEUE_STATUSES: readonly string[] = [
  * what the current policy happens to be.
  */
 export function confidenceTone(confidence: number): Tone {
-  if (confidence <= 0) return 'muted'
-  if (confidence < 0.7) return 'critical'
-  if (confidence < 0.9) return 'caution'
+  // No reading at all is a warning rather than a silence: an empty field the reviewer has to fill
+  // is the one thing on the panel that will not fill itself.
+  if (confidence <= 0) return 'warning'
+  if (confidence < 0.5) return 'critical'
+  if (confidence < 0.85) return 'caution'
   return 'good'
 }
 
 /**
- * A register status's tone. Open work needs attention; an approval is good; every other closure
- * is neutral — "Not Approved" is a decision, not a fault, and colouring it red would read as one.
+ * A register status's tone.
+ *
+ * Open work is warm, and which warm depends on whose move it is: PW and OPS are the parties who act,
+ * so their queues are `warning`; an MRL query is waiting on a reading rather than on a decision, so
+ * it is `caution`. An approval is `good`. Every other closure is `muted` — "Not Approved" is a
+ * decision, not a fault, and colouring it red would read as one.
  */
 export function registerStatusTone(status: string): Tone {
-  if (status.startsWith('Open')) return 'caution'
+  if (status === 'Open - MRL') return 'caution'
+  if (status.startsWith('Open')) return 'warning'
   if (status === 'Closed - Approved') return 'good'
-  if (status === 'Complete before joining') return 'neutral'
+  return 'muted'
+}
+
+/**
+ * A matrix version's tone. A draft is an accent *outline* rather than a fill — it exists but is not
+ * in force, which is exactly what an outline says.
+ */
+export function matrixStatusTone(status: string): Tone | 'outline' {
+  if (status === 'published') return 'good'
+  if (status === 'draft') return 'outline'
   return 'muted'
 }

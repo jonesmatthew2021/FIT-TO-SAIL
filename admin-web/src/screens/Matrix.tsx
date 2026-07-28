@@ -22,11 +22,13 @@ import {
 import { useHasRole, useToday } from '../api/session'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
+import { RequirementLabel } from '../components/RequirementLabel'
 import { Spinner } from '../components/Spinner'
 import { StateChip } from '../components/StateChip'
 import { SwingSelector } from '../components/SwingSelector'
 import { downloadCsv, toCsv } from '../domain/csv'
 import { formatDate } from '../domain/dates'
+import { matrixStatusTone, slotRef } from '../domain/enums'
 
 /** §5.5 restricts publication to the Compliance Lead; drafting and editing follow it. */
 const MATRIX_EDITORS = ['compliance_lead', 'system_administrator'] as const
@@ -86,27 +88,31 @@ export function Matrix(): React.ReactNode {
       <header className="screen__header">
         <h1 className="screen__title">Matrix</h1>
         <p className="screen__subtitle">
-          ADM-3 — the requirement rules every compliance answer is derived from (§4.2, §5.5).
+          The requirement rules every compliance answer derives from. A published version is
+          immutable, so a past evaluation stays reproducible.
         </p>
       </header>
+
+      {/* Three tabs because ADM-3 is three jobs; the version list belongs to all of them, so it sits
+          above rather than inside one. */}
+      <nav className="tabs" aria-label="Matrix views">
+        <TabButton current={tab} value="editor" label="Cell editor" onSelect={setTab} />
+        <TabButton current={tab} value="diff" label="Diff" onSelect={setTab} />
+        <TabButton current={tab} value="generated" label="Generated per swing" onSelect={setTab} />
+      </nav>
 
       <VersionList
         rows={rows}
         selectedId={selected?.version.id ?? null}
         canEdit={canEdit}
-        canPublish={canPublish}
         onSelect={(id) => setSelectedId(id)}
       />
 
       {selected !== null && (
         <>
-          <nav className="tabs" aria-label="Matrix views">
-            <TabButton current={tab} value="editor" label="Cell editor" onSelect={setTab} />
-            <TabButton current={tab} value="diff" label="Diff" onSelect={setTab} />
-            <TabButton current={tab} value="generated" label="Generated per swing" onSelect={setTab} />
-          </nav>
-
-          {tab === 'editor' && <CellEditor summary={selected} canEdit={canEdit} />}
+          {tab === 'editor' && (
+            <CellEditor summary={selected} versions={rows} canEdit={canEdit} canPublish={canPublish} />
+          )}
           {tab === 'diff' && <DiffView versions={rows} toVersionId={selected.version.id} />}
           {tab === 'generated' && <GeneratedMatrix />}
         </>
@@ -146,22 +152,17 @@ function VersionList({
   rows,
   selectedId,
   canEdit,
-  canPublish,
   onSelect,
 }: {
   rows: readonly MatrixVersionSummary[]
   selectedId: number | null
   canEdit: boolean
-  canPublish: boolean
   onSelect: (id: number) => void
 }): React.ReactNode {
   const createDraft = useCreateMatrixDraft()
-  const discard = useDiscardMatrixDraft()
-  const publish = usePublishMatrixVersion()
   const today = useToday()
   const [drafting, setDrafting] = useState<MatrixVersionSummary | null>(null)
   const [label, setLabel] = useState('')
-  const [publishing, setPublishing] = useState<MatrixVersionSummary | null>(null)
 
   const columns: Column<MatrixVersionSummary>[] = [
     {
@@ -182,7 +183,7 @@ function VersionList({
       accessorFn: (row) => row.version.effectiveFrom ?? '',
       cell: ({ row }) =>
         row.original.version.effectiveFrom === null ? (
-          <span className="muted">not published</span>
+          <span className="dim">—</span>
         ) : (
           formatDate(row.original.version.effectiveFrom)
         ),
@@ -194,55 +195,31 @@ function VersionList({
       id: 'publishedBy',
       header: 'Published by',
       accessorFn: (row) => row.version.publishedBy ?? '',
-      cell: ({ row }) => row.original.version.publishedBy ?? <span className="muted">—</span>,
+      cell: ({ row }) => row.original.version.publishedBy ?? <span className="dim">—</span>,
     },
     {
       id: 'actions',
       header: '',
       enableSorting: false,
       accessorFn: () => '',
-      cell: ({ row }) => (
-        <div className="row-actions">
-          {canEdit && (
-            <button
-              type="button"
-              className="button button--quiet"
-              onClick={(event) => {
-                event.stopPropagation()
-                setDrafting(row.original)
-                setLabel(suggestLabel(row.original.version.label, today))
-              }}
-            >
-              Draft from this
-            </button>
-          )}
-          {canPublish && row.original.version.editable && (
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={(event) => {
-                event.stopPropagation()
-                setPublishing(row.original)
-              }}
-            >
-              Publish
-            </button>
-          )}
-          {canEdit && row.original.version.editable && (
-            <button
-              type="button"
-              className="button button--quiet"
-              disabled={discard.isPending}
-              onClick={(event) => {
-                event.stopPropagation()
-                discard.mutate(row.original.version.id)
-              }}
-            >
-              Discard
-            </button>
-          )}
-        </div>
-      ),
+      // Only the one action a published row can offer. Editing, discarding and publishing act on the
+      // *selected* version and live on the editor's own controls row below, where the thing they act
+      // on is on screen — an in-row Publish button next to seven other rows invites publishing the
+      // wrong one.
+      cell: ({ row }) =>
+        canEdit ? (
+          <button
+            type="button"
+            className="button button--quiet"
+            onClick={(event) => {
+              event.stopPropagation()
+              setDrafting(row.original)
+              setLabel(suggestLabel(row.original.version.label, today))
+            }}
+          >
+            Draft from this
+          </button>
+        ) : null,
     },
   ]
 
@@ -254,7 +231,7 @@ function VersionList({
         filterPlaceholder="Filter versions"
         empty="No matrix versions exist yet. Create a draft to build the first one."
         onRowClick={(row) => onSelect(row.version.id)}
-        rowClassName={(row) => (row.version.id === selectedId ? 'table__row--attention' : undefined)}
+        rowClassName={(row) => (row.version.id === selectedId ? 'table__row--selected' : undefined)}
         csv={{
           filename: 'matrix-versions.csv',
           columns: [
@@ -323,7 +300,7 @@ function VersionList({
             </button>
             <button
               type="button"
-              className="button button--quiet"
+              className="button"
               onClick={() => {
                 setDrafting(null)
                 setLabel('')
@@ -337,31 +314,12 @@ function VersionList({
           )}
         </form>
       )}
-
-      {publishing !== null && (
-        <PublishConfirmation
-          summary={publishing}
-          currentlyPublished={rows.find((row) => row.version.status === 'published') ?? null}
-          onCancel={() => setPublishing(null)}
-          onPublish={(effectiveFrom) =>
-            publish.mutate(
-              { versionId: publishing.version.id, effectiveFrom },
-              { onSuccess: () => setPublishing(null) },
-            )
-          }
-          pending={publish.isPending}
-          error={publish.error}
-        />
-      )}
-
-      {discard.error !== null && <p className="editor__error">{errorText(discard.error)}</p>}
     </section>
   )
 }
 
 function VersionStatusChip({ status }: { status: string }): React.ReactNode {
-  const tone = status === 'published' ? 'good' : status === 'draft' ? 'caution' : 'muted'
-  return <span className={`chip chip--${tone}`}>{status}</span>
+  return <span className={`chip chip--${matrixStatusTone(status)}`}>{status}</span>
 }
 
 /**
@@ -443,7 +401,7 @@ function PublishConfirmation({
           <button type="submit" className="button button--primary" disabled={pending}>
             {pending ? 'Publishing…' : 'Publish'}
           </button>
-          <button type="button" className="button button--quiet" onClick={onCancel}>
+          <button type="button" className="button" onClick={onCancel}>
             Cancel
           </button>
         </div>
@@ -472,10 +430,14 @@ function PublishConfirmation({
  */
 function CellEditor({
   summary,
+  versions,
   canEdit,
+  canPublish,
 }: {
   summary: MatrixVersionSummary
+  versions: readonly MatrixVersionSummary[]
   canEdit: boolean
+  canPublish: boolean
 }): React.ReactNode {
   const detail = useMatrixVersion(summary.version.id)
   const requirements = useRequirements()
@@ -483,9 +445,12 @@ function CellEditor({
   const partnerships = usePartnerships()
   const setCell = useSetMatrixCell()
   const clearCell = useClearMatrixCell()
+  const discard = useDiscardMatrixDraft()
+  const publish = usePublishMatrixVersion()
 
   const [partnershipId, setPartnershipId] = useState<number | null>(null)
   const [showOnlyUsed, setShowOnlyUsed] = useState(true)
+  const [publishing, setPublishing] = useState(false)
 
   if (detail.isPending || requirements.isPending || positions.isPending) {
     return <Spinner label="Loading the matrix" />
@@ -534,7 +499,13 @@ function CellEditor({
   return (
     <section className="section">
       <div className="selector">
-        <label className="field field--inline">
+        {/*
+         * The partnership selector is the whole of §6's "partnership overrides", and it is a
+         * separate pass rather than a column because the two are genuinely different things: an
+         * override set to blank says "this partnership does not require it", and no override at all
+         * says "follow the base rule".
+         */}
+        <label className="field field--inline" style={{ width: 260 }}>
           <span className="field__label">Rules for</span>
           <select
             className="input"
@@ -552,36 +523,79 @@ function CellEditor({
           </select>
         </label>
 
-        <label className="field field--inline">
-          <span className="field__label">
-            <input
-              type="checkbox"
-              className="checkbox"
-              checked={showOnlyUsed}
-              onChange={(event) => setShowOnlyUsed(event.target.checked)}
-            />{' '}
-            Only requirements this version uses
-          </span>
+        <label className="check check--box">
+          <input
+            type="checkbox"
+            checked={showOnlyUsed}
+            onChange={(event) => setShowOnlyUsed(event.target.checked)}
+          />
+          <span className="dot" />
+          Only requirements this version uses
         </label>
 
-        <button
-          type="button"
-          className="button button--quiet"
-          onClick={() =>
-            downloadCsv(
-              `matrix-${summary.version.label}.csv`,
-              matrixCsv(visibleRequirements, visiblePositions, rules),
-            )
-          }
-        >
-          Export CSV
-        </button>
+        <div className="row-actions push">
+          <button
+            type="button"
+            className="button"
+            onClick={() =>
+              downloadCsv(
+                `matrix-${summary.version.label}.csv`,
+                matrixCsv(visibleRequirements, visiblePositions, rules),
+              )
+            }
+          >
+            Export CSV
+          </button>
+          {canEdit && summary.version.editable && (
+            <button
+              type="button"
+              className="button"
+              disabled={discard.isPending}
+              onClick={() => discard.mutate(summary.version.id)}
+            >
+              Discard
+            </button>
+          )}
+          {canPublish && summary.version.editable && (
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={() => setPublishing(true)}
+            >
+              Publish {summary.version.label}
+            </button>
+          )}
+        </div>
       </div>
 
+      {discard.error !== null && <p className="editor__error">{errorText(discard.error)}</p>}
+
+      {publishing && (
+        <PublishConfirmation
+          summary={summary}
+          currentlyPublished={versions.find((row) => row.version.status === 'published') ?? null}
+          onCancel={() => setPublishing(false)}
+          onPublish={(effectiveFrom) =>
+            publish.mutate(
+              { versionId: summary.version.id, effectiveFrom },
+              { onSuccess: () => setPublishing(false) },
+            )
+          }
+          pending={publish.isPending}
+          error={publish.error}
+        />
+      )}
+
+      {/*
+       * The screen never offers an edit the server would refuse. A published version is immutable
+       * (§5.5) — that is what makes a past evaluation reproducible — so this says why and points at
+       * the thing the reader actually wants. A UI that discovered the 409 by trying would be a dead
+       * end wearing an error message.
+       */}
       {!summary.version.editable && (
         <p className="note">
           {summary.version.label} is {summary.version.status} and cannot be edited. A published
-          version is immutable so that a past evaluation stays reproducible (§5.5) — use
+          version is immutable so that a past evaluation stays reproducible — use
           <strong> Draft from this</strong> above and edit the draft.
         </p>
       )}
@@ -594,7 +608,8 @@ function CellEditor({
       )}
 
       {visibleRequirements.length > 0 && (
-        <div className="table-scroll">
+        <div className="table-block">
+          <div className="table-scroll">
           <table className="table matrix-grid">
             <thead>
               <tr>
@@ -610,8 +625,7 @@ function CellEditor({
               {visibleRequirements.map((requirement) => (
                 <tr key={requirement.id}>
                   <th scope="row">
-                    <span className="mono">{requirement.code}</span>{' '}
-                    <span className="muted">{requirement.title}</span>
+                    <RequirementLabel code={requirement.code} title={requirement.title} />
                   </th>
                   {visiblePositions.map((position) => {
                     const { base, override } = levelsFor(position.id, requirement.id)
@@ -651,6 +665,19 @@ function CellEditor({
               ))}
             </tbody>
           </table>
+          </div>
+
+          {/*
+           * The legend says out loud the one distinction this grid turns on. "— no rule" means
+           * nothing applies (or, under a partnership, follow the base rule); "not required" is an
+           * override that positively removes the requirement. Collapsing the two was a real bug in
+           * the first version of the diff view, and they must never be collapsed here either.
+           */}
+          <p className="matrix-legend">
+            <span className="level level--none">—</span> no rule ·{' '}
+            <strong>not required</strong> a partnership override that removes the rule · M8 / M9 / Mˣ
+            carry a quota footnote
+          </p>
         </div>
       )}
 
@@ -748,6 +775,14 @@ function LevelCell({
   )
 }
 
+/**
+ * A level, as a token.
+ *
+ * Four presentations, and the last two must never merge: `M`/`M8`/`M9`/`Mˣ` are mandatory and take
+ * the accent tint, `R` is recommended and takes the neutral one, an **em dash** is no rule at all,
+ * and **"not required"** is a partnership override that positively removes the rule. See the legend
+ * under the grid.
+ */
 function LevelChip({
   level,
   overridden,
@@ -755,22 +790,35 @@ function LevelChip({
   level: string | null
   overridden: boolean
 }): React.ReactNode {
-  if (level === null) return <span className="muted">—</span>
+  if (level === null) return <span className="level level--none">—</span>
   if (level === '') {
     return (
-      <span className="chip chip--muted" title="An override that removes the requirement">
+      <span
+        className="level level--not-required"
+        title="A partnership override that removes the requirement"
+      >
         not required
       </span>
     )
   }
-  const tone = level === 'M' ? 'critical' : level === 'R' ? 'muted' : 'caution'
   return (
     <span
-      className={`chip chip--${tone}`}
-      title={overridden ? 'Partnership override' : level === 'R' ? 'Recommended — never a gap' : undefined}
+      className={[
+        'level',
+        level === 'R' ? 'level--recommended' : '',
+        overridden ? 'level--overridden' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      title={
+        overridden
+          ? 'Overrides the base rule for this partnership'
+          : level === 'R'
+            ? 'Recommended — never a gap'
+            : undefined
+      }
     >
       {level}
-      {overridden && <span aria-label=" (override)"> ·</span>}
     </span>
   )
 }
@@ -801,14 +849,16 @@ function QuotaAndConditionalSummary({
     positions.data?.find((position) => position.id === id)?.name ?? `#${id}`
 
   return (
-    <>
-      <h3 className="section__title">Quota rules</h3>
-      {detail.data.quotas.length === 0 && <p className="empty">This version defines no quotas.</p>}
-      {detail.data.quotas.length > 0 && (
-        <ul className="crew-list">
-          {detail.data.quotas.map((quota) => (
-            <li key={quota.id} className="crew-list__item">
-              <span>
+    <div className="rule-cards">
+      <div className="panel">
+        <h3 className="section__title section__title--panel">Quota rules</h3>
+        {detail.data.quotas.length === 0 && (
+          <p className="section__note">This version defines no quotas.</p>
+        )}
+        {detail.data.quotas.length > 0 && (
+          <div className="rule-list">
+            {detail.data.quotas.map((quota) => (
+              <div key={quota.id}>
                 <span className="mono">{quota.footnote}</span> — at least {quota.minCount} with{' '}
                 <span className="mono">{code(quota.requirementId)}</span> per {quota.scope}
                 {quota.positionIds.length > 0 && (
@@ -817,37 +867,43 @@ function QuotaAndConditionalSummary({
                     · counting {quota.positionIds.map(positionName).join(', ')}
                   </span>
                 )}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <h3 className="section__title">Conditional rules</h3>
-      {detail.data.conditionals.length === 0 && (
-        <p className="empty">This version defines no one-of sets or dependent rules.</p>
-      )}
-      {detail.data.conditionals.length > 0 && (
-        <ul className="crew-list">
-          {detail.data.conditionals.map((rule) => (
-            <li key={rule.id} className="crew-list__item">
-              <span>
+      <div className="panel">
+        <h3 className="section__title section__title--panel">Conditional rules</h3>
+        {detail.data.conditionals.length === 0 && (
+          <p className="section__note">This version defines no one-of sets or dependent rules.</p>
+        )}
+        {detail.data.conditionals.length > 0 && (
+          <div className="rule-list">
+            {detail.data.conditionals.map((rule) => (
+              <div key={rule.id}>
                 {rule.label !== null && <span className="mono">{rule.label} </span>}
-                <strong>{rule.kind === 'one_of' ? 'One of' : 'Dependent'}</strong> for{' '}
+                {rule.kind === 'one_of' ? 'One of' : 'Dependent'} —{' '}
                 {positionName(rule.positionId)}
                 {rule.kind === 'dependent' && rule.requirementId !== null && (
-                  <> · requires <span className="mono">{code(rule.requirementId)}</span></>
+                  <>
+                    {' '}
+                    · requires <span className="mono">{code(rule.requirementId)}</span>
+                  </>
                 )}
                 <span className="muted">
                   {' '}
-                  · {rule.members.map((member) => `${code(member.requirementId)} (${member.role})`).join(', ')}
+                  ·{' '}
+                  {rule.members
+                    .map((member) => `${code(member.requirementId)} (${member.role})`)
+                    .join(', ')}
                 </span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -986,7 +1042,7 @@ function DiffSummary({
 
   return (
     <>
-      <div className="counts">
+      <div className="counts counts--inline">
         <span className="counts__item">
           <span className="counts__value">{counts.added}</span> added
         </span>
@@ -1005,47 +1061,58 @@ function DiffSummary({
 
       {detailed && (
         <>
-          <div className="table-scroll">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th scope="col">Change</th>
-                  <th scope="col">Scope</th>
-                  <th scope="col">Position</th>
-                  <th scope="col">Requirement</th>
-                  <th scope="col">From</th>
-                  <th scope="col">To</th>
-                </tr>
-              </thead>
-              <tbody>
-                {diff.rules.map((rule, index) => (
-                  <tr key={`${rule.positionId}-${rule.requirementId}-${rule.partnershipId ?? 'base'}-${index}`}>
-                    <td>
-                      <span className={`chip chip--${diffTone(rule.kind)}`}>
-                        {rule.kind.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="mono">{scopeName(rule.partnershipId)}</td>
-                    <td>{positionName(rule.positionId)}</td>
-                    <td className="mono">{code(rule.requirementId)}</td>
-                    <td className="mono">{levelText(rule.from)}</td>
-                    <td className="mono">{levelText(rule.to)}</td>
+          <div className="table-block">
+            <div className="table-scroll">
+              <table className="table" style={{ minWidth: 720 }}>
+                <thead>
+                  <tr>
+                    <th scope="col">Change</th>
+                    <th scope="col">Scope</th>
+                    <th scope="col">Position</th>
+                    <th scope="col">Requirement</th>
+                    <th scope="col">From</th>
+                    <th scope="col">To</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {diff.rules.map((rule, index) => (
+                    <tr
+                      key={`${rule.positionId}-${rule.requirementId}-${rule.partnershipId ?? 'base'}-${index}`}
+                    >
+                      <td>
+                        <span className={`chip chip--${diffTone(rule.kind)}`}>
+                          {rule.kind.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="mono">{scopeName(rule.partnershipId)}</td>
+                      <td>{positionName(rule.positionId)}</td>
+                      <td className="mono">{code(rule.requirementId)}</td>
+                      <td>
+                        <LevelChip level={rule.from} overridden={false} />
+                      </td>
+                      <td>
+                        <LevelChip level={rule.to} overridden={false} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {diff.quotas.length > 0 && (
             <>
-              <h3 className="section__title">Quota changes</h3>
-              <ul className="crew-list">
+              <h3 className="section__title section__title--panel">Quota changes</h3>
+              <ul className="list-plain list-plain--tight">
                 {diff.quotas.map((quota, index) => (
-                  <li key={`${quota.footnote}-${quota.requirementId}-${index}`} className="crew-list__item">
+                  <li
+                    key={`${quota.footnote}-${quota.requirementId}-${index}`}
+                    className="tint-card tag-row"
+                  >
+                    <span className={`chip chip--${diffTone(quota.kind)}`}>
+                      {quota.kind.replace('_', ' ')}
+                    </span>
                     <span>
-                      <span className={`chip chip--${diffTone(quota.kind)}`}>
-                        {quota.kind.replace('_', ' ')}
-                      </span>{' '}
                       <span className="mono">{quota.footnote}</span> ·{' '}
                       <span className="mono">{code(quota.requirementId)}</span> per {quota.scope} ·{' '}
                       {quota.fromMin ?? '—'} → {quota.toMin ?? '—'}
@@ -1058,7 +1125,7 @@ function DiffSummary({
 
           <button
             type="button"
-            className="button button--quiet"
+            className="button self-start"
             onClick={() =>
               downloadCsv(
                 'matrix-diff.csv',
@@ -1087,20 +1154,6 @@ function countByKind(kinds: readonly string[]): Record<'added' | 'removed' | 'le
     removed: kinds.filter((kind) => kind === 'removed').length,
     level_changed: kinds.filter((kind) => kind === 'level_changed').length,
   }
-}
-
-/**
- * A level in the diff's from/to columns.
- *
- * The three cases are genuinely different and must not collapse: no rule at all (`null`), a rule
- * whose level is blank (an override saying "this partnership does not require it"), and an ordinary
- * level. Rendering the middle one as an em dash — which is what `?? '—'` did — made an override
- * indistinguishable from an absent rule, which is the one distinction §4.2 turns on.
- */
-function levelText(level: string | null): string {
-  if (level === null) return '—'
-  if (level === '') return 'not required'
-  return level
 }
 
 function diffTone(kind: string): string {
@@ -1187,53 +1240,55 @@ function GeneratedGrid({
 
   return (
     <>
-      <div className="table-scroll">
-        <table className="table matrix-grid">
-          <thead>
-            <tr>
-              <th scope="col">Crew</th>
-              <th scope="col">Slot</th>
-              <th scope="col">Roll-up</th>
-              {columns.map((requirement) => (
-                <th key={requirement.id} scope="col" title={requirement.title}>
-                  <span className="mono">{requirement.code}</span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {assignments.map((assignment) => (
-              <tr key={`${assignment.personId}-${assignment.slotRef}`}>
-                <th scope="row">
-                  {assignment.name} <span className="muted mono">{assignment.sam}</span>
-                </th>
-                <td>{assignment.slotRef}</td>
-                <td>
-                  <StateChip state={assignment.evaluation.rollUp} />
-                </td>
-                {columns.map((requirement) => {
-                  const cell = assignment.evaluation.cells.find(
-                    (candidate) => candidate.requirementId === requirement.id,
-                  )
-                  return (
-                    <td key={requirement.id}>
-                      {cell === undefined ? (
-                        <span className="muted">—</span>
-                      ) : (
-                        <StateChip state={cell.state} title={`${cell.level} — ${cell.state}`} />
-                      )}
-                    </td>
-                  )
-                })}
+      <div className="table-block">
+        <div className="table-scroll">
+          <table className="table matrix-grid">
+            <thead>
+              <tr>
+                <th scope="col">Crew</th>
+                <th scope="col">Slot</th>
+                <th scope="col">Roll-up</th>
+                {columns.map((requirement) => (
+                  <th key={requirement.id} scope="col" title={requirement.title}>
+                    <span className="mono">{requirement.code}</span>
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {assignments.map((assignment) => (
+                <tr key={`${assignment.personId}-${assignment.slotRef}`}>
+                  <th scope="row">
+                    {assignment.name} <span className="mono muted">{assignment.sam}</span>
+                  </th>
+                  <td className="mono">{slotRef(assignment.slotRef)}</td>
+                  <td>
+                    <StateChip state={assignment.evaluation.rollUp} />
+                  </td>
+                  {columns.map((requirement) => {
+                    const cell = assignment.evaluation.cells.find(
+                      (candidate) => candidate.requirementId === requirement.id,
+                    )
+                    return (
+                      <td key={requirement.id}>
+                        {cell === undefined ? (
+                          <span className="dim">—</span>
+                        ) : (
+                          <StateChip state={cell.state} title={`${cell.level} — ${cell.state}`} />
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <button
         type="button"
-        className="button button--quiet"
+        className="button self-start"
         onClick={() => {
           const rows = assignments.flatMap((assignment) =>
             assignment.evaluation.cells.map((cell) => ({

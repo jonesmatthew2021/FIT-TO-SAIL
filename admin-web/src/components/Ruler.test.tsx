@@ -10,7 +10,15 @@ import { Band, Cut, Lapse, Leg, Ruler, RulerRow, Seam } from './Ruler'
  * are the reason the axis is derived from `epochDay` and never from a `Date`.
  */
 
-/** The dev fixture's UNI CC24: a 27-day axis, today six days in. */
+/**
+ * The dev fixture's UNI CC24: 20 Jul to 16 Aug, today six days in.
+ *
+ * That is 27 intervals and **28 days**, and 28 is the divisor for every position: a calendar window
+ * includes its last day (§4.2), so a bar has to cover its own end date. Drawing windows as the
+ * point-to-point difference dropped that day, which put a one-day hole between the two legs of a
+ * fully covered handover — the exact thing this screen exists to find. Every share below is
+ * therefore out of 28.
+ */
 const SWING = { from: '2026-07-20', to: '2026-08-16', today: '2026-07-26' }
 
 function renderRuler(children: React.ReactNode, axis = SWING) {
@@ -44,18 +52,16 @@ function edge(container: HTMLElement, selector: string, side: 'left' | 'width'):
   return Number.parseFloat(style(container, selector)[side])
 }
 
-/** The same fraction the component should have computed, as a percentage. */
-function share(days: number, span = 27): number {
+/** The same fraction the component should have computed, as a percentage of the axis's days. */
+function share(days: number, span = 28): number {
   return (days / span) * 100
 }
 
 describe('Ruler', () => {
   it('places the datum at today, as a fraction of the axis', () => {
     const { container } = renderRuler(<RulerRow label="01" value="" dates="" children={null} />)
-    // 26 Jul is 6 days into a 27-day axis.
-    expect(style(container, '.ruler__datum').getPropertyValue('--ruler-at')).toBe(
-      String(6 / 27),
-    )
+    // 26 Jul is the seventh of the axis's 28 days, so its day *starts* six days in.
+    expect(style(container, '.ruler__datum').getPropertyValue('--ruler-at')).toBe(String(6 / 28))
   })
 
   it('omits the datum when today is off the axis', () => {
@@ -80,8 +86,9 @@ describe('Ruler', () => {
     expect(edge(container, '.track__leg', 'width')).toBeCloseTo(100, 3)
   })
 
-  it('splits a handover into two legs with a seam between them', () => {
-    // The fixture's slot 5: Dev Ramaswamy to 2 Aug, Eve Lindqvist from 3 Aug.
+  it('splits a handover into two legs that meet, with a seam at the join', () => {
+    // The fixture's slot 5: Dev Ramaswamy to 2 Aug, Eve Lindqvist from 3 Aug. The slot is fully
+    // covered, so the two legs have to *touch* — Dev's leg has to include the 2nd.
     const { container } = renderRuler(
       <RulerRow label="05" value="" dates="">
         <Leg from="2026-07-20" to="2026-08-02">
@@ -95,9 +102,11 @@ describe('Ruler', () => {
     )
     const legs = container.querySelectorAll<HTMLElement>('.track__leg')
     expect(legs).toHaveLength(2)
+    // 20 Jul – 2 Aug inclusive is 14 days; 3 Aug – 16 Aug inclusive is the other 14. No hole.
     expect(Number.parseFloat(legs[0]?.style.left ?? '')).toBeCloseTo(0, 3)
-    expect(Number.parseFloat(legs[0]?.style.width ?? '')).toBeCloseTo(share(13), 3)
+    expect(Number.parseFloat(legs[0]?.style.width ?? '')).toBeCloseTo(share(14), 3)
     expect(Number.parseFloat(legs[1]?.style.left ?? '')).toBeCloseTo(share(14), 3)
+    expect(Number.parseFloat(legs[1]?.style.width ?? '')).toBeCloseTo(share(14), 3)
     expect(edge(container, '.track__seam', 'left')).toBeCloseTo(share(14), 3)
   })
 
@@ -113,7 +122,7 @@ describe('Ruler', () => {
       </RulerRow>,
     )
     expect(edge(container, '.track__lapse', 'left')).toBeCloseTo(share(24), 3)
-    expect(edge(container, '.track__lapse', 'width')).toBeCloseTo(share(3), 3)
+    expect(edge(container, '.track__lapse', 'width')).toBeCloseTo(share(4), 3)
     expect(edge(container, '.track__expiry', 'left')).toBeCloseTo(share(24), 3)
   })
 
@@ -136,7 +145,8 @@ describe('Ruler', () => {
     )
     const band = container.querySelector('.track__band')
     expect(band?.className).toContain('track__band--clipped')
-    expect(edge(container, '.track__band', 'width')).toBeCloseTo(share(15), 3)
+    // 1 Aug is 12 days in, and the bar runs to the axis's own end: 16 of the 28 days.
+    expect(edge(container, '.track__band', 'width')).toBeCloseTo(share(16), 3)
   })
 
   it('carries the row dates for the narrow-screen fallback', () => {

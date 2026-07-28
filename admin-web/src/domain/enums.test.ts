@@ -85,11 +85,15 @@ describe('catalogue and register enumerations', () => {
     }
   })
 
-  it('tones open work for attention and an approval as good, without colouring a refusal as a fault', () => {
-    expect(registerStatusTone('Open - PW')).toBe('caution')
+  it('tones open work by whose move it is, without colouring a refusal as a fault', () => {
+    // PW and OPS are the parties who act, so their queues are warm; an MRL query is waiting on a
+    // reading rather than on a decision. A refusal is a decision and stays muted.
+    expect(registerStatusTone('Open - PW')).toBe('warning')
+    expect(registerStatusTone('Open - OPS')).toBe('warning')
+    expect(registerStatusTone('Open - MRL')).toBe('caution')
     expect(registerStatusTone('Closed - Approved')).toBe('good')
     expect(registerStatusTone('Closed - Not Approved')).toBe('muted')
-    expect(registerStatusTone('Complete before joining')).toBe('neutral')
+    expect(registerStatusTone('Complete before joining')).toBe('muted')
   })
 })
 
@@ -115,11 +119,14 @@ describe('evidence and notification enumerations', () => {
     }
   })
 
-  it('does not colour an auto-acceptance as finished work', () => {
-    // §8 stage 4 surfaces auto-acceptances "for retrospective spot-checking". Toning one `good`
-    // would tell a reviewer to skip the row the spec put in front of them on purpose.
-    expect(verificationStatus('auto_accepted').tone).toBe('caution')
+  it('separates a decided document from one still waiting on a person', () => {
+    // Colour tracks the document's state, not a standing reminder: auto-accepted and verified are
+    // both decided, and what pulls up the auto-accepted set for §8 stage 4's retrospective
+    // spot-check is the queue's own status filter.
+    expect(verificationStatus('auto_accepted').tone).toBe('good')
     expect(verificationStatus('verified').tone).toBe('good')
+    expect(verificationStatus('pending_review').tone).toBe('caution')
+    expect(verificationStatus('pending_extraction').tone).toBe('muted')
     expect(verificationStatus('rejected').tone).toBe('critical')
   })
 
@@ -128,19 +135,21 @@ describe('evidence and notification enumerations', () => {
     expect([...QUEUE_STATUSES]).toContain('auto_accepted')
   })
 
-  it('bands confidence, and treats "not read" as absence rather than as low', () => {
-    // Zero is the unconfigured extractor's answer for every field (§14.5). Rendering it as a red
-    // "0%" would read as "the model looked and disagreed", which is the opposite of what happened.
-    expect(confidenceTone(0)).toBe('muted')
+  it('bands confidence, and treats "not read" as a field to fill rather than as a low reading', () => {
+    // Zero is the unconfigured extractor's answer for every field (§14.5). It renders as "no
+    // reading" in a warning tone: not red, because the model did not look and disagree — but not
+    // silent either, because an empty field is the one thing on the panel that will not fill itself.
+    expect(confidenceTone(0)).toBe('warning')
     expect(confidenceTone(0.4)).toBe('critical')
-    expect(confidenceTone(0.8)).toBe('caution')
-    expect(confidenceTone(0.95)).toBe('good')
+    expect(confidenceTone(0.62)).toBe('caution')
+    expect(confidenceTone(0.87)).toBe('good')
   })
 
   it('labels back-office notification kinds as well as crew ones', () => {
     expect(notificationKind('expiry_warning').label).toBe('Expiry')
     expect(notificationKind('quota_shortfall').tone).toBe('critical')
-    expect(notificationKind('matrix_published').tone).toBe('neutral')
+    // A published matrix is information, not work: nobody has to do anything about having been told.
+    expect(notificationKind('matrix_published').tone).toBe('muted')
   })
 
   it('degrades to the raw wire value for a kind this revision does not know', () => {
