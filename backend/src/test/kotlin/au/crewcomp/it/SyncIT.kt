@@ -2,8 +2,6 @@ package au.crewcomp.it
 
 import au.crewcomp.compliance.MatrixSnapshotService
 import au.crewcomp.engine.HoldingStatus
-import au.crewcomp.people.CrewStatementKind
-import au.crewcomp.people.CrewStatementRepository
 import au.crewcomp.people.HoldingService
 import au.crewcomp.platform.security.Actor
 import au.crewcomp.platform.security.ActorContext
@@ -26,7 +24,6 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.security.MessageDigest
-import java.time.LocalDate
 import java.util.HexFormat
 import java.util.UUID
 
@@ -46,7 +43,6 @@ class SyncIT {
     @Inject lateinit var matrixSnapshots: MatrixSnapshotService
     @Inject lateinit var holdings: HoldingService
     @Inject lateinit var actorContext: ActorContext
-    @Inject lateinit var statements: CrewStatementRepository
 
     private lateinit var seed: FixtureSeeder.Seed
 
@@ -439,12 +435,19 @@ class SyncIT {
                     .body("results[0].status", equalTo("applied"))
             }
 
-            val mine = statements.forPersonUnscoped(seed.compliantPersonId)
-            assertEquals(1, mine.size)
-            assertEquals(CrewStatementKind.COURSE_BOOKED, mine.single().kind)
-            // Stamped from the holding, so the expiry scan can go quiet for *this* expiry and
-            // start again when a renewal moves it.
-            assertEquals(LocalDate.of(2027, 8, 1), mine.single().aboutExpiry)
+            asCrew()
+                .get("/api/v1/sync/snapshot")
+                .then()
+                .body("crewStatements", hasSize<Any>(1))
+                .body("crewStatements[0].kind", equalTo("requirement.progress"))
+                .body("crewStatements[0].status", equalTo("open"))
+                // The device's own queue-entry id, echoed back. It is how the app matches a server
+                // statement to the tap that produced it.
+                .body("crewStatements[0].opId", equalTo("op-booked"))
+                // Stamped from the holding, so the expiry scan can go quiet for *this* expiry and
+                // start again when a renewal moves it.
+                .body("crewStatements[0].aboutExpiry", equalTo("2027-08-01"))
+                .body("crewStatements[0].decidedAt", nullValue())
         }
 
         @Test
@@ -454,10 +457,10 @@ class SyncIT {
             answer("op-help", "requirement.help", seed.medRequirementId)
                 .body("results[0].status", equalTo("applied"))
 
-            assertEquals(
-                CrewStatementKind.HELP_REQUESTED,
-                statements.forPersonUnscoped(seed.compliantPersonId).single().kind,
-            )
+            asCrew()
+                .get("/api/v1/sync/snapshot")
+                .then()
+                .body("crewStatements[0].kind", equalTo("requirement.help"))
 
             // "Nothing is recorded against you for asking for help" is a promise the screen makes
             // in as many words, and this is where it has to hold: no holding moved and the engine's
@@ -481,7 +484,7 @@ class SyncIT {
                 .body("results[0].status", equalTo("rejected"))
                 .body("results[0].detail", containsString("requirementId"))
 
-            assertTrue(statements.forPersonUnscoped(seed.compliantPersonId).isEmpty())
+            asCrew().get("/api/v1/sync/snapshot").then().body("crewStatements", hasSize<Any>(0))
         }
 
         @Test
@@ -494,7 +497,106 @@ class SyncIT {
             answer("op-shared", "requirement.progress", seed.medRequirementId, personId = seed.gapPersonId)
                 .body("results[0].status", equalTo("rejected"))
 
-            assertTrue(statements.forPersonUnscoped(seed.gapPersonId).isEmpty())
+            asCrew(seed.gapPersonId)
+                .get("/api/v1/sync/snapshot")
+                .then()
+                .body("crewStatements", hasSize<Any>(0))
+        }
+
+        @Test
+        fun `carries the office's decision back to the device, and only to that device`() {
+            answer("op-decided", "requirement.progress", seed.medRequirementId)
+                .body("results[0].status", equalTo("applied"))
+
+            val cursor: Long = asCrew().get("/api/v1/sync/snapshot").then()
+                .extract().path<Int>("cursor").toLong()
+
+            val requestId: Int = given()
+                .header("X-Dev-User", "Coordinator")
+                .header("X-Dev-Roles", Role.CREW_COORDINATOR.wire)
+                .get("/api/v1/crew-requests?status=open")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("[0].id")
+
+            given()
+                .header("X-Dev-User", "Coordinator")
+                .header("X-Dev-Roles", Role.CREW_COORDINATOR.wire)
+                .contentType(ContentType.JSON)
+                .body("""{"note":"We could not find your booking — can you forward it?"}""")
+                .post("/api/v1/crew-requests/$requestId/dismiss")
+                .then()
+                .statusCode(200)
+
+            // The decision arrives as a *delta*, which is the property that matters: the phone does
+            // not have to re-snapshot to learn what the office said.
+            asCrew()
+                .get("/api/v1/sync/delta?cursor=$cursor")
+                .then()
+                .statusCode(200)
+                .body("crewStatements", hasSize<Any>(1))
+                .body("crewStatements[0].opId", equalTo("op-decided"))
+                .body("crewStatements[0].status", equalTo("dismissed"))
+                .body(
+                    "crewStatements[0].decisionNote",
+                    equalTo("We could not find your booking — can you forward it?"),
+                )
+                .body("crewStatements[0].decidedAt", notNullValue())
+
+            // …and to nobody else's. The statement is person-scoped like every other row here.
+            asCrew(seed.gapPersonId)
+                .get("/api/v1/sync/snapshot")
+                .then()
+                .body("crewStatements", hasSize<Any>(0))
+        }
+
+        @Test
+        fun `names a statement by the operation that raised it, not by the domain's word`() {
+            // The device matches a statement to its own outbox record by `opId`, and reads `kind`
+            // as the operation it queued. Sending the domain word instead (`course_booked`) makes
+            // the join succeed and the *kind* comparison fail, so a decided request renders as no
+            // answer at all — silently, and only on a device. That shipped once; this is the check
+            // that would have caught it, and it deliberately asserts the two ends are the same
+            // string rather than asserting a literal.
+            for (type in listOf("requirement.progress", "requirement.help")) {
+                answer("op-$type", type, seed.medRequirementId)
+                    .body("results[0].status", equalTo("applied"))
+            }
+
+            val kinds: Map<String, String> = asCrew()
+                .get("/api/v1/sync/snapshot")
+                .then()
+                .statusCode(200)
+                .extract()
+                .jsonPath()
+                .getList<Map<String, Any>>("crewStatements")
+                .associate { it["opId"] as String to it["kind"] as String }
+
+            assertEquals(
+                mapOf(
+                    "op-requirement.progress" to "requirement.progress",
+                    "op-requirement.help" to "requirement.help",
+                ),
+                kinds,
+            )
+        }
+
+        @Test
+        fun `advances the cursor past a crew statement`() {
+            // A person-scoped table missing from `currentCursor` keeps its rows above the cursor the
+            // client is handed, so the same rows arrive in every delta forever — harmless, silent
+            // and permanent. This is the check that the new table was added there.
+            answer("op-cursor", "requirement.help", seed.medRequirementId)
+                .body("results[0].status", equalTo("applied"))
+
+            val cursor: Long = asCrew().get("/api/v1/sync/snapshot").then()
+                .extract().path<Int>("cursor").toLong()
+
+            asCrew()
+                .get("/api/v1/sync/delta?cursor=$cursor")
+                .then()
+                .body("crewStatements", hasSize<Any>(0))
         }
     }
 

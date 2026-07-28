@@ -86,36 +86,42 @@ class OneTapUpdateScreen extends StatelessWidget {
     return StreamBuilder<List<LocalCrewIntent>>(
       stream: state.watchIntentsFor(row.cell.requirementId),
       builder: (context, intentSnapshot) {
-        return StreamBuilder<List<LocalSubmission>>(
-          stream: state.watchSubmissionsFor(row.cell.requirementId),
-          builder: (context, submissionSnapshot) => OneTapUpdateView(
-            row: row,
-            today: state.serverToday,
-            swingTo: state.syncState?.standingTo,
-            intents: intentSnapshot.data ?? const <LocalCrewIntent>[],
-            submissions: submissionSnapshot.data ?? const <LocalSubmission>[],
-            onHaveIt: () => showSendCertificateSheet(
-              context: context,
-              state: state,
-              requirementId: row.cell.requirementId,
-              requirementLabel: '${row.code} ${row.title}',
-            ),
-            onCourseBooked: () async {
-              await state.answer(
-                kind: IntentKind.courseBooked,
-                summary: 'Course booked for ${row.title}',
+        return StreamBuilder<List<LocalCrewStatement>>(
+          stream: state.watchStatementsFor(row.cell.requirementId),
+          builder: (context, statementSnapshot) => StreamBuilder<List<LocalSubmission>>(
+            stream: state.watchSubmissionsFor(row.cell.requirementId),
+            builder: (context, submissionSnapshot) => OneTapUpdateView(
+              row: row,
+              today: state.serverToday,
+              swingTo: state.syncState?.standingTo,
+              answers: answersFrom(
+                intentSnapshot.data ?? const <LocalCrewIntent>[],
+                statementSnapshot.data ?? const <LocalCrewStatement>[],
+              ),
+              submissions: submissionSnapshot.data ?? const <LocalSubmission>[],
+              onHaveIt: () => showSendCertificateSheet(
+                context: context,
+                state: state,
                 requirementId: row.cell.requirementId,
-              );
-              if (context.mounted) openCourseBooking(context, state, row);
-            },
-            onNeedHelp: () => state.answer(
-              kind: IntentKind.helpNeeded,
-              summary: 'Asked for help with ${row.title}',
-              requirementId: row.cell.requirementId,
+                requirementLabel: '${row.code} ${row.title}',
+              ),
+              onCourseBooked: () async {
+                await state.answer(
+                  kind: IntentKind.courseBooked,
+                  summary: 'Course booked for ${row.title}',
+                  requirementId: row.cell.requirementId,
+                );
+                if (context.mounted) openCourseBooking(context, state, row);
+              },
+              onNeedHelp: () => state.answer(
+                kind: IntentKind.helpNeeded,
+                summary: 'Asked for help with ${row.title}',
+                requirementId: row.cell.requirementId,
+              ),
+              onExemption: () => openExemptionRequest(context, state, row),
+              onRetryIntent: state.retryAnswer,
+              onDiscardIntent: state.discardAnswer,
             ),
-            onExemption: () => openExemptionRequest(context, state, row),
-            onRetryIntent: state.retryAnswer,
-            onDiscardIntent: state.discardAnswer,
           ),
         );
       },
@@ -129,7 +135,7 @@ class OneTapUpdateView extends StatelessWidget {
     required this.row,
     required this.today,
     this.swingTo,
-    this.intents = const <LocalCrewIntent>[],
+    this.answers = const <Answer>[],
     this.submissions = const <LocalSubmission>[],
     this.onHaveIt,
     this.onCourseBooked,
@@ -142,7 +148,7 @@ class OneTapUpdateView extends StatelessWidget {
   final CertificationRow row;
   final String? today;
   final String? swingTo;
-  final List<LocalCrewIntent> intents;
+  final List<Answer> answers;
   final List<LocalSubmission> submissions;
   final VoidCallback? onHaveIt;
   final VoidCallback? onCourseBooked;
@@ -160,8 +166,11 @@ class OneTapUpdateView extends StatelessWidget {
       today: today,
       swingTo: swingTo,
     );
-    final booked = intents.where((i) => i.kind == IntentKind.courseBooked).firstOrNull;
-    final helped = intents.where((i) => i.kind == IntentKind.helpNeeded).firstOrNull;
+    // `stands` and not merely "exists": an answer the office dismissed puts the button back, which
+    // is the same thing the server does when a dismissal restarts the expiry chasing.
+    final booked =
+        answers.where((a) => a.kind == IntentKind.courseBooked && a.stands).firstOrNull;
+    final helped = answers.where((a) => a.kind == IntentKind.helpNeeded && a.stands).firstOrNull;
 
     return Scaffold(
       backgroundColor: Nocturne.bg,
@@ -230,18 +239,18 @@ class OneTapUpdateView extends StatelessWidget {
                   onPressed: helped == null ? onNeedHelp : null,
                 ),
 
-                if (intents.isNotEmpty) ...[
+                if (answers.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  for (final intent in intents)
+                  for (final answer in answers)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: IntentLine(
-                        intent: intent,
-                        onRetry: intent.state == 'failed' && onRetryIntent != null
-                            ? () => onRetryIntent!(intent.opId)
+                      child: AnswerLine(
+                        answer: answer,
+                        onRetry: answer.failed && onRetryIntent != null
+                            ? () => onRetryIntent!(answer.opId)
                             : null,
-                        onDismiss: intent.state == 'failed' && onDiscardIntent != null
-                            ? () => onDiscardIntent!(intent.opId)
+                        onDismiss: answer.failed && onDiscardIntent != null
+                            ? () => onDiscardIntent!(answer.opId)
                             : null,
                       ),
                     ),
@@ -576,7 +585,10 @@ class _CourseCard extends StatelessWidget {
               ),
             ],
           ),
-          if (intent != null) ...[const SizedBox(height: 8), IntentLine(intent: intent!)],
+          if (intent != null) ...[
+            const SizedBox(height: 8),
+            AnswerLine(answer: answerFromIntent(intent!)),
+          ],
         ],
       ),
     );
@@ -759,7 +771,10 @@ class _ExemptionRequestViewState extends State<ExemptionRequestView> {
                       'and the course search are attached automatically — no need to explain them.',
           ),
 
-          if (already != null) ...[const SizedBox(height: 12), IntentLine(intent: already)],
+          if (already != null) ...[
+            const SizedBox(height: 12),
+            AnswerLine(answer: answerFromIntent(already)),
+          ],
 
           const SizedBox(height: 20),
           NButton(
@@ -1030,7 +1045,10 @@ class _AttestationViewState extends State<AttestationView> {
             ),
           ),
 
-          if (signed != null) ...[const SizedBox(height: 12), IntentLine(intent: signed)],
+          if (signed != null) ...[
+            const SizedBox(height: 12),
+            AnswerLine(answer: answerFromIntent(signed)),
+          ],
 
           const SizedBox(height: 20),
           NButton(

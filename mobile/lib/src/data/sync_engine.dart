@@ -128,6 +128,10 @@ class SyncEngine {
       await store.delete(store.submissions).go();
       await store.delete(store.requirements).go();
       await store.delete(store.crewChanges).go();
+      // Server-owned, so it is replaced like the rest. `crew_intents` beside it is *not* — those
+      // are this device's own records of what it sent, and a snapshot has nothing to say about
+      // an answer the server has not seen yet.
+      await store.delete(store.crewStatements).go();
 
       await _upsertPerson(snapshot.person);
       for (final holding in snapshot.holdings) {
@@ -150,6 +154,9 @@ class SyncEngine {
                 ..where((t) => t.publicId.equals(submission.publicId)))
               .write(SubmissionsCompanion(localPath: Value(staged)));
         }
+      }
+      for (final statement in snapshot.crewStatements) {
+        await _upsertCrewStatement(statement);
       }
       for (final requirement in snapshot.reference.requirements) {
         await store.into(store.requirements).insertOnConflictUpdate(
@@ -203,6 +210,9 @@ class SyncEngine {
       for (final submission in delta.submissions) {
         await _upsertSubmission(submission);
       }
+      for (final statement in delta.crewStatements) {
+        await _upsertCrewStatement(statement);
+      }
       for (final tombstone in delta.tombstones) {
         await _applyTombstone(tombstone);
       }
@@ -235,6 +245,10 @@ class SyncEngine {
             .go();
       case 'Notification':
         await (store.delete(store.notifications)
+              ..where((t) => t.id.equals(tombstone.entityId)))
+            .go();
+      case 'CrewStatement':
+        await (store.delete(store.crewStatements)
               ..where((t) => t.id.equals(tombstone.entityId)))
             .go();
       case 'Person':
@@ -448,10 +462,30 @@ class SyncEngine {
   /// Forgets delivered intents once they are old enough that nothing on screen still refers to
   /// them. Failed and queued ones are never swept — those are the two states a crew member may
   /// still be waiting on an answer about.
-  Future<void> pruneSettledIntents() => (store.delete(store.crewIntents)
-        ..where((t) => t.state.equals('sent'))
-        ..where((t) => t.queuedAt.isSmallerThanValue(now().subtract(intentRetention))))
-      .go();
+  /// Drops the device's record of an answer once it has nothing left to say.
+  ///
+  /// Two rules, because two things can end an intent's usefulness:
+  ///
+  ///  * **The office has it.** A matching `crew_statements` row is the server's own copy, it
+  ///    survives a reinstall, and it can report a decision the intent never could. Keeping both
+  ///    would leave two rows about one tap and a screen having to choose.
+  ///  * **It has simply aged.** The other six operation kinds have no server record to arrive
+  ///    (`docs/handoff/mobile-crew-app-backend.md` §1), so those age out on [intentRetention] or
+  ///    they would accumulate for the life of the install.
+  ///
+  /// Only `sent` in both cases. A `queued` intent is unsent work and a `failed` one is a retry the
+  /// crew member has not dealt with; deleting either would lose something.
+  Future<void> pruneSettledIntents() async {
+    final confirmed = await store.select(store.crewStatements).map((row) => row.opId).get();
+    await (store.delete(store.crewIntents)
+          ..where((t) => t.state.equals('sent'))
+          ..where(
+            (t) =>
+                t.opId.isIn(confirmed) |
+                t.queuedAt.isSmallerThanValue(now().subtract(intentRetention)),
+          ))
+        .go();
+  }
 
   /// Sends every due queue entry and reconciles the verdicts. Returns how many were applied.
   Future<int> flushOutbox() async {
@@ -674,6 +708,32 @@ class SyncEngine {
               submittedAt: submission.submittedAt,
             ),
           );
+
+  /// Stores the office's copy of a one-tap answer, and settles the local intent it belongs to.
+  ///
+  /// The settle is the point of doing these together. Once the server has the statement, the
+  /// device's own `crew_intents` row has nothing left to say — it exists to report *queued* and
+  /// *failed*, states only the device knows — and leaving it at `queued` beside an arrived
+  /// statement would show a crew member "sends when you have signal" for something the office is
+  /// already looking at. That happens on a real device more often than it sounds: the outbox
+  /// pushes, the connection drops before the verdict is read, and the answer is only ever
+  /// confirmed by the next pull.
+  Future<void> _upsertCrewStatement(CrewStatementSyncDto statement) async {
+    await store.into(store.crewStatements).insertOnConflictUpdate(
+          CrewStatementsCompanion.insert(
+            id: Value(statement.id),
+            opId: statement.opId,
+            kind: statement.kind,
+            requirementId: statement.requirementId,
+            status: statement.status,
+            aboutExpiry: Value(statement.aboutExpiry),
+            raisedAt: statement.raisedAt,
+            decisionNote: Value(statement.decisionNote),
+            decidedAt: Value(statement.decidedAt),
+          ),
+        );
+    await _settleIntent(statement.opId, 'sent', null);
+  }
 }
 
 class SyncOutcome {

@@ -1,6 +1,7 @@
 package au.crewcomp.people
 
 import au.crewcomp.platform.persistence.AuditedEntity
+import au.crewcomp.platform.security.ScopeGuard
 import au.crewcomp.reference.Requirement
 import io.quarkus.hibernate.orm.panache.kotlin.PanacheRepositoryBase
 import jakarta.enterprise.context.ApplicationScoped
@@ -134,14 +135,23 @@ enum class CrewStatementStatus(val wire: String) {
 /**
  * The two answers the crew app can post today.
  *
- * The wire values are a compatibility surface: they are half of `IntentKind` in
- * `mobile/lib/src/domain/intents.dart`, and the operation names on the sync queue are derived from
- * them. Renaming one silently changes what a device that has been offline for a fortnight is
- * allowed to say.
+ * **Two names each, and they are not interchangeable.** [wire] is the domain's word, and it is what
+ * the console and the database store. [operation] is the sync-queue operation the device posted to
+ * raise it, and it is what travels back in `CrewStatementSyncDto.kind` — because the device's whole
+ * vocabulary for these is `IntentKind` in `mobile/lib/src/domain/intents.dart`, and a payload that
+ * spoke the other language would make the app match a statement to the tap that produced it through
+ * a translation table nobody would keep in step.
+ *
+ * That is not hypothetical: the first version sent [wire], the app matched on [operation], the join
+ * silently found nothing, and a dismissed request rendered as no answer at all — on a simulator,
+ * with every unit test green, because the fixtures encoded the assumption rather than the wire.
+ *
+ * Both are a compatibility surface. Renaming either changes what a device that has been offline for
+ * a fortnight can say, or what it can understand when it is told.
  */
-enum class CrewStatementKind(val wire: String) {
+enum class CrewStatementKind(val wire: String, val operation: String) {
     /** MOB-5: the crew member has a course booked. Suppresses expiry chasing for that expiry. */
-    COURSE_BOOKED("course_booked"),
+    COURSE_BOOKED("course_booked", "requirement.progress"),
 
     /**
      * MOB-5 / MOB-0: the crew member wants help arranging it.
@@ -152,7 +162,7 @@ enum class CrewStatementKind(val wire: String) {
      * evaporates: a request nobody can find is a request nobody can act on, which would make the
      * button a placebo.
      */
-    HELP_REQUESTED("help_requested");
+    HELP_REQUESTED("help_requested", "requirement.help");
 
     companion object {
         fun fromWire(wire: String): CrewStatementKind =
@@ -162,7 +172,9 @@ enum class CrewStatementKind(val wire: String) {
 }
 
 @ApplicationScoped
-class CrewStatementRepository : PanacheRepositoryBase<CrewStatement, Long> {
+class CrewStatementRepository(
+    private val scopeGuard: ScopeGuard,
+) : PanacheRepositoryBase<CrewStatement, Long> {
 
     /**
      * The row a replayed operation already created, or null.
@@ -204,12 +216,23 @@ class CrewStatementRepository : PanacheRepositoryBase<CrewStatement, Long> {
             .map { Triple((it[0] as Number).toLong(), (it[1] as Number).toLong(), it[2] as LocalDate) }
             .toSet()
 
-    fun forPersonUnscoped(personId: Long): List<CrewStatement> =
-        find(
+    /**
+     * One crew member's own statements, for their §10.3 snapshot.
+     *
+     * Scoped, like every other read the snapshot makes: `SyncService` has already established that
+     * the person is the authenticated crew member, and this is the second lock on that door.
+     * There is deliberately no unscoped variant to reach for — the back-office read is
+     * [queueUnscoped], which says what it is in its name and is gated by a role check in the
+     * service.
+     */
+    fun forPersonScoped(personId: Long): List<CrewStatement> {
+        scopeGuard.assertVisible(personId)
+        return find(
             "from CrewStatement s join fetch s.requirement where s.person.id = ?1 " +
                 "order by s.createdAt desc",
             personId,
         ).list()
+    }
 
     /**
      * ADM-11's worklist, oldest first — the oldest unanswered request is the one somebody is still

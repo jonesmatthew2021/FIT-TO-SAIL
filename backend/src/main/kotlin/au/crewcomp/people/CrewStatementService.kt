@@ -41,6 +41,7 @@ import java.time.LocalDate
 class CrewStatementService(
     private val statements: CrewStatementRepository,
     private val people: PersonRepository,
+    private val accounts: UserAccountRepository,
     private val holdings: QualificationHoldingRepository,
     private val requirements: RequirementRepository,
     private val notifications: NotificationService,
@@ -196,7 +197,57 @@ class CrewStatementService(
             before = before,
             after = snapshot(statement),
         )
+
+        notifyCrewMember(statement, clean)
         return statement
+    }
+
+    /**
+     * Tells the crew member what the office decided.
+     *
+     * The loop the outbox opens is only closed here. Without it a crew member taps "Course booked",
+     * the row says "Sent to the office", and nothing ever happens on their phone again — which is a
+     * button that talks to a void, and worse than no button. The dismissal half matters most: it is
+     * the office saying "we could not find that, over to you", and it changes what the person has to
+     * do next.
+     *
+     * The decision note travels in the body, and ADM-11's form says so above the field. Two reasons
+     * that is the right way round: a bare "dismissed" is a door closing rather than an answer, and a
+     * coordinator who knows the crew member reads it writes "can you forward the confirmation email"
+     * instead of "no record".
+     *
+     * SEC-13: the title carries neither the qualification nor the verdict, because the title is the
+     * only field a push payload may carry and a lock screen is read over someone's shoulder.
+     *
+     * The statement row itself also reaches the device, through the sync payload — this is the
+     * *prompt*, not the record. A crew member who never opens the notification still sees the
+     * decision on the requirement.
+     */
+    private fun notifyCrewMember(statement: CrewStatement, note: String) {
+        val account = accounts.forPerson(statement.person.requiredId) ?: return
+
+        val actioned = statement.status == CrewStatementStatus.ACTIONED
+        // The **title**, not the code. A coordinator lives in `MS-02`; a crew member knows it as
+        // Sea Survival, and every screen in the crew app names it that way.
+        val name = statement.requirement.title
+        notifications.raise(
+            recipientUserAccountId = account.requiredId,
+            kind = if (actioned) {
+                NotificationKind.CREW_REQUEST_ACTIONED
+            } else {
+                NotificationKind.CREW_REQUEST_DISMISSED
+            },
+            title = "The office answered your request",
+            body = if (actioned) {
+                "$name — the office has it in hand. $note"
+            } else {
+                "$name — the office could not act on this. $note"
+            },
+            deepLink = "crewcomp://certifications/${statement.requirement.requiredId}",
+            // Terminal, so this fires once per statement — but the key costs nothing and makes a
+            // replayed decision (a retried request, a future reopen) impossible to double-send.
+            dedupeKey = "crew-statement-decided:${statement.opId}",
+        )
     }
 
     private fun snapshot(statement: CrewStatement): Map<String, Any?> = mapOf(

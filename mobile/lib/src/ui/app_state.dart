@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../data/evidence_capture.dart';
 import '../data/local_store.dart';
 import '../data/sync_engine.dart';
+import '../domain/intents.dart';
 import '../domain/offers.dart';
 import '../domain/states.dart';
 
@@ -209,6 +210,20 @@ class AppState extends ChangeNotifier {
             ..orderBy([(t) => OrderingTerm(expression: t.queuedAt, mode: OrderingMode.desc)]))
           .watch();
 
+  /// The office's copy of this crew member's answers, with whatever it decided (ADM-11).
+  ///
+  /// Server-owned and therefore durable: this is the half that survives a reinstall and the only
+  /// half that can carry a coordinator's decision.
+  Stream<List<LocalCrewStatement>> watchStatements() => (store.select(store.crewStatements)
+        ..orderBy([(t) => OrderingTerm(expression: t.raisedAt, mode: OrderingMode.desc)]))
+      .watch();
+
+  Stream<List<LocalCrewStatement>> watchStatementsFor(int requirementId) =>
+      (store.select(store.crewStatements)
+            ..where((t) => t.requirementId.equals(requirementId))
+            ..orderBy([(t) => OrderingTerm(expression: t.raisedAt, mode: OrderingMode.desc)]))
+          .watch();
+
   Stream<List<LocalNotification>> watchNotifications() =>
       (store.select(store.notifications)
             ..orderBy([
@@ -325,6 +340,67 @@ Readiness readinessFrom(List<CertificationRow> rows) {
   final outstanding = applicable.where((row) => needsAttention(row.cell.state)).length;
   return Readiness(ready: applicable.length - outstanding, total: applicable.length);
 }
+
+/// Merges the two halves of the one-tap record into what a screen actually renders.
+///
+/// The device's outbox record and the server's statement are joined on `opId` — the device's own
+/// queue-entry id, echoed back in the sync payload, which is why no second identifier had to be
+/// invented for this.
+///
+/// **The server's row wins wherever both exist**, and that is the whole rule: it is the only one of
+/// the two that can carry a coordinator's decision, and the device's copy has by then said
+/// everything it knows. (It rarely comes to that — `pruneSettledIntents` deletes a `sent` intent as
+/// soon as its statement lands — but the two tables are written by different code paths and a merge
+/// that assumed they were disjoint would show a stale "Sent to the office" over a decision.)
+///
+/// Ordering is preserved from the caller's lists, both of which arrive newest-first.
+List<Answer> answersFrom(
+  List<LocalCrewIntent> intents,
+  List<LocalCrewStatement> statements,
+) {
+  final confirmed = {for (final statement in statements) statement.opId};
+  return [
+    for (final statement in statements)
+      Answer(
+        opId: statement.opId,
+        kind: statement.kind,
+        state: switch (statement.status) {
+          'actioned' => AnswerState.actioned,
+          'dismissed' => AnswerState.dismissed,
+          // `open`, and anything a newer server invents. Treated as "the office has it" rather
+          // than rendered verbatim: unlike a cell state, an unknown value here is a workflow step
+          // this build does not know about, and "sent" is true of every one of them.
+          _ => AnswerState.sent,
+        },
+        summary: intents
+                .where((intent) => intent.opId == statement.opId)
+                .map((intent) => intent.summary)
+                .firstOrNull ??
+            answerSummary(statement.kind),
+        requirementId: statement.requirementId,
+        detail: statement.decisionNote,
+      ),
+    for (final intent in intents)
+      if (!confirmed.contains(intent.opId)) answerFromIntent(intent),
+  ];
+}
+
+/// One answer with only the device's half of its record.
+///
+/// The right shape for the five operations that will never get a server statement back — a course
+/// seat request, a nudge — and the fallback for a statement that has not arrived yet.
+Answer answerFromIntent(LocalCrewIntent intent) => Answer(
+      opId: intent.opId,
+      kind: intent.kind,
+      state: switch (intent.state) {
+        'sent' => AnswerState.sent,
+        'failed' => AnswerState.failed,
+        _ => AnswerState.queued,
+      },
+      summary: intent.summary,
+      requirementId: intent.requirementId,
+      detail: intent.detail,
+    );
 
 /// One line of the certifications screen.
 class CertificationRow {

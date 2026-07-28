@@ -358,6 +358,19 @@ const NOTIFICATION_KINDS: Record<string, StateDisplay> = {
     tone: 'caution',
     description: 'A crew member has asked for help arranging a requirement.',
   },
+  // The office answering back (ADM-11). Crew-facing, so these appear here only through the role
+  // proxy or on a coordinator's own crew record — but a kind with no entry renders as its wire
+  // value, and a row reading `crew_request_dismissed` is worse than one reading "Answered".
+  crew_request_actioned: {
+    label: 'Answered',
+    tone: 'good',
+    description: 'The office confirmed or arranged what a crew member asked about.',
+  },
+  crew_request_dismissed: {
+    label: 'Answered',
+    tone: 'caution',
+    description: 'The office could not act on a crew request; the reason is in the body.',
+  },
 }
 
 export function notificationKind(kind: string): StateDisplay {

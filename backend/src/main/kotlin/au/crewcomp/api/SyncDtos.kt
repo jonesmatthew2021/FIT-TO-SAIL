@@ -2,6 +2,7 @@ package au.crewcomp.api
 
 import au.crewcomp.evidence.EvidenceDocument
 import au.crewcomp.notify.Notification
+import au.crewcomp.people.CrewStatement
 import au.crewcomp.sync.SyncTombstone
 import java.time.Instant
 import java.time.LocalDate
@@ -36,9 +37,54 @@ data class SyncSnapshotDto(
     val leave: List<LeaveRecordDto>,
     val notifications: List<NotificationDto>,
     val submissions: List<EvidenceSubmissionDto>,
+    /** The crew member's own one-tap answers, and what the office did about each (MOB-5, ADM-11). */
+    val crewStatements: List<CrewStatementSyncDto>,
     val reference: SyncReferenceDto,
     /** Null when the crew member has no assignment to evaluate against — see [SyncStandingDto]. */
     val standing: SyncStandingDto?,
+)
+
+/**
+ * One of the crew member's own statements, coming back with the office's answer on it.
+ *
+ * This closes the loop the outbox opens. The device already records what it *sent* — that is the
+ * `crew_intents` row, keyed on [opId] — but a device-local record is not durable across a reinstall
+ * and can say nothing about what happened next. This row is server-owned, so it survives, and it
+ * carries the decision.
+ *
+ * [opId] is the join. It is the device's own queue-entry id, echoed back, which lets the app match
+ * a server statement to the tap that produced it without inventing a second identifier.
+ *
+ * Note what is **not** here: no cell state, no roll-up, no holding. A statement is not a compliance
+ * answer and the app must not read one as though it were (AUTH-1). The person's standing arrives, as
+ * it always has, in [SyncSnapshotDto.standing].
+ */
+data class CrewStatementSyncDto(
+    val id: Long,
+    /** The device's queue-entry id — how the app matches this to its own outbox record. */
+    val opId: String,
+    /**
+     * The **operation name** the device posted — `requirement.progress` | `requirement.help` — not
+     * the domain's `course_booked` / `help_requested`.
+     *
+     * Deliberate: this payload is read by one client, whose whole vocabulary for these is the
+     * operation type it queued. Sending the domain word would make the app translate between two
+     * enumerations to recognise its own tap. See [au.crewcomp.people.CrewStatementKind].
+     */
+    val kind: String,
+    val requirementId: Long,
+    /** `open` | `actioned` | `dismissed`. */
+    val status: String,
+    /** The expiry the statement was about, or null when there was no expiring holding. */
+    val aboutExpiry: LocalDate?,
+    val raisedAt: Instant,
+    /**
+     * The coordinator's answer, **written knowing the crew member reads it** — the ADM-11 form says
+     * so above the field. That is what makes it worth sending: "we could not find your booking, can
+     * you forward the confirmation" is an answer, and a bare "dismissed" is a door closing.
+     */
+    val decisionNote: String?,
+    val decidedAt: Instant?,
 )
 
 /**
@@ -121,6 +167,7 @@ data class SyncDeltaDto(
     val leave: List<LeaveRecordDto>,
     val notifications: List<NotificationDto>,
     val submissions: List<EvidenceSubmissionDto>,
+    val crewStatements: List<CrewStatementSyncDto>,
     val tombstones: List<SyncTombstoneDto>,
     /** Recomputed on every delta: a holding change silently changes the roll-up. */
     val standing: SyncStandingDto?,
@@ -226,4 +273,23 @@ fun SyncTombstone.toDto() = SyncTombstoneDto(
     entityType = entityType,
     entityId = entityId,
     seq = seq,
+)
+
+/**
+ * Named `toSyncDto` rather than `toDto` because [CrewStatement] already has one, for ADM-11's queue.
+ *
+ * The two are deliberately different shapes and neither should grow into the other: the console's
+ * row carries the person and their position, because a coordinator is triaging a list of people;
+ * the device's row carries none of that, because it is already the crew member's own phone.
+ */
+fun CrewStatement.toSyncDto() = CrewStatementSyncDto(
+    id = requiredId,
+    opId = opId,
+    kind = kind.operation,
+    requirementId = requirement.requiredId,
+    status = status.wire,
+    aboutExpiry = aboutExpiry,
+    raisedAt = createdAt,
+    decisionNote = decisionNote,
+    decidedAt = decidedAt,
 )

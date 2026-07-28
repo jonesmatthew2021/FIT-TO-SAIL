@@ -59,6 +59,21 @@ void main() {
     });
   });
 
+  group('crew-facing alerts', () {
+    test("tones the office's reply by whether it left the crew member something to do", () {
+      // Amber and not red for a dismissal: the office looked and could not act, which is work
+      // returning rather than a fault — and it is the same tone the card on Home gives it.
+      expect(notificationKindColour('crew_request_actioned'), Nocturne.goodText);
+      expect(notificationKindColour('crew_request_dismissed'), Nocturne.warningText);
+    });
+
+    test('offers an action on the reply that hands the job back, and not on the other', () {
+      // MOB-4's rule: every alert that implies an action offers it inline.
+      expect(notificationActionLabel('crew_request_dismissed'), isNotNull);
+      expect(notificationActionLabel('crew_request_actioned'), isNull);
+    });
+  });
+
   group('Appendix A labels', () {
     test('map holding statuses', () {
       expect(holdingStatusLabel('held_expiry'), 'Held, expires');

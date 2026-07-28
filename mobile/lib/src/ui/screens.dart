@@ -414,34 +414,43 @@ class HomeScreen extends StatelessWidget {
     return StreamBuilder<List<CertificationRow>>(
       stream: state.watchCertifications(),
       builder: (context, rowSnapshot) {
+        // Both halves of the one-tap record: what this device sent, and what the office holds.
+        // Nested rather than combined into one stream so the merge stays a pure function the view
+        // tests can call directly — the `*Screen` / `*View` split this file keeps to throughout.
         return StreamBuilder<List<LocalCrewIntent>>(
           stream: state.watchIntents(),
-          builder: (context, intentSnapshot) => HomeView(
-            rows: rowSnapshot.data,
-            intents: intentSnapshot.data ?? const <LocalCrewIntent>[],
-            person: state.person,
-            sync: state.syncState,
-            credits: state.credits,
-            today: state.serverToday,
-            syncing: state.syncing,
-            error: state.lastError,
-            onSync: state.syncing ? null : state.sync,
-            onOpenRequirement: (row) => openRequirement(context, state, row.cell.requirementId),
-            onSendCertificate: (row) => showSendCertificateSheet(
-              context: context,
-              state: state,
-              requirementId: row.cell.requirementId,
-              requirementLabel: '${row.code} ${row.title}',
-            ),
-            onCourseBooked: (row) => state.answer(
-              kind: IntentKind.courseBooked,
-              summary: 'Course booked for ${row.title}',
-              requirementId: row.cell.requirementId,
-            ),
-            onAsk: (row) => state.answer(
-              kind: IntentKind.helpNeeded,
-              summary: 'Asked for help with ${row.title}',
-              requirementId: row.cell.requirementId,
+          builder: (context, intentSnapshot) => StreamBuilder<List<LocalCrewStatement>>(
+            stream: state.watchStatements(),
+            builder: (context, statementSnapshot) => HomeView(
+              rows: rowSnapshot.data,
+              answers: answersFrom(
+                intentSnapshot.data ?? const <LocalCrewIntent>[],
+                statementSnapshot.data ?? const <LocalCrewStatement>[],
+              ),
+              person: state.person,
+              sync: state.syncState,
+              credits: state.credits,
+              today: state.serverToday,
+              syncing: state.syncing,
+              error: state.lastError,
+              onSync: state.syncing ? null : state.sync,
+              onOpenRequirement: (row) => openRequirement(context, state, row.cell.requirementId),
+              onSendCertificate: (row) => showSendCertificateSheet(
+                context: context,
+                state: state,
+                requirementId: row.cell.requirementId,
+                requirementLabel: '${row.code} ${row.title}',
+              ),
+              onCourseBooked: (row) => state.answer(
+                kind: IntentKind.courseBooked,
+                summary: 'Course booked for ${row.title}',
+                requirementId: row.cell.requirementId,
+              ),
+              onAsk: (row) => state.answer(
+                kind: IntentKind.helpNeeded,
+                summary: 'Asked for help with ${row.title}',
+                requirementId: row.cell.requirementId,
+              ),
             ),
           ),
         );
@@ -454,7 +463,7 @@ class HomeView extends StatelessWidget {
   const HomeView({
     super.key,
     required this.rows,
-    required this.intents,
+    required this.answers,
     required this.person,
     required this.sync,
     required this.today,
@@ -469,7 +478,7 @@ class HomeView extends StatelessWidget {
   });
 
   final List<CertificationRow>? rows;
-  final List<LocalCrewIntent> intents;
+  final List<Answer> answers;
   final LocalPerson? person;
   final LocalSyncState? sync;
   final String? today;
@@ -591,7 +600,7 @@ class HomeView extends StatelessWidget {
                 row: row,
                 today: today,
                 swingTo: swingTo,
-                intents: intents.where((i) => i.requirementId == row.cell.requirementId).toList(),
+                answers: answers.where((a) => a.requirementId == row.cell.requirementId).toList(),
                 onOpen: onOpenRequirement == null ? null : () => onOpenRequirement!(row),
                 onHaveIt: onSendCertificate == null ? null : () => onSendCertificate!(row),
                 onCourseBooked: onCourseBooked == null ? null : () => onCourseBooked!(row),
@@ -604,9 +613,13 @@ class HomeView extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: Nocturne.gutter),
               child: _SoftCard(
                 row: row,
-                asked: intents.any(
-                  (i) =>
-                      i.requirementId == row.cell.requirementId && i.kind == IntentKind.helpNeeded,
+                // `stands` and not merely "exists": an answer the office dismissed puts the
+                // ask back, exactly as a dismissal restarts the server's own expiry chasing.
+                asked: answers.any(
+                  (a) =>
+                      a.requirementId == row.cell.requirementId &&
+                      a.kind == IntentKind.helpNeeded &&
+                      a.stands,
                 ),
                 onOpen: onOpenRequirement == null ? null : () => onOpenRequirement!(row),
                 onAsk: onAsk == null ? null : () => onAsk!(row),
@@ -797,7 +810,7 @@ class _AskCard extends StatelessWidget {
     required this.row,
     required this.today,
     required this.swingTo,
-    required this.intents,
+    required this.answers,
     this.onOpen,
     this.onHaveIt,
     this.onCourseBooked,
@@ -806,7 +819,7 @@ class _AskCard extends StatelessWidget {
   final CertificationRow row;
   final String? today;
   final String? swingTo;
-  final List<LocalCrewIntent> intents;
+  final List<Answer> answers;
   final VoidCallback? onOpen;
   final VoidCallback? onHaveIt;
   final VoidCallback? onCourseBooked;
@@ -821,7 +834,13 @@ class _AskCard extends StatelessWidget {
       swingTo: swingTo,
     );
     final mark = urgencyMark(urgency);
-    final booked = intents.where((i) => i.kind == IntentKind.courseBooked).firstOrNull;
+    // Two different questions, and conflating them was a bug: *is there an answer to report* —
+    // yes, even a dismissed one, because that is the thing the crew member most needs to read —
+    // and *is the ask still outstanding*, which a dismissal makes true again. Keeping them apart
+    // is what lets the card say "the office couldn't act on this" and offer the button in the
+    // same breath.
+    final booked = answers.where((a) => a.kind == IntentKind.courseBooked).firstOrNull;
+    final stillBooked = booked?.stands ?? false;
 
     return NCard(
       leftMark: mark,
@@ -846,7 +865,7 @@ class _AskCard extends StatelessWidget {
           Text(askTitle(row.cell.state, row.title), style: NoctType.cardTitle),
           const SizedBox(height: 3),
           Text(_body(), style: NoctType.cardBody),
-          if (booked != null) ...[const SizedBox(height: 8), IntentLine(intent: booked)],
+          if (booked != null) ...[const SizedBox(height: 8), AnswerLine(answer: booked)],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -862,10 +881,10 @@ class _AskCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: NButton(
-                  label: booked == null ? 'Course booked' : 'Told them',
+                  label: stillBooked ? 'Told them' : 'Course booked',
                   icon: PhosphorIconsRegular.calendarCheck,
                   fontSize: 13,
-                  onPressed: booked == null ? onCourseBooked : null,
+                  onPressed: stillBooked ? null : onCourseBooked,
                 ),
               ),
             ],
@@ -938,25 +957,34 @@ class _SoftCard extends StatelessWidget {
 }
 
 /// What became of a one-tap answer, on the row that raised it.
-class IntentLine extends StatelessWidget {
-  const IntentLine({super.key, required this.intent, this.onRetry, this.onDismiss});
+///
+/// Five states, and the two that come from the office are the reason this exists: an answer that
+/// only ever reported *sent* is a message dropped down a well.
+class AnswerLine extends StatelessWidget {
+  const AnswerLine({super.key, required this.answer, this.onRetry, this.onDismiss});
 
-  final LocalCrewIntent intent;
+  final Answer answer;
   final VoidCallback? onRetry;
   final VoidCallback? onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    final failed = intent.state == 'failed';
-    final colour = switch (intent.state) {
-      'sent' => Nocturne.goodText,
-      'failed' => Nocturne.criticalText,
-      _ => Nocturne.neutral500,
+    final failed = answer.failed;
+    final colour = switch (answer.state) {
+      AnswerState.actioned => Nocturne.goodText,
+      AnswerState.sent => Nocturne.goodText,
+      AnswerState.failed => Nocturne.criticalText,
+      // Not critical. The office looked and could not act — that is an answer the crew member has
+      // to do something about, not a fault, and colouring it like a failure would read as one.
+      AnswerState.dismissed => Nocturne.warningText,
+      AnswerState.queued => Nocturne.neutral500,
     };
-    final icon = switch (intent.state) {
-      'sent' => PhosphorIconsRegular.checkCircle,
-      'failed' => PhosphorIconsRegular.warningCircle,
-      _ => PhosphorIconsRegular.clockCountdown,
+    final icon = switch (answer.state) {
+      AnswerState.actioned => PhosphorIconsRegular.checkCircle,
+      AnswerState.sent => PhosphorIconsRegular.checkCircle,
+      AnswerState.failed => PhosphorIconsRegular.warningCircle,
+      AnswerState.dismissed => PhosphorIconsRegular.info,
+      AnswerState.queued => PhosphorIconsRegular.clockCountdown,
     };
 
     return Row(
@@ -969,14 +997,15 @@ class IntentLine extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${intent.summary} · ${intentStateLabel(intent.state)}',
+                '${answer.summary} · ${answerStateLabel(answer.state)}',
                 style: NoctType.listSecondary.copyWith(color: colour),
               ),
-              // The server's own words. "Unsupported operation type 'requirement.progress'" is not
-              // crew-facing prose, but hiding it would leave a failure with no cause at all — and
-              // it is exactly the string that tells whoever is looking which backend work is
-              // outstanding.
-              if (failed && intent.detail != null) Text(intent.detail!, style: NoctType.meta),
+              // Whoever's words they are. For a failure, the server's — "Unsupported operation
+              // type 'course.seat_request'" is not crew-facing prose, but hiding it would leave a
+              // failure with no cause at all, and it is exactly the string that names the backend
+              // work outstanding. For a decision, the coordinator's own note, written knowing the
+              // crew member reads it (ADM-11's form says so above the field).
+              if (answer.detail != null) Text(answer.detail!, style: NoctType.meta),
               if (failed && (onRetry != null || onDismiss != null))
                 Row(
                   children: [

@@ -165,6 +165,16 @@ test.
   queue — and if that were the only record, the crew member's tap would vanish and the row would
   un-say itself on the next snapshot. Failed intents show the server's own words and a Retry that
   re-posts under the original `opId`.
+- **An answer has two halves and the server's wins.** `CrewIntents` is what this device *sent* —
+  the only place `queued` and `failed` can be known. `CrewStatements` is what the office *has*,
+  arrives by sync, survives a reinstall, and is the only place a coordinator's decision can be.
+  `answersFrom` merges them on `opId`; a `sent` intent is deleted the moment its statement lands, so
+  one tap is one row. Anything reading `intents` directly to decide whether a question has been
+  answered is a bug waiting for a decision to arrive.
+- **`Answer.stands`, never "an answer exists".** A dismissed answer puts the ask back on the card,
+  because the server simultaneously resumes the expiry chasing it had silenced. Those two are the
+  same fact and must not be able to disagree — a card still reading "Told them" beside a reminder
+  saying "renew this" is the app arguing with the office in front of the crew member.
 - **A screen omits rather than invents.** Where the payload does not carry a fact, the screen says
   so or draws nothing: no course dates, no credit tiles, no team list. An invented number is
   indistinguishable from a real one and gets acted on.
@@ -247,6 +257,13 @@ thing DEV-2 exists to prevent. It does mean an admin-side DTO change makes this 
   accepts only `none` and `solid`, and asking for a dash silently draws a solid line — so MOB-9's
   signature block, which the design draws dashed to mean "nothing here yet", read as an ordinary
   empty card. `DashedBorder` in `widgets.dart` paints it with a path-metric walk.
+- **Two enumerations for one concept is a silent join failure.** A crew statement has a domain name
+  (`course_booked`) and an operation name (`requirement.progress`); the sync payload's `kind` sends
+  the **operation**, because that is the device's whole vocabulary for these. The first version sent
+  the domain word, the app matched on the operation, the join found nothing, and a dismissed request
+  rendered as *no answer at all* — no exception, no failing test, and only visible on a device,
+  because the unit fixtures encoded the assumption rather than the wire. `SyncIT` now asserts the
+  payload's `kind` is the same string the queue accepted, rather than asserting a literal.
 - **The iOS system log is loud.** A booting simulator emits hundreds of `Failed to index parameter
   type …` ActionKit lines into the `flutter run` console. They are Shortcuts indexing, unrelated
   to this app; filter them out before reading a build log or watching for errors.
@@ -319,7 +336,7 @@ Each of these is one stub in `app_state.dart`, so landing the backend work is a 
 | MOB-11's watch | no team endpoint, no supervisory role | the tab is off unless `--dart-define=CREWCOMP_DEV_SUPERVISOR=true` under `kDebugMode`, and the screen says the app is not sent a watch — *not* an empty list a supervisor would read as "everyone is fine" |
 | MOB-9's declaration wording | a client constant carrying the handoff's copy | renders it, and draws the supporting fact under each line from the person's real evaluated cells |
 | MOB-9's "Face ID · 28 Jul 2026, 07:05 AWST" | no biometric binding, and the timestamp must be the server's | the block says "the office records the time it arrives, in the vessel's timezone" rather than printing a plausible one |
-| `requirement.progress` / `requirement.help` | **landed** — a `crew_statement` row, a Coordinator notification and a row in ADM-11's queue | nothing; the row reports "Sent to the office". Neither moves a holding, so the card still shows the gap. The coordinator's decision does **not** come back to the phone yet — see the handoff's §1.2 |
+| `requirement.progress` / `requirement.help` | **landed end to end** — a `crew_statement` row, ADM-11's queue, and the decision back down the sync payload | nothing is degraded. The card reports the office's own answer, and a dismissal puts the ask back |
 | the other five one-tap operations | `SyncService` rejects each as `Unsupported operation type` | queues them anyway; the row shows the server's own words and a Retry. Evidence submissions and read-marks are unaffected — rejection is per operation, not per batch |
 | MOB-6 as an OS share target | an iOS Share Extension and an Android intent filter, unwritten | the in-app half of the sheet at the mock's geometry (Files · Photos · Camera). The mock's four-up with Files/Print/More is the *operating system's* sheet; drawing our own greyed-out "Print" would be a picture of a feature |
 | crew-facing dates in notification bodies | the server composes them with a raw `LocalDate.toString()` | `humaniseDates` rewrites `2026-08-14` to `14 Aug 2026` at display time. A date-format substitution and nothing else, deletable the moment the server composes properly |

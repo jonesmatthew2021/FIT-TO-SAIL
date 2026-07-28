@@ -16,6 +16,10 @@ import 'package:http/testing.dart';
 void main() {
   late LocalStore store;
 
+  /// Set by the decision test before its delta is served — the delta has to echo the very opId
+  /// the device minted, which is the whole join between the two halves of the record.
+  var storedOpId = '';
+
   setUp(() => store = LocalStore(InMemoryOpener().open()));
   tearDown(() => store.close());
 
@@ -64,6 +68,7 @@ void main() {
         'leave': [],
         'notifications': notifications,
         'submissions': [],
+        'crewStatements': [],
         'reference': {
           'cursor': referenceCursor,
           'matrixVersionId': 3,
@@ -156,6 +161,7 @@ void main() {
             'leave': [],
             'notifications': [],
             'submissions': [],
+            'crewStatements': [],
             'tombstones': [],
             'standing': null,
           }),
@@ -193,6 +199,7 @@ void main() {
             'leave': [],
             'notifications': [],
             'submissions': [],
+            'crewStatements': [],
             'tombstones': [
               {'entityType': 'QualificationHolding', 'entityId': 1, 'seq': 145},
             ],
@@ -230,6 +237,7 @@ void main() {
             'leave': [],
             'notifications': [],
             'submissions': [],
+            'crewStatements': [],
             'tombstones': [],
             'standing': null,
           }),
@@ -271,6 +279,7 @@ void main() {
             'leave': [],
             'notifications': [],
             'submissions': [],
+            'crewStatements': [],
             'tombstones': [],
             'standing': standingBody('expiring', [cell(11, 'expiring', expiry: '2026-08-01')]),
           }),
@@ -525,6 +534,130 @@ void main() {
       await engine.pruneSettledIntents();
 
       expect(await store.select(store.crewIntents).get(), hasLength(1));
+    });
+
+    test("the office's decision arrives on a delta and replaces the device's own record", () async {
+      // The loop the outbox opens is only closed here. Before this, a crew member tapped, the row
+      // said "Sent to the office", and nothing ever happened on their phone again.
+      var pulled = 0;
+      final engine = engineFor(MockClient((request) async {
+        if (request.url.path.endsWith('/queue')) {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          final operations = body['operations'] as List<dynamic>;
+          return http.Response(
+            jsonEncode({
+              'cursor': 100,
+              'results': [
+                {'opId': operations[0]['opId'], 'status': 'applied'},
+              ],
+            }),
+            200,
+          );
+        }
+        if (request.url.path.endsWith('/snapshot')) {
+          return http.Response(jsonEncode(snapshotBody()), 200);
+        }
+        pulled++;
+        return http.Response(
+          jsonEncode({
+            'cursor': 200,
+            'referenceCursor': 50,
+            'referenceStale': false,
+            'serverToday': '2026-07-27',
+            'person': null,
+            'holdings': [],
+            'assignments': [],
+            'leave': [],
+            'notifications': [],
+            'submissions': [],
+            'crewStatements': [
+              {
+                'id': 4,
+                // The device's own queue-entry id, echoed back. This is the join.
+                'opId': storedOpId,
+                'kind': 'requirement.progress',
+                'requirementId': 11,
+                'status': 'dismissed',
+                'aboutExpiry': '2026-08-15',
+                'raisedAt': '2026-07-26T08:00:00Z',
+                'decisionNote': 'We could not find your booking; can you forward it?',
+                'decidedAt': '2026-07-27T02:00:00Z',
+              },
+            ],
+            'tombstones': [],
+            'standing': null,
+          }),
+          200,
+        );
+      }));
+
+      storedOpId = await engine.queueIntent(
+        kind: 'requirement.progress',
+        summary: 'Course booked for Sea Survival',
+        requirementId: 11,
+      );
+      await engine.sync();
+      await engine.sync();
+
+      expect(pulled, greaterThan(0));
+      final statement = await store.select(store.crewStatements).getSingle();
+      expect(statement.status, 'dismissed');
+      expect(statement.decisionNote, contains('forward it'));
+
+      // And the device's own record is gone rather than sitting beside it saying "Sent to the
+      // office" over the top of a decision. One tap, one row.
+      expect(await store.select(store.crewIntents).get(), isEmpty);
+    });
+
+    test('a statement tombstone removes it, so a withdrawn request does not linger', () async {
+      final engine = engineFor(MockClient((request) async {
+        if (request.url.path.endsWith('/snapshot')) {
+          return http.Response(
+            jsonEncode({
+              ...snapshotBody(),
+              'crewStatements': [
+                {
+                  'id': 4,
+                  'opId': 'op-gone',
+                  'kind': 'requirement.help',
+                  'requirementId': 11,
+                  'status': 'open',
+                  'aboutExpiry': null,
+                  'raisedAt': '2026-07-26T08:00:00Z',
+                  'decisionNote': null,
+                  'decidedAt': null,
+                },
+              ],
+            }),
+            200,
+          );
+        }
+        return http.Response(
+          jsonEncode({
+            'cursor': 200,
+            'referenceCursor': 50,
+            'referenceStale': false,
+            'serverToday': '2026-07-27',
+            'person': null,
+            'holdings': [],
+            'assignments': [],
+            'leave': [],
+            'notifications': [],
+            'submissions': [],
+            'crewStatements': [],
+            'tombstones': [
+              {'entityType': 'CrewStatement', 'entityId': 4, 'seq': 190},
+            ],
+            'standing': null,
+          }),
+          200,
+        );
+      }));
+
+      await engine.sync();
+      expect(await store.select(store.crewStatements).get(), hasLength(1));
+      await engine.sync();
+      expect(await store.select(store.crewStatements).get(), isEmpty);
     });
   });
 

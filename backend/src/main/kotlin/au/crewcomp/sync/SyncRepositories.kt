@@ -3,6 +3,7 @@ package au.crewcomp.sync
 import au.crewcomp.evidence.EvidenceDocument
 import au.crewcomp.notify.Notification
 import au.crewcomp.people.Assignment
+import au.crewcomp.people.CrewStatement
 import au.crewcomp.people.LeaveRecord
 import au.crewcomp.people.Person
 import au.crewcomp.people.QualificationHolding
@@ -65,6 +66,12 @@ class SyncDeltaRepository(private val em: EntityManager) {
         EvidenceDocument::class.java,
     ).setParameter("personId", personId).setParameter("since", since).resultList
 
+    fun crewStatements(personId: Long, since: Long): List<CrewStatement> = em.createQuery(
+        "select s from CrewStatement s join fetch s.requirement " +
+            "where s.person.id = :personId and s.updatedSeq > :since order by s.updatedSeq",
+        CrewStatement::class.java,
+    ).setParameter("personId", personId).setParameter("since", since).resultList
+
     fun tombstones(personId: Long, since: Long): List<SyncTombstone> = em.createQuery(
         "select t from SyncTombstone t " +
             "where t.personId = :personId and t.seq > :since order by t.seq",
@@ -91,6 +98,10 @@ class SyncDeltaRepository(private val em: EntityManager) {
                 (select max(updated_seq) from leave_record),
                 (select max(updated_seq) from notification),
                 (select max(updated_seq) from evidence_document),
+                -- Every person-scoped table streamed in a delta must be here. A table left out
+                -- keeps its rows above the cursor the client is handed, so the same rows arrive in
+                -- every delta forever — harmless, invisible, and permanent.
+                (select max(updated_seq) from crew_statement),
                 (select max(seq) from sync_tombstone)
             ), 0)
             """.trimIndent(),

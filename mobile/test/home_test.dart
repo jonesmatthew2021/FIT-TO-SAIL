@@ -1,4 +1,5 @@
 import 'package:crewcomp_crew/src/data/local_store.dart';
+import 'package:crewcomp_crew/src/domain/intents.dart';
 import 'package:crewcomp_crew/src/domain/offers.dart';
 import 'package:crewcomp_crew/src/ui/app_state.dart';
 import 'package:crewcomp_crew/src/ui/nocturne.dart';
@@ -85,13 +86,82 @@ void main() {
     });
   });
 
+  group('answers', () {
+    LocalCrewIntent intent(String opId, {String state = 'sent', String? detail}) =>
+        LocalCrewIntent(
+          opId: opId,
+          kind: 'requirement.progress',
+          requirementId: 11,
+          summary: 'Course booked for Sea Survival',
+          payload: '{}',
+          queuedAt: DateTime.utc(2026, 7, 26),
+          state: state,
+          detail: detail,
+        );
+
+    LocalCrewStatement statement(String opId, {String status = 'open', String? note}) =>
+        LocalCrewStatement(
+          id: 1,
+          opId: opId,
+          kind: 'requirement.progress',
+          requirementId: 11,
+          status: status,
+          raisedAt: DateTime.utc(2026, 7, 26),
+          decisionNote: note,
+        );
+
+    test('reports what only the device knows when the office has no copy yet', () {
+      final answers = answersFrom([intent('op-1', state: 'queued')], const []);
+
+      expect(answers, hasLength(1));
+      expect(answers.single.state, AnswerState.queued);
+      expect(answers.single.stands, isTrue);
+    });
+
+    test('prefers the office\'s row over the device\'s wherever both exist', () {
+      // They are joined on the opId — the device's own queue-entry id, echoed back — and the
+      // server's wins because it is the only one of the two that can carry a decision. This is
+      // the case where the intent has not yet been pruned and would otherwise say "Sent to the
+      // office" over the top of an answer.
+      final answers = answersFrom(
+        [intent('op-1')],
+        [statement('op-1', status: 'actioned', note: 'Seat confirmed.')],
+      );
+
+      expect(answers, hasLength(1));
+      expect(answers.single.state, AnswerState.actioned);
+      expect(answers.single.detail, 'Seat confirmed.');
+      // The summary the crew member first read is kept while the intent is still there.
+      expect(answers.single.summary, 'Course booked for Sea Survival');
+    });
+
+    test('falls back to a written phrase once the device record has been pruned', () {
+      final answers = answersFrom(const [], [statement('op-1')]);
+      expect(answers.single.summary, 'Course booked');
+      expect(answers.single.state, AnswerState.sent);
+    });
+
+    test('treats a dismissal as no longer standing, and a failure likewise', () {
+      expect(answersFrom(const [], [statement('op-1', status: 'dismissed')]).single.stands, isFalse);
+      expect(answersFrom([intent('op-2', state: 'failed')], const []).single.stands, isFalse);
+      expect(answersFrom(const [], [statement('op-3', status: 'actioned')]).single.stands, isTrue);
+    });
+
+    test('reads a status a newer server invents as "the office has it"', () {
+      // Unlike a cell state, which renders verbatim because guessing at it could reassure someone
+      // wrongly, an unknown workflow step here is still something the office holds.
+      expect(answersFrom(const [], [statement('op-1', status: 'escalated')]).single.state,
+          AnswerState.sent);
+    });
+  });
+
   group('MOB-0 home', () {
     testWidgets('leads with the server\'s roll-up, never a re-derived verdict', (tester) async {
       await pump(
         tester,
         HomeView(
           rows: swing,
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(),
           today: '2026-07-26',
@@ -109,7 +179,7 @@ void main() {
         tester,
         HomeView(
           rows: [row(11, 'gap', 'MS-02', 'Sea Survival')],
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(rollUp: 'gap'),
           today: '2026-07-26',
@@ -125,7 +195,7 @@ void main() {
         tester,
         HomeView(
           rows: swing,
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(),
           today: '2026-07-26',
@@ -144,7 +214,7 @@ void main() {
         tester,
         HomeView(
           rows: swing,
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(),
           today: '2026-07-26',
@@ -165,7 +235,7 @@ void main() {
         tester,
         HomeView(
           rows: swing,
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(),
           today: '2026-07-26',
@@ -187,7 +257,7 @@ void main() {
         tester,
         HomeView(
           rows: swing,
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(),
           today: '2026-07-26',
@@ -202,7 +272,7 @@ void main() {
         tester,
         HomeView(
           rows: swing,
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(),
           today: '2026-07-26',
@@ -225,7 +295,7 @@ void main() {
         tester,
         HomeView(
           rows: [row(12, 'ok', 'MS-01', 'Seafarer Medical')],
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(rollUp: 'ok'),
           today: '2026-07-26',
@@ -244,7 +314,7 @@ void main() {
         tester,
         HomeView(
           rows: swing,
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(),
           today: '2026-07-26',
@@ -267,15 +337,13 @@ void main() {
           person: person,
           sync: syncState(),
           today: '2026-07-26',
-          intents: [
-            LocalCrewIntent(
+          answers: const [
+            Answer(
               opId: 'op-1',
               kind: 'requirement.progress',
               requirementId: 11,
               summary: 'Course booked for Sea Survival',
-              payload: '{}',
-              queuedAt: DateTime.utc(2026, 7, 26),
-              state: 'queued',
+              state: AnswerState.queued,
             ),
           ],
         ),
@@ -287,12 +355,69 @@ void main() {
       expect(find.text('Told them'), findsOneWidget);
     });
 
+    testWidgets("shows the office's answer once a coordinator has given one", (tester) async {
+      await pump(
+        tester,
+        HomeView(
+          rows: swing,
+          person: person,
+          sync: syncState(),
+          today: '2026-07-26',
+          answers: const [
+            Answer(
+              opId: 'op-1',
+              kind: 'requirement.progress',
+              requirementId: 11,
+              summary: 'Course booked for Sea Survival',
+              state: AnswerState.actioned,
+              detail: 'Seat confirmed with the provider for 12 Aug.',
+            ),
+          ],
+        ),
+      );
+
+      expect(find.textContaining('The office has it in hand'), findsOneWidget);
+      // The coordinator's own words, written knowing the crew member reads them.
+      expect(find.text('Seat confirmed with the provider for 12 Aug.'), findsOneWidget);
+      expect(find.text('Told them'), findsOneWidget);
+    });
+
+    testWidgets('puts the ask back when the office could not act on it', (tester) async {
+      // The half that matters. A dismissal is the office saying "we could not find that" — the
+      // crew member has something to do again, and the server has resumed chasing them for it,
+      // so a card still reading "Told them" would be the app disagreeing with the reminders.
+      await pump(
+        tester,
+        HomeView(
+          rows: swing,
+          person: person,
+          sync: syncState(),
+          today: '2026-07-26',
+          answers: const [
+            Answer(
+              opId: 'op-1',
+              kind: 'requirement.progress',
+              requirementId: 11,
+              summary: 'Course booked for Sea Survival',
+              state: AnswerState.dismissed,
+              detail: 'No booking on the provider list for you.',
+            ),
+          ],
+        ),
+      );
+
+      expect(find.textContaining("The office couldn't act on this"), findsOneWidget);
+      expect(find.text('No booking on the provider list for you.'), findsOneWidget);
+      expect(find.text('Course booked'), findsOneWidget);
+      expect(find.text('Told them'), findsNothing);
+    });
+
     testWidgets('does not claim a swing it has not been given', (tester) async {
       await pump(
         tester,
         HomeView(
           rows: const [],
-          intents: const [],
+          answers: const [],
           person: person,
           sync: syncState(ccId: null),
           today: '2026-07-26',

@@ -228,6 +228,44 @@ class CrewIntents extends Table {
   Set<Column> get primaryKey => {opId};
 }
 
+/// The server's copy of the crew member's one-tap answers, with the office's decision on each
+/// (ADM-11).
+///
+/// **Server-owned, unlike [CrewIntents] beside it**, and the two are a pair rather than a
+/// duplication:
+///
+///  * [CrewIntents] is what this device *sent*. It exists the moment the crew member taps, survives
+///    offline, and carries the queue state — queued, sent, failed — that only the device knows.
+///  * This is what the office *has*, and what it decided. It arrives by sync, so it survives a
+///    reinstall, and it is the only one of the two that can say a coordinator answered.
+///
+/// They are joined by [opId], which is the device's own queue-entry id echoed back. That is why the
+/// screens can prefer this row when it exists and fall back to the intent when it does not: a tap
+/// in a dead spot shows "Queued", and the same tap a week later shows what the office said.
+@DataClassName('LocalCrewStatement')
+class CrewStatements extends Table {
+  IntColumn get id => integer()();
+
+  /// The device's queue-entry id. Matches [CrewIntents.opId] for a statement this device raised.
+  TextColumn get opId => text()();
+
+  TextColumn get kind => text()();
+  IntColumn get requirementId => integer()();
+
+  /// `open` · `actioned` · `dismissed`.
+  TextColumn get status => text()();
+  TextColumn get aboutExpiry => text().nullable()();
+  DateTimeColumn get raisedAt => dateTime()();
+
+  /// The coordinator's answer, written knowing the crew member reads it (ADM-11 says so on the
+  /// form). Shown verbatim — it is the office's own words, exactly like a rejection detail.
+  TextColumn get decisionNote => text().nullable()();
+  DateTimeColumn get decidedAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Single-row sync bookkeeping. `id` is pinned to 0.
 @DataClassName('LocalSyncState')
 class SyncStates extends Table {
@@ -264,6 +302,7 @@ class SyncStates extends Table {
     StandingCells,
     Outbox,
     CrewIntents,
+    CrewStatements,
     SyncStates,
   ],
 )
@@ -271,20 +310,25 @@ class LocalStore extends _$LocalStore {
   LocalStore(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
-  /// v1 → v2 adds [CrewIntents].
+  /// v1 → v2 adds [CrewIntents]; v2 → v3 adds [CrewStatements].
   ///
   /// Additive, and it has to be: an upgrade that dropped and re-created the database would take
   /// the outbox with it, and the outbox is the only copy of writes the server has never seen. A
   /// crew member who queued an evidence submission in a dead spot and then took an app update
   /// would lose it, with nothing anywhere saying so. Everything server-owned in here is a replica
   /// and could be rebuilt from a snapshot; the two device-owned tables cannot.
+  ///
+  /// Note that the steps are separate `if`s rather than a `when` on the pair: an install that has
+  /// been sitting on v1 through two releases has to get both, and a chain that only handles
+  /// "the previous version" silently skips one.
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
           if (from < 2) await m.createTable(crewIntents);
+          if (from < 3) await m.createTable(crewStatements);
         },
       );
 

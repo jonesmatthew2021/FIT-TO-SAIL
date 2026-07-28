@@ -4437,6 +4437,19 @@ export interface components {
             /** Format: int64 */
             open: number;
         };
+        CrewStatementSyncDto: {
+            /** Format: int64 */
+            id: number;
+            opId: string;
+            kind: string;
+            /** Format: int64 */
+            requirementId: number;
+            status: string;
+            aboutExpiry: components["schemas"]["LocalDate"] | null;
+            raisedAt: components["schemas"]["Instant"];
+            decisionNote: string | null;
+            decidedAt: components["schemas"]["Instant"] | null;
+        };
         DecideCrewRequestRequest: {
             note: string;
         };
@@ -4968,6 +4981,7 @@ export interface components {
             leave: components["schemas"]["LeaveRecordDto"][];
             notifications: components["schemas"]["NotificationDto"][];
             submissions: components["schemas"]["EvidenceSubmissionDto"][];
+            crewStatements: components["schemas"]["CrewStatementSyncDto"][];
             tombstones: components["schemas"]["SyncTombstoneDto"][];
             standing: components["schemas"]["SyncStandingDto"] | null;
         };
@@ -5019,6 +5033,7 @@ export interface components {
             leave: components["schemas"]["LeaveRecordDto"][];
             notifications: components["schemas"]["NotificationDto"][];
             submissions: components["schemas"]["EvidenceSubmissionDto"][];
+            crewStatements: components["schemas"]["CrewStatementSyncDto"][];
             reference: components["schemas"]["SyncReferenceDto"];
             standing: components["schemas"]["SyncStandingDto"] | null;
         };

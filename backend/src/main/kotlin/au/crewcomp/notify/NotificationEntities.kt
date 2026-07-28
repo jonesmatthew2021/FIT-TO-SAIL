@@ -90,6 +90,12 @@ enum class NotificationKind(val wire: String, val audience: NotificationAudience
     EVIDENCE_VERIFIED("evidence_verified", NotificationAudience.CREW),
     EVIDENCE_REJECTED("evidence_rejected", NotificationAudience.CREW),
 
+    // ADM-11 answering back. A crew member who taps "Course booked" and hears nothing has been
+    // given a button that talks to a void; these are the office's reply, and the second one matters
+    // most — a dismissal changes what the person has to do next.
+    CREW_REQUEST_ACTIONED("crew_request_actioned", NotificationAudience.CREW),
+    CREW_REQUEST_DISMISSED("crew_request_dismissed", NotificationAudience.CREW),
+
     // Back-office, per §9's routing: register events → Workflow Manager; quota shortfalls and
     // roster gaps → Coordinators; new exceptions → Data Steward.
     REGISTER_EVENT("register_event", NotificationAudience.BACK_OFFICE),

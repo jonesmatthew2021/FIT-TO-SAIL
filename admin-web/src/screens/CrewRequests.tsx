@@ -287,15 +287,19 @@ function DecideForm({
       }}
     >
       <label className="field field--inline field--grow">
-        <span className="field__label">{decision === 'action' ? 'What was done' : 'Why not'}</span>
+        <span className="field__label">
+          {decision === 'action' ? 'What was done' : 'Why not'} — the crew member reads this
+        </span>
         <input
           className="input"
           value={note}
           autoFocus
+          // Written to the person, not about them. That is the whole reason the label says who
+          // reads it: "no record" is a filing note, and the sentence below is an answer.
           placeholder={
             decision === 'action'
               ? 'Seat confirmed with the provider for 12 Aug.'
-              : 'No booking on the provider’s list for this crew member.'
+              : 'We could not find your booking — can you forward the confirmation?'
           }
           onChange={(event) => setNote(event.target.value)}
         />
@@ -304,7 +308,8 @@ function DecideForm({
           that changes what the crew member's phone will show them next. */}
       {decision === 'dismiss' && (
         <p className="editor__note">
-          Dismissing resumes the expiry reminders this answer had switched off.
+          Dismissing resumes the expiry reminders this answer had switched off, and notifies the
+          crew member.
         </p>
       )}
       {error !== null && <p className="editor__error">{errorText(error)}</p>}

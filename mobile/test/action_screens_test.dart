@@ -1,4 +1,5 @@
 import 'package:crewcomp_crew/src/data/local_store.dart';
+import 'package:crewcomp_crew/src/domain/intents.dart';
 import 'package:crewcomp_crew/src/domain/offers.dart';
 import 'package:crewcomp_crew/src/ui/action_screens.dart';
 import 'package:crewcomp_crew/src/ui/app_state.dart';
@@ -87,15 +88,13 @@ void main() {
         OneTapUpdateView(
           row: row(),
           today: '2026-07-26',
-          intents: [
-            LocalCrewIntent(
+          answers: const [
+            Answer(
               opId: 'op-1',
               kind: 'requirement.progress',
               requirementId: 11,
               summary: 'Course booked for Sea Survival',
-              payload: '{}',
-              queuedAt: DateTime.utc(2026, 7, 26),
-              state: 'queued',
+              state: AnswerState.queued,
             ),
           ],
         ),

@@ -135,16 +135,43 @@ while tidying data.
 **§6 enumerates ADM-1 to ADM-10 and stops.** ADM-11 is the first module here the spec did not ask
 for, and it is worth confirming with the client rather than quietly numbering.
 
-Still outstanding for these two, and deliberately not done:
+### 1.3 The loop closes — the decision reaches the phone
 
-* **The statement is not in the sync payload.** The table carries `updated_seq` and a tombstone
-  trigger from birth, so it is ready to be replicated, but the device's own `CrewIntents` row is
-  still the only place the answer shows on screen. That means a reinstall loses "Course booked" and
-  Home asks again. It belongs with §2's payload additions.
-* **A decision is invisible to the crew member.** A coordinator confirms or dismisses, and the phone
-  never hears. Dismissing at least resumes the expiry notification, which is an indirect signal; a
-  direct one — a §9 notification back to the person, and the decision on the row when the statement
-  reaches the payload — is the right answer and is part of the same item above.
+Both halves, because either alone is half a feature:
+
+**`crewStatements[]` in the snapshot and the delta.** The statement is now a replicated,
+person-scoped row like a holding or a notification — same trigger-assigned cursor, same tombstone
+path, and `crew_statement` added to `currentCursor()` (a person-scoped table left out of that keeps
+its rows above the cursor the client is handed, so the same rows arrive in every delta forever,
+harmlessly and permanently). It carries `opId`, and **that is the join**: the device's own
+queue-entry id, echoed back, so the app matches a statement to the tap that produced it without a
+second identifier existing anywhere.
+
+**A §9 notification back to the crew member** — `crew_request_actioned` / `crew_request_dismissed`,
+crew-audience, SEC-13-safe in the title, with the coordinator's note in the body. The statement row
+is the record; this is the prompt. Someone who never opens the notification still sees the decision
+on the requirement.
+
+On the device the two halves of the record merge into one `Answer` (`answersFrom` in
+`ui/app_state.dart`), with five states: *queued*, *sent*, *actioned*, *dismissed*, *failed*. The
+server's row wins wherever both exist, because it is the only one that can carry a decision. The
+device's own intent is deleted as soon as its statement arrives — one tap, one row.
+
+**A dismissal puts the ask back on the card**, matching the server: `Answer.stands` is false for a
+dismissal exactly as the suppression query excludes one, so the phone offering "Course booked" again
+and the expiry scan chasing again are the same fact expressed twice rather than two rules that could
+drift.
+
+**The decision note is crew-facing, by design.** ADM-11's form labels the field *"the crew member
+reads this"* and its placeholder is written to the person. A note composed believing it were internal
+and then shown to its subject would be the wrong way round; making it crew-facing up front is what
+turns "no record" into "we could not find your booking — can you forward the confirmation?".
+
+Still outstanding for these two:
+
+* **Nothing in `admin-web` shows a statement on the person's page.** ADM-11's queue is the whole
+  surfacing; this document previously said "surfaces on ADM-7 / the person page as *in progress*",
+  and the person page is still the right second home for it.
 
 ---
 

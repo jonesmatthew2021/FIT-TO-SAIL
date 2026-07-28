@@ -5100,6 +5100,572 @@ class CrewIntentsCompanion extends UpdateCompanion<LocalCrewIntent> {
   }
 }
 
+class $CrewStatementsTable extends CrewStatements
+    with TableInfo<$CrewStatementsTable, LocalCrewStatement> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CrewStatementsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _opIdMeta = const VerificationMeta('opId');
+  @override
+  late final GeneratedColumn<String> opId = GeneratedColumn<String>(
+    'op_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _requirementIdMeta = const VerificationMeta(
+    'requirementId',
+  );
+  @override
+  late final GeneratedColumn<int> requirementId = GeneratedColumn<int>(
+    'requirement_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _aboutExpiryMeta = const VerificationMeta(
+    'aboutExpiry',
+  );
+  @override
+  late final GeneratedColumn<String> aboutExpiry = GeneratedColumn<String>(
+    'about_expiry',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _raisedAtMeta = const VerificationMeta(
+    'raisedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> raisedAt = GeneratedColumn<DateTime>(
+    'raised_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _decisionNoteMeta = const VerificationMeta(
+    'decisionNote',
+  );
+  @override
+  late final GeneratedColumn<String> decisionNote = GeneratedColumn<String>(
+    'decision_note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _decidedAtMeta = const VerificationMeta(
+    'decidedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> decidedAt = GeneratedColumn<DateTime>(
+    'decided_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    opId,
+    kind,
+    requirementId,
+    status,
+    aboutExpiry,
+    raisedAt,
+    decisionNote,
+    decidedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'crew_statements';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalCrewStatement> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('op_id')) {
+      context.handle(
+        _opIdMeta,
+        opId.isAcceptableOrUnknown(data['op_id']!, _opIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_opIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('requirement_id')) {
+      context.handle(
+        _requirementIdMeta,
+        requirementId.isAcceptableOrUnknown(
+          data['requirement_id']!,
+          _requirementIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_requirementIdMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('about_expiry')) {
+      context.handle(
+        _aboutExpiryMeta,
+        aboutExpiry.isAcceptableOrUnknown(
+          data['about_expiry']!,
+          _aboutExpiryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('raised_at')) {
+      context.handle(
+        _raisedAtMeta,
+        raisedAt.isAcceptableOrUnknown(data['raised_at']!, _raisedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_raisedAtMeta);
+    }
+    if (data.containsKey('decision_note')) {
+      context.handle(
+        _decisionNoteMeta,
+        decisionNote.isAcceptableOrUnknown(
+          data['decision_note']!,
+          _decisionNoteMeta,
+        ),
+      );
+    }
+    if (data.containsKey('decided_at')) {
+      context.handle(
+        _decidedAtMeta,
+        decidedAt.isAcceptableOrUnknown(data['decided_at']!, _decidedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LocalCrewStatement map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalCrewStatement(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      opId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}op_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      requirementId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}requirement_id'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      aboutExpiry: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}about_expiry'],
+      ),
+      raisedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}raised_at'],
+      )!,
+      decisionNote: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}decision_note'],
+      ),
+      decidedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}decided_at'],
+      ),
+    );
+  }
+
+  @override
+  $CrewStatementsTable createAlias(String alias) {
+    return $CrewStatementsTable(attachedDatabase, alias);
+  }
+}
+
+class LocalCrewStatement extends DataClass
+    implements Insertable<LocalCrewStatement> {
+  final int id;
+
+  /// The device's queue-entry id. Matches [CrewIntents.opId] for a statement this device raised.
+  final String opId;
+  final String kind;
+  final int requirementId;
+
+  /// `open` · `actioned` · `dismissed`.
+  final String status;
+  final String? aboutExpiry;
+  final DateTime raisedAt;
+
+  /// The coordinator's answer, written knowing the crew member reads it (ADM-11 says so on the
+  /// form). Shown verbatim — it is the office's own words, exactly like a rejection detail.
+  final String? decisionNote;
+  final DateTime? decidedAt;
+  const LocalCrewStatement({
+    required this.id,
+    required this.opId,
+    required this.kind,
+    required this.requirementId,
+    required this.status,
+    this.aboutExpiry,
+    required this.raisedAt,
+    this.decisionNote,
+    this.decidedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['op_id'] = Variable<String>(opId);
+    map['kind'] = Variable<String>(kind);
+    map['requirement_id'] = Variable<int>(requirementId);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || aboutExpiry != null) {
+      map['about_expiry'] = Variable<String>(aboutExpiry);
+    }
+    map['raised_at'] = Variable<DateTime>(raisedAt);
+    if (!nullToAbsent || decisionNote != null) {
+      map['decision_note'] = Variable<String>(decisionNote);
+    }
+    if (!nullToAbsent || decidedAt != null) {
+      map['decided_at'] = Variable<DateTime>(decidedAt);
+    }
+    return map;
+  }
+
+  CrewStatementsCompanion toCompanion(bool nullToAbsent) {
+    return CrewStatementsCompanion(
+      id: Value(id),
+      opId: Value(opId),
+      kind: Value(kind),
+      requirementId: Value(requirementId),
+      status: Value(status),
+      aboutExpiry: aboutExpiry == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aboutExpiry),
+      raisedAt: Value(raisedAt),
+      decisionNote: decisionNote == null && nullToAbsent
+          ? const Value.absent()
+          : Value(decisionNote),
+      decidedAt: decidedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(decidedAt),
+    );
+  }
+
+  factory LocalCrewStatement.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalCrewStatement(
+      id: serializer.fromJson<int>(json['id']),
+      opId: serializer.fromJson<String>(json['opId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      requirementId: serializer.fromJson<int>(json['requirementId']),
+      status: serializer.fromJson<String>(json['status']),
+      aboutExpiry: serializer.fromJson<String?>(json['aboutExpiry']),
+      raisedAt: serializer.fromJson<DateTime>(json['raisedAt']),
+      decisionNote: serializer.fromJson<String?>(json['decisionNote']),
+      decidedAt: serializer.fromJson<DateTime?>(json['decidedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'opId': serializer.toJson<String>(opId),
+      'kind': serializer.toJson<String>(kind),
+      'requirementId': serializer.toJson<int>(requirementId),
+      'status': serializer.toJson<String>(status),
+      'aboutExpiry': serializer.toJson<String?>(aboutExpiry),
+      'raisedAt': serializer.toJson<DateTime>(raisedAt),
+      'decisionNote': serializer.toJson<String?>(decisionNote),
+      'decidedAt': serializer.toJson<DateTime?>(decidedAt),
+    };
+  }
+
+  LocalCrewStatement copyWith({
+    int? id,
+    String? opId,
+    String? kind,
+    int? requirementId,
+    String? status,
+    Value<String?> aboutExpiry = const Value.absent(),
+    DateTime? raisedAt,
+    Value<String?> decisionNote = const Value.absent(),
+    Value<DateTime?> decidedAt = const Value.absent(),
+  }) => LocalCrewStatement(
+    id: id ?? this.id,
+    opId: opId ?? this.opId,
+    kind: kind ?? this.kind,
+    requirementId: requirementId ?? this.requirementId,
+    status: status ?? this.status,
+    aboutExpiry: aboutExpiry.present ? aboutExpiry.value : this.aboutExpiry,
+    raisedAt: raisedAt ?? this.raisedAt,
+    decisionNote: decisionNote.present ? decisionNote.value : this.decisionNote,
+    decidedAt: decidedAt.present ? decidedAt.value : this.decidedAt,
+  );
+  LocalCrewStatement copyWithCompanion(CrewStatementsCompanion data) {
+    return LocalCrewStatement(
+      id: data.id.present ? data.id.value : this.id,
+      opId: data.opId.present ? data.opId.value : this.opId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      requirementId: data.requirementId.present
+          ? data.requirementId.value
+          : this.requirementId,
+      status: data.status.present ? data.status.value : this.status,
+      aboutExpiry: data.aboutExpiry.present
+          ? data.aboutExpiry.value
+          : this.aboutExpiry,
+      raisedAt: data.raisedAt.present ? data.raisedAt.value : this.raisedAt,
+      decisionNote: data.decisionNote.present
+          ? data.decisionNote.value
+          : this.decisionNote,
+      decidedAt: data.decidedAt.present ? data.decidedAt.value : this.decidedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalCrewStatement(')
+          ..write('id: $id, ')
+          ..write('opId: $opId, ')
+          ..write('kind: $kind, ')
+          ..write('requirementId: $requirementId, ')
+          ..write('status: $status, ')
+          ..write('aboutExpiry: $aboutExpiry, ')
+          ..write('raisedAt: $raisedAt, ')
+          ..write('decisionNote: $decisionNote, ')
+          ..write('decidedAt: $decidedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    opId,
+    kind,
+    requirementId,
+    status,
+    aboutExpiry,
+    raisedAt,
+    decisionNote,
+    decidedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalCrewStatement &&
+          other.id == this.id &&
+          other.opId == this.opId &&
+          other.kind == this.kind &&
+          other.requirementId == this.requirementId &&
+          other.status == this.status &&
+          other.aboutExpiry == this.aboutExpiry &&
+          other.raisedAt == this.raisedAt &&
+          other.decisionNote == this.decisionNote &&
+          other.decidedAt == this.decidedAt);
+}
+
+class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
+  final Value<int> id;
+  final Value<String> opId;
+  final Value<String> kind;
+  final Value<int> requirementId;
+  final Value<String> status;
+  final Value<String?> aboutExpiry;
+  final Value<DateTime> raisedAt;
+  final Value<String?> decisionNote;
+  final Value<DateTime?> decidedAt;
+  const CrewStatementsCompanion({
+    this.id = const Value.absent(),
+    this.opId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.requirementId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.aboutExpiry = const Value.absent(),
+    this.raisedAt = const Value.absent(),
+    this.decisionNote = const Value.absent(),
+    this.decidedAt = const Value.absent(),
+  });
+  CrewStatementsCompanion.insert({
+    this.id = const Value.absent(),
+    required String opId,
+    required String kind,
+    required int requirementId,
+    required String status,
+    this.aboutExpiry = const Value.absent(),
+    required DateTime raisedAt,
+    this.decisionNote = const Value.absent(),
+    this.decidedAt = const Value.absent(),
+  }) : opId = Value(opId),
+       kind = Value(kind),
+       requirementId = Value(requirementId),
+       status = Value(status),
+       raisedAt = Value(raisedAt);
+  static Insertable<LocalCrewStatement> custom({
+    Expression<int>? id,
+    Expression<String>? opId,
+    Expression<String>? kind,
+    Expression<int>? requirementId,
+    Expression<String>? status,
+    Expression<String>? aboutExpiry,
+    Expression<DateTime>? raisedAt,
+    Expression<String>? decisionNote,
+    Expression<DateTime>? decidedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (opId != null) 'op_id': opId,
+      if (kind != null) 'kind': kind,
+      if (requirementId != null) 'requirement_id': requirementId,
+      if (status != null) 'status': status,
+      if (aboutExpiry != null) 'about_expiry': aboutExpiry,
+      if (raisedAt != null) 'raised_at': raisedAt,
+      if (decisionNote != null) 'decision_note': decisionNote,
+      if (decidedAt != null) 'decided_at': decidedAt,
+    });
+  }
+
+  CrewStatementsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? opId,
+    Value<String>? kind,
+    Value<int>? requirementId,
+    Value<String>? status,
+    Value<String?>? aboutExpiry,
+    Value<DateTime>? raisedAt,
+    Value<String?>? decisionNote,
+    Value<DateTime?>? decidedAt,
+  }) {
+    return CrewStatementsCompanion(
+      id: id ?? this.id,
+      opId: opId ?? this.opId,
+      kind: kind ?? this.kind,
+      requirementId: requirementId ?? this.requirementId,
+      status: status ?? this.status,
+      aboutExpiry: aboutExpiry ?? this.aboutExpiry,
+      raisedAt: raisedAt ?? this.raisedAt,
+      decisionNote: decisionNote ?? this.decisionNote,
+      decidedAt: decidedAt ?? this.decidedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (opId.present) {
+      map['op_id'] = Variable<String>(opId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (requirementId.present) {
+      map['requirement_id'] = Variable<int>(requirementId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (aboutExpiry.present) {
+      map['about_expiry'] = Variable<String>(aboutExpiry.value);
+    }
+    if (raisedAt.present) {
+      map['raised_at'] = Variable<DateTime>(raisedAt.value);
+    }
+    if (decisionNote.present) {
+      map['decision_note'] = Variable<String>(decisionNote.value);
+    }
+    if (decidedAt.present) {
+      map['decided_at'] = Variable<DateTime>(decidedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CrewStatementsCompanion(')
+          ..write('id: $id, ')
+          ..write('opId: $opId, ')
+          ..write('kind: $kind, ')
+          ..write('requirementId: $requirementId, ')
+          ..write('status: $status, ')
+          ..write('aboutExpiry: $aboutExpiry, ')
+          ..write('raisedAt: $raisedAt, ')
+          ..write('decisionNote: $decisionNote, ')
+          ..write('decidedAt: $decidedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncStatesTable extends SyncStates
     with TableInfo<$SyncStatesTable, LocalSyncState> {
   @override
@@ -5818,6 +6384,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
   late final $StandingCellsTable standingCells = $StandingCellsTable(this);
   late final $OutboxTable outbox = $OutboxTable(this);
   late final $CrewIntentsTable crewIntents = $CrewIntentsTable(this);
+  late final $CrewStatementsTable crewStatements = $CrewStatementsTable(this);
   late final $SyncStatesTable syncStates = $SyncStatesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -5835,6 +6402,7 @@ abstract class _$LocalStore extends GeneratedDatabase {
     standingCells,
     outbox,
     crewIntents,
+    crewStatements,
     syncStates,
   ];
 }
@@ -8468,6 +9036,286 @@ typedef $$CrewIntentsTableProcessedTableManager =
       LocalCrewIntent,
       PrefetchHooks Function()
     >;
+typedef $$CrewStatementsTableCreateCompanionBuilder =
+    CrewStatementsCompanion Function({
+      Value<int> id,
+      required String opId,
+      required String kind,
+      required int requirementId,
+      required String status,
+      Value<String?> aboutExpiry,
+      required DateTime raisedAt,
+      Value<String?> decisionNote,
+      Value<DateTime?> decidedAt,
+    });
+typedef $$CrewStatementsTableUpdateCompanionBuilder =
+    CrewStatementsCompanion Function({
+      Value<int> id,
+      Value<String> opId,
+      Value<String> kind,
+      Value<int> requirementId,
+      Value<String> status,
+      Value<String?> aboutExpiry,
+      Value<DateTime> raisedAt,
+      Value<String?> decisionNote,
+      Value<DateTime?> decidedAt,
+    });
+
+class $$CrewStatementsTableFilterComposer
+    extends Composer<_$LocalStore, $CrewStatementsTable> {
+  $$CrewStatementsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aboutExpiry => $composableBuilder(
+    column: $table.aboutExpiry,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get raisedAt => $composableBuilder(
+    column: $table.raisedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get decisionNote => $composableBuilder(
+    column: $table.decisionNote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get decidedAt => $composableBuilder(
+    column: $table.decidedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CrewStatementsTableOrderingComposer
+    extends Composer<_$LocalStore, $CrewStatementsTable> {
+  $$CrewStatementsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aboutExpiry => $composableBuilder(
+    column: $table.aboutExpiry,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get raisedAt => $composableBuilder(
+    column: $table.raisedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get decisionNote => $composableBuilder(
+    column: $table.decisionNote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get decidedAt => $composableBuilder(
+    column: $table.decidedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CrewStatementsTableAnnotationComposer
+    extends Composer<_$LocalStore, $CrewStatementsTable> {
+  $$CrewStatementsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get opId =>
+      $composableBuilder(column: $table.opId, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get aboutExpiry => $composableBuilder(
+    column: $table.aboutExpiry,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get raisedAt =>
+      $composableBuilder(column: $table.raisedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get decisionNote => $composableBuilder(
+    column: $table.decisionNote,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get decidedAt =>
+      $composableBuilder(column: $table.decidedAt, builder: (column) => column);
+}
+
+class $$CrewStatementsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $CrewStatementsTable,
+          LocalCrewStatement,
+          $$CrewStatementsTableFilterComposer,
+          $$CrewStatementsTableOrderingComposer,
+          $$CrewStatementsTableAnnotationComposer,
+          $$CrewStatementsTableCreateCompanionBuilder,
+          $$CrewStatementsTableUpdateCompanionBuilder,
+          (
+            LocalCrewStatement,
+            BaseReferences<
+              _$LocalStore,
+              $CrewStatementsTable,
+              LocalCrewStatement
+            >,
+          ),
+          LocalCrewStatement,
+          PrefetchHooks Function()
+        > {
+  $$CrewStatementsTableTableManager(_$LocalStore db, $CrewStatementsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CrewStatementsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CrewStatementsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CrewStatementsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> opId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<int> requirementId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> aboutExpiry = const Value.absent(),
+                Value<DateTime> raisedAt = const Value.absent(),
+                Value<String?> decisionNote = const Value.absent(),
+                Value<DateTime?> decidedAt = const Value.absent(),
+              }) => CrewStatementsCompanion(
+                id: id,
+                opId: opId,
+                kind: kind,
+                requirementId: requirementId,
+                status: status,
+                aboutExpiry: aboutExpiry,
+                raisedAt: raisedAt,
+                decisionNote: decisionNote,
+                decidedAt: decidedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String opId,
+                required String kind,
+                required int requirementId,
+                required String status,
+                Value<String?> aboutExpiry = const Value.absent(),
+                required DateTime raisedAt,
+                Value<String?> decisionNote = const Value.absent(),
+                Value<DateTime?> decidedAt = const Value.absent(),
+              }) => CrewStatementsCompanion.insert(
+                id: id,
+                opId: opId,
+                kind: kind,
+                requirementId: requirementId,
+                status: status,
+                aboutExpiry: aboutExpiry,
+                raisedAt: raisedAt,
+                decisionNote: decisionNote,
+                decidedAt: decidedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CrewStatementsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $CrewStatementsTable,
+      LocalCrewStatement,
+      $$CrewStatementsTableFilterComposer,
+      $$CrewStatementsTableOrderingComposer,
+      $$CrewStatementsTableAnnotationComposer,
+      $$CrewStatementsTableCreateCompanionBuilder,
+      $$CrewStatementsTableUpdateCompanionBuilder,
+      (
+        LocalCrewStatement,
+        BaseReferences<_$LocalStore, $CrewStatementsTable, LocalCrewStatement>,
+      ),
+      LocalCrewStatement,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncStatesTableCreateCompanionBuilder =
     SyncStatesCompanion Function({
       Value<int> id,
@@ -8820,6 +9668,8 @@ class $LocalStoreManager {
       $$OutboxTableTableManager(_db, _db.outbox);
   $$CrewIntentsTableTableManager get crewIntents =>
       $$CrewIntentsTableTableManager(_db, _db.crewIntents);
+  $$CrewStatementsTableTableManager get crewStatements =>
+      $$CrewStatementsTableTableManager(_db, _db.crewStatements);
   $$SyncStatesTableTableManager get syncStates =>
       $$SyncStatesTableTableManager(_db, _db.syncStates);
 }

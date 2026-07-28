@@ -65,3 +65,80 @@ String intentStateLabel(String state) => switch (state) {
   'failed' => "Couldn't send",
   _ => state,
 };
+
+/// Where a one-tap answer has got to, across both halves of its record.
+///
+/// The device knows two things the server cannot — that an answer is still sitting in the outbox,
+/// and that the server refused it — and the server knows the one thing the device cannot, which is
+/// what a coordinator decided. [Answer] is the union, and this is its state.
+///
+/// Five, and each is a different sentence to the person holding the phone: *your phone still has
+/// it*, *the office has it*, *somebody is dealing with it*, *the office said no*, *it did not
+/// send*. Anything that blurred two of those would be telling a crew member to stop worrying about
+/// something nobody has looked at.
+enum AnswerState { queued, sent, actioned, dismissed, failed }
+
+String answerStateLabel(AnswerState state) => switch (state) {
+  AnswerState.queued => 'Queued — sends when you have signal',
+  AnswerState.sent => 'Sent to the office',
+  AnswerState.actioned => 'The office has it in hand',
+  AnswerState.dismissed => "The office couldn't act on this",
+  AnswerState.failed => "Couldn't send",
+};
+
+/// A short phrase for an answer whose device-side record has already been pruned.
+///
+/// Once the office confirms an answer the local intent is deleted — the server's row says
+/// everything, and two rows about one tap is one too many — so the summary the crew member first
+/// saw goes with it. This is the fallback, and it is deliberately terse: the line always renders
+/// inside the requirement's own card, so naming the requirement again would be noise.
+String answerSummary(String kind) => switch (kind) {
+  IntentKind.courseBooked => 'Course booked',
+  IntentKind.helpNeeded => 'Asked for help',
+  IntentKind.readingConfirmed => 'Confirmed the reading',
+  IntentKind.seatRequest => 'Asked for a seat',
+  IntentKind.waitlist => 'Joined the waitlist',
+  IntentKind.exemptionRequest => 'Exemption requested',
+  IntentKind.attestation => 'Signed off',
+  IntentKind.nudge => 'Nudged',
+  _ => 'Sent',
+};
+
+/// One answer, however much of its record exists.
+///
+/// Built from the device's outbox record, the server's statement, or both — see `answersFrom` in
+/// `ui/app_state.dart`. Where both exist the server's wins, because it is the only one that can
+/// have a decision on it.
+class Answer {
+  const Answer({
+    required this.opId,
+    required this.kind,
+    required this.state,
+    required this.summary,
+    this.requirementId,
+    this.detail,
+  });
+
+  final String opId;
+  final String kind;
+  final AnswerState state;
+
+  /// One line, already written — from the intent that raised it, or [answerSummary].
+  final String summary;
+  final int? requirementId;
+
+  /// The reason, in whoever's words they are: the server's rejection for a failure, the
+  /// coordinator's own note for a decision.
+  final String? detail;
+
+  bool get failed => state == AnswerState.failed;
+
+  /// True while the answer is still worth anything.
+  ///
+  /// This is what a screen asks before deciding whether the question has been answered — and the
+  /// two false cases are the point. A failed answer never reached the office, and a **dismissed**
+  /// one was looked at and turned down, so in both cases the ask is live again and the button
+  /// comes back. That mirrors the server exactly: dismissing a booking also restarts the expiry
+  /// reminders it had silenced.
+  bool get stands => state != AnswerState.failed && state != AnswerState.dismissed;
+}

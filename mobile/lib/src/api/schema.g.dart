@@ -668,6 +668,54 @@ class CrewRequestSummaryDto {
       };
 }
 
+class CrewStatementSyncDto {
+  final int id;
+  final String opId;
+  final String kind;
+  final int requirementId;
+  final String status;
+  final String? aboutExpiry;
+  final DateTime raisedAt;
+  final String? decisionNote;
+  final DateTime? decidedAt;
+
+  const CrewStatementSyncDto({
+    required this.id,
+    required this.opId,
+    required this.kind,
+    required this.requirementId,
+    required this.status,
+    this.aboutExpiry,
+    required this.raisedAt,
+    this.decisionNote,
+    this.decidedAt,
+  });
+
+  factory CrewStatementSyncDto.fromJson(Map<String, dynamic> json) => CrewStatementSyncDto(
+        id: json['id'] as int,
+        opId: json['opId'] as String,
+        kind: json['kind'] as String,
+        requirementId: json['requirementId'] as int,
+        status: json['status'] as String,
+        aboutExpiry: json['aboutExpiry'] == null ? null : json['aboutExpiry'] as String,
+        raisedAt: DateTime.parse(json['raisedAt'] as String).toUtc(),
+        decisionNote: json['decisionNote'] == null ? null : json['decisionNote'] as String,
+        decidedAt: json['decidedAt'] == null ? null : DateTime.parse(json['decidedAt'] as String).toUtc(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'opId': opId,
+        'kind': kind,
+        'requirementId': requirementId,
+        'status': status,
+        'aboutExpiry': aboutExpiry,
+        'raisedAt': raisedAt.toIso8601String(),
+        'decisionNote': decisionNote,
+        'decidedAt': decidedAt?.toIso8601String(),
+      };
+}
+
 class DecideCrewRequestRequest {
   final String note;
 
@@ -2567,6 +2615,7 @@ class SyncDeltaDto {
   final List<LeaveRecordDto> leave;
   final List<NotificationDto> notifications;
   final List<EvidenceSubmissionDto> submissions;
+  final List<CrewStatementSyncDto> crewStatements;
   final List<SyncTombstoneDto> tombstones;
   final SyncStandingDto? standing;
 
@@ -2581,6 +2630,7 @@ class SyncDeltaDto {
     required this.leave,
     required this.notifications,
     required this.submissions,
+    required this.crewStatements,
     required this.tombstones,
     this.standing,
   });
@@ -2596,6 +2646,7 @@ class SyncDeltaDto {
         leave: (json['leave'] as List<dynamic>).map((e) => LeaveRecordDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         notifications: (json['notifications'] as List<dynamic>).map((e) => NotificationDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         submissions: (json['submissions'] as List<dynamic>).map((e) => EvidenceSubmissionDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        crewStatements: (json['crewStatements'] as List<dynamic>).map((e) => CrewStatementSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         tombstones: (json['tombstones'] as List<dynamic>).map((e) => SyncTombstoneDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         standing: json['standing'] == null ? null : SyncStandingDto.fromJson(json['standing'] as Map<String, dynamic>),
       );
@@ -2611,6 +2662,7 @@ class SyncDeltaDto {
         'leave': leave.map((e) => e.toJson()).toList(growable: false),
         'notifications': notifications.map((e) => e.toJson()).toList(growable: false),
         'submissions': submissions.map((e) => e.toJson()).toList(growable: false),
+        'crewStatements': crewStatements.map((e) => e.toJson()).toList(growable: false),
         'tombstones': tombstones.map((e) => e.toJson()).toList(growable: false),
         'standing': standing?.toJson(),
       };
@@ -2766,6 +2818,7 @@ class SyncSnapshotDto {
   final List<LeaveRecordDto> leave;
   final List<NotificationDto> notifications;
   final List<EvidenceSubmissionDto> submissions;
+  final List<CrewStatementSyncDto> crewStatements;
   final SyncReferenceDto reference;
   final SyncStandingDto? standing;
 
@@ -2779,6 +2832,7 @@ class SyncSnapshotDto {
     required this.leave,
     required this.notifications,
     required this.submissions,
+    required this.crewStatements,
     required this.reference,
     this.standing,
   });
@@ -2793,6 +2847,7 @@ class SyncSnapshotDto {
         leave: (json['leave'] as List<dynamic>).map((e) => LeaveRecordDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         notifications: (json['notifications'] as List<dynamic>).map((e) => NotificationDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         submissions: (json['submissions'] as List<dynamic>).map((e) => EvidenceSubmissionDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        crewStatements: (json['crewStatements'] as List<dynamic>).map((e) => CrewStatementSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         reference: SyncReferenceDto.fromJson(json['reference'] as Map<String, dynamic>),
         standing: json['standing'] == null ? null : SyncStandingDto.fromJson(json['standing'] as Map<String, dynamic>),
       );
@@ -2807,6 +2862,7 @@ class SyncSnapshotDto {
         'leave': leave.map((e) => e.toJson()).toList(growable: false),
         'notifications': notifications.map((e) => e.toJson()).toList(growable: false),
         'submissions': submissions.map((e) => e.toJson()).toList(growable: false),
+        'crewStatements': crewStatements.map((e) => e.toJson()).toList(growable: false),
         'reference': reference.toJson(),
         'standing': standing?.toJson(),
       };

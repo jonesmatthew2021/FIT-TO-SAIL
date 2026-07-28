@@ -55,31 +55,40 @@ class CertificationDetailScreen extends StatelessWidget {
             return StreamBuilder<List<LocalCrewIntent>>(
               stream: state.watchIntentsFor(requirementId),
               builder: (context, intentSnapshot) {
-                final row = rowSnapshot.data;
-                return CertificationDetailView(
-                  row: row,
-                  submissions: submissionSnapshot.data ?? const <LocalSubmission>[],
-                  intents: intentSnapshot.data ?? const <LocalCrewIntent>[],
-                  today: state.serverToday,
-                  swingTo: state.syncState?.standingTo,
-                  onSubmit: row == null
-                      ? null
-                      : () => showSendCertificateSheet(
-                          context: context,
-                          state: state,
-                          requirementId: requirementId,
-                          requirementLabel: '${row.code} ${row.title}',
-                        ),
-                  onCourseBooked: row == null ? null : () => openOneTapUpdate(context, state, row),
-                  onNeedHelp: row == null
-                      ? null
-                      : () => state.answer(
-                          kind: IntentKind.helpNeeded,
-                          summary: 'Asked for help with ${row.title}',
-                          requirementId: requirementId,
-                        ),
-                  onRetryIntent: state.retryAnswer,
-                  onDiscardIntent: state.discardAnswer,
+                return StreamBuilder<List<LocalCrewStatement>>(
+                  stream: state.watchStatementsFor(requirementId),
+                  builder: (context, statementSnapshot) {
+                    final row = rowSnapshot.data;
+                    return CertificationDetailView(
+                      row: row,
+                      submissions: submissionSnapshot.data ?? const <LocalSubmission>[],
+                      answers: answersFrom(
+                        intentSnapshot.data ?? const <LocalCrewIntent>[],
+                        statementSnapshot.data ?? const <LocalCrewStatement>[],
+                      ),
+                      today: state.serverToday,
+                      swingTo: state.syncState?.standingTo,
+                      onSubmit: row == null
+                          ? null
+                          : () => showSendCertificateSheet(
+                              context: context,
+                              state: state,
+                              requirementId: requirementId,
+                              requirementLabel: '${row.code} ${row.title}',
+                            ),
+                      onCourseBooked:
+                          row == null ? null : () => openOneTapUpdate(context, state, row),
+                      onNeedHelp: row == null
+                          ? null
+                          : () => state.answer(
+                              kind: IntentKind.helpNeeded,
+                              summary: 'Asked for help with ${row.title}',
+                              requirementId: requirementId,
+                            ),
+                      onRetryIntent: state.retryAnswer,
+                      onDiscardIntent: state.discardAnswer,
+                    );
+                  },
                 );
               },
             );
@@ -96,7 +105,7 @@ class CertificationDetailView extends StatelessWidget {
     required this.row,
     required this.submissions,
     required this.today,
-    this.intents = const <LocalCrewIntent>[],
+    this.answers = const <Answer>[],
     this.swingTo,
     this.onSubmit,
     this.onCourseBooked,
@@ -107,7 +116,7 @@ class CertificationDetailView extends StatelessWidget {
 
   final CertificationRow? row;
   final List<LocalSubmission> submissions;
-  final List<LocalCrewIntent> intents;
+  final List<Answer> answers;
   final String? today;
   final String? swingTo;
   final VoidCallback? onSubmit;
@@ -226,22 +235,22 @@ class CertificationDetailView extends StatelessWidget {
                   ),
                 ],
 
-                if (intents.isNotEmpty) ...[
+                if (answers.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   const SectionLabel(
                     'What you have told the office',
                     padding: EdgeInsets.only(bottom: 10),
                   ),
-                  for (final intent in intents)
+                  for (final answer in answers)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: IntentLine(
-                        intent: intent,
-                        onRetry: intent.state == 'failed' && onRetryIntent != null
-                            ? () => onRetryIntent!(intent.opId)
+                      child: AnswerLine(
+                        answer: answer,
+                        onRetry: answer.failed && onRetryIntent != null
+                            ? () => onRetryIntent!(answer.opId)
                             : null,
-                        onDismiss: intent.state == 'failed' && onDiscardIntent != null
-                            ? () => onDiscardIntent!(intent.opId)
+                        onDismiss: answer.failed && onDiscardIntent != null
+                            ? () => onDiscardIntent!(answer.opId)
                             : null,
                       ),
                     ),

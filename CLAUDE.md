@@ -63,9 +63,9 @@ The component guides document running each piece by hand.
 ## Current phase
 
 Early P1 across three components, with **the whole of §6 now built** and one module beyond it
-(ADM-11). Green: **125 pure-domain tests**, **160 backend integration tests** against real PostgreSQL
+(ADM-11). Green: **125 pure-domain tests**, **163 backend integration tests** against real PostgreSQL
 (Colima + Quarkus Dev Services), **68 frontend tests** with a production bundle that builds, and
-**127 Flutter tests** including a real encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
+**136 Flutter tests** including a real encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
 component detail — including the traps each has already paid for and the spec questions each takes a
 position on.
 
@@ -147,6 +147,15 @@ What exists end to end, verified over real HTTP against a seeded database and dr
   **Dismissal is why it could not wait**: the suppression above silences a crew member's expiry
   warning on their word alone, and a coordinator who finds no such booking has to be able to put it
   back. §6 enumerates ADM-1 to ADM-10 and stops, so the module number is ours and worth confirming.
+
+- **And the loop closes: the decision reaches the phone.** The statement is now a replicated
+  person-scoped row like a holding — same trigger-assigned cursor, same tombstones — joined to the
+  device's own outbox record by the `opId` the device minted, so the app matches a decision to the
+  tap that produced it with no second identifier in existence. A §9 notification arrives with it,
+  carrying the coordinator's note; ADM-11's form labels that field *"the crew member reads this"*,
+  which is what turns "no record" into "we could not find your booking — can you forward the
+  confirmation?". On the card a dismissal **puts the ask back**, because the server has
+  simultaneously resumed chasing: two expressions of one fact rather than two rules that can drift.
 
 The largest functional gaps, in the order they bite:
 

@@ -125,6 +125,10 @@ IconData notificationKindIcon(String kind) => switch (kind) {
   'evidence_verified' => PhosphorIconsRegular.checkCircle,
   'evidence_rejected' => PhosphorIconsRegular.warningCircle,
   'evidence_received' => PhosphorIconsRegular.cloudCheck,
+  // ADM-11 answering back. An envelope rather than a bell: this is a reply to something the crew
+  // member said, which is a different kind of arrival from a system warning.
+  'crew_request_actioned' => PhosphorIconsRegular.envelopeOpen,
+  'crew_request_dismissed' => PhosphorIconsRegular.envelopeOpen,
   _ => PhosphorIconsRegular.bell,
 };
 
@@ -134,6 +138,10 @@ Color notificationKindColour(String kind) => switch (kind) {
   'expiry_warning' => Nocturne.warningText,
   'evidence_rejected' => Nocturne.criticalText,
   'evidence_verified' => Nocturne.goodText,
+  'crew_request_actioned' => Nocturne.goodText,
+  // Amber, not red. The office looked and could not act — something for the crew member to pick
+  // back up, not a fault, and the same tone the card gives the dismissal it is about.
+  'crew_request_dismissed' => Nocturne.warningText,
   _ => Nocturne.neutral400,
 };
 
@@ -146,6 +154,9 @@ String? notificationActionLabel(String kind) => switch (kind) {
   'expiry_warning' => 'Submit evidence',
   'evidence_rejected' => 'Send another',
   'requirement_added' => 'See what is required',
+  // The office could not act, so the ask is the crew member's again — and the deep link on the row
+  // already points at the requirement it is about.
+  'crew_request_dismissed' => 'See what is needed',
   _ => null,
 };
 

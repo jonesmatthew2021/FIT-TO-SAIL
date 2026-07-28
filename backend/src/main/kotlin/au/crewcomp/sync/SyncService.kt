@@ -12,6 +12,7 @@ import au.crewcomp.api.SyncReferenceDto
 import au.crewcomp.api.SyncSnapshotDto
 import au.crewcomp.api.SyncStandingDto
 import au.crewcomp.api.toDto
+import au.crewcomp.api.toSyncDto
 import au.crewcomp.compliance.ComplianceService
 import au.crewcomp.evidence.EvidenceService
 import au.crewcomp.evidence.EvidenceSource
@@ -20,6 +21,7 @@ import au.crewcomp.notify.NotificationService
 import au.crewcomp.people.Assignment
 import au.crewcomp.people.AssignmentRepository
 import au.crewcomp.people.CrewStatementKind
+import au.crewcomp.people.CrewStatementRepository
 import au.crewcomp.people.CrewStatementService
 import au.crewcomp.people.LeaveRecordRepository
 import au.crewcomp.people.PersonRepository
@@ -72,6 +74,7 @@ class SyncService(
     private val evidence: EvidenceService,
     private val notificationService: NotificationService,
     private val crewStatements: CrewStatementService,
+    private val crewStatementRepository: CrewStatementRepository,
     private val policy: AccessPolicy,
     private val clock: BusinessClock,
 ) {
@@ -105,6 +108,7 @@ class SyncService(
             leave = leaveRecords.forPersonScoped(personId).map { it.toDto() },
             notifications = notifications.forPersonScoped(personId).map { it.toDto() },
             submissions = documents.forPersonScoped(personId).map { it.toDto() },
+            crewStatements = crewStatementRepository.forPersonScoped(personId).map { it.toSyncDto() },
             reference = reference(referenceCursor),
             standing = standingFor(personId),
         )
@@ -130,6 +134,7 @@ class SyncService(
             leave = delta.leave(personId, cursor).map { it.toDto() },
             notifications = delta.notifications(personId, cursor).map { it.toDto() },
             submissions = delta.submissions(personId, cursor).map { it.toDto() },
+            crewStatements = delta.crewStatements(personId, cursor).map { it.toSyncDto() },
             tombstones = delta.tombstones(personId, cursor).map { it.toDto() },
             // Always recomputed, never diffed: a holding expiring overnight changes the roll-up
             // without changing a single row, so a client that only applied row deltas would show
@@ -324,11 +329,16 @@ class SyncService(
         const val OP_NOTIFICATION_READ = "notification.read"
         const val OP_EVIDENCE_SUBMIT = "evidence.submit"
 
-        /** MOB-5: "I have booked the course." */
-        const val OP_REQUIREMENT_PROGRESS = "requirement.progress"
-
-        /** MOB-5 / MOB-0: "I need help arranging it." */
-        const val OP_REQUIREMENT_HELP = "requirement.help"
+        /**
+         * MOB-5's two answers, named by the enum rather than by a literal here.
+         *
+         * One source of truth on purpose: the same strings travel *back* to the device in
+         * `CrewStatementSyncDto.kind`, and a copy of them in this file is a copy that can drift
+         * from the one the payload sends — which is exactly the bug that shipped the first time,
+         * where the queue accepted `requirement.progress` and the payload answered `course_booked`.
+         */
+        val OP_REQUIREMENT_PROGRESS: String = CrewStatementKind.COURSE_BOOKED.operation
+        val OP_REQUIREMENT_HELP: String = CrewStatementKind.HELP_REQUESTED.operation
 
         const val STATUS_APPLIED = "applied"
         const val STATUS_REJECTED = "rejected"
