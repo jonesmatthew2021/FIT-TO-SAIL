@@ -35,12 +35,13 @@ backend: two chunks, digest accepted, and §8 reporting `Extracted 1: 0 auto-acc
 fields. **The camera itself is still unproven**: a simulator has none, so only the library and file
 paths have actually run (see "What is unverified" #4).
 
-**Both platforms build; only iOS has been run.** Xcode 26.6 / iOS 26.5 SDK is installed here, so
-`flutter build ios` and a simulator run are verified (see below for exactly what that proved). The
-Android SDK, the NDK revision the build pins and a Pixel 7 AVD are installed **as of 29 July**, and
-`flutter build apk --debug` succeeds — see "What the Android build proved". **The APK has never been
-launched**, so ADR 0002's parity mandate is now met at the build level and nowhere else. See "What is
-unverified" before trusting anything else about the app on a phone.
+**Both platforms now build and run — on simulators.** Xcode 26.6 / iOS 26.5 SDK, and **as of 29 July**
+the Android SDK, the NDK revision the build pins and a Pixel 7 AVD. Both `flutter build ios` and
+`flutter build apk` succeed, and the app has been driven against the live backend on an iOS simulator
+and an API 36 emulator — including, on Android, a genuinely encrypted Keystore-keyed store and a
+working offline cold start. See "What the iOS run proved" and "What the Android run proved" for
+exactly what each did and did not establish. **No physical device of either kind has run this**, which
+is where the remaining risk sits; see "What is unverified" first.
 
 ## Stack (decided — ADR 0002, amended by ADR 0009)
 
@@ -96,10 +97,23 @@ flutter build ios --debug --no-codesign   # iOS
 flutter build apk --debug                 # Android — ~30s warm, a few minutes cold
 ```
 
+On an Android emulator, note `10.0.2.2` — see Traps; `127.0.0.1` silently reaches the emulator itself:
+
+```bash
+~/Library/Android/sdk/emulator/emulator -avd crewcomp_api36 -no-boot-anim &
+adb wait-for-device && until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 3; done
+flutter run -d emulator-5554 \
+  --dart-define=CREWCOMP_API=http://10.0.2.2:8080 --dart-define=CREWCOMP_DEV_PERSON=2
+
+adb exec-out screencap -p > /tmp/shot.png            # and `adb shell input tap X Y` — taps work here
+adb shell run-as au.crewcomp.crewcomp_crew ls -l /data/data/au.crewcomp.crewcomp_crew/files/crewcomp.db
+adb shell cmd connectivity airplane-mode enable      # the offline test
+```
+
 The Android SDK is at `~/Library/Android/sdk`, deliberately **not** Homebrew's
 `/opt/homebrew/share/android-commandlinetools`: Android Studio expects the former, and two SDK roots
 drift. `flutter config --android-sdk` is what points Flutter at it. The NDK must be installed
-explicitly — AGP will not fetch it (see "What the Android build proved"):
+explicitly — AGP will not fetch it (see "What the Android run proved"):
 
 ```bash
 ~/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358"
@@ -300,6 +314,12 @@ thing DEV-2 exists to prevent. It does mean an admin-side DTO change makes this 
 - **The iOS system log is loud.** A booting simulator emits hundreds of `Failed to index parameter
   type …` ActionKit lines into the `flutter run` console. They are Shortcuts indexing, unrelated
   to this app; filter them out before reading a build log or watching for errors.
+- **`127.0.0.1` is the emulator, not your Mac.** `CREWCOMP_API` defaults to `http://127.0.0.1:8080`
+  (`main.dart`) and `mobile-start.sh` passes the same, which is correct for an iOS simulator — it
+  shares the host's loopback — and wrong for an Android emulator, where it is the emulated device's
+  own. The host is **`10.0.2.2`**. The failure is not an error: every screen renders from an empty
+  local replica and the banner says it could not sync, which looks exactly like a backend that is
+  down. Pass `--dart-define=CREWCOMP_API=http://10.0.2.2:8080` on Android.
 - **AGP 9 and this plugin set are mutually exclusive, and `android.builtInKotlin` is a trap either
   way.** `flutter create` generated AGP 9.0.1 plus `android.builtInKotlin=false` — its own documented
   escape hatch — and that combination cannot build. With the flag *off*, `file_picker` 11.0.2 sees
@@ -382,10 +402,12 @@ thing this run could **not** prove: `mobile-start.sh` reinstalls by default, so 
 gone before v5 existed. The three `if (from < N)` steps follow the pattern the previous three were
 verified with, and a device carrying a v4 store is the case to check on the next real install.
 
-## What the Android build proved (29 July 2026, AGP 8.13.1, no device)
+## What the Android run proved (29 July 2026, AGP 8.13.1, Pixel 7 emulator, API 36)
 
-The first `flutter build apk` this repository has ever run. It is a **build**, not a run — the
-section above is what a *run* looks like, and Android has not had one.
+The first time this app has ever been built *or* executed on Android. Still an emulator, not a
+phone — everything under "What is unverified" about physical devices stands.
+
+**The build:**
 
 - **`sqlite3mc` cross-compiles for Android.** The APK carries `lib/arm64-v8a/libsqlite3mc.so`,
   `lib/armeabi-v7a/…` and `lib/x86_64/…`, ~2 MB each. This was the biggest unknown: the encrypted
@@ -395,11 +417,35 @@ section above is what a *run* looks like, and Android has not had one.
 - **The pinned NDK is what makes it work.** `ndkVersion = flutter.ndkVersion` resolves to an exact
   revision (28.2.13676358 on Flutter 3.44.8). AGP auto-downloads build-tools and CMake when they are
   missing but **not** the NDK, so it has to be installed deliberately — locally and in CI.
-- **AGP 9 cannot build this app**, which is the trap below and the reason for `settings.gradle.kts`'s
+- **AGP 9 cannot build this app**, which is the trap above and the reason for `settings.gradle.kts`'s
   version pin. Found by building; invisible to `flutter analyze` and to all 145 tests.
 - **The toolchain here:** SDK at `~/Library/Android/sdk` (shared with Android Studio rather than
   Homebrew's own cask root), platform android-36, build-tools 36.0.0, and Studio's bundled JBR 21 as
   the JDK — `flutter doctor -v` names the one it picked, which is not necessarily the one on `PATH`.
+
+**The run** — all four shipped tabs rendered real synced data for Bruno, and the three properties
+that could only ever be checked on the platform itself all hold:
+
+- **The store is genuinely encrypted on Android.** `/data/data/au.crewcomp.crewcomp_crew/files/crewcomp.db`
+  begins `fc 61 92 f7 …` rather than `53 51 4c 69 …` (`SQLite format 3`), and
+  `strings | grep -i oyelaran` returns **0** while the app displays that name on screen. The app logs
+  `Local store cipher: SQLite3 Multiple Ciphers 2.3.6`, so the same guard that protects iOS is armed.
+- **`flutter_secure_storage` reaches the Android Keystore.** Logcat shows it deleting a legacy RSA key
+  and initialising a cipher with a fresh AES key in the KeyStore — this is the direct evidence the
+  iOS run could only get *by consequence*. The store then opened with that key.
+- **Offline works from a cold start.** With airplane mode on and the process force-stopped, relaunching
+  re-opened the encrypted store and rendered every screen from the local replica under
+  `Couldn't sync · last synced 1 min ago · Retry`. This is the property the whole architecture exists
+  for, now shown on both platforms.
+- **Sync does not resume by itself when the network returns**, which is worth knowing before reading it
+  as a bug: leaving airplane mode does not clear the banner, and tapping **Retry** syncs immediately
+  and clears it. The app syncs on launch and on demand, and nothing watches connectivity.
+- **The tab bar is the right height and the credit tiles are absent**, i.e. the two Nocturne layout
+  traps above behave on Android exactly as the fixes intend. Notification bodies read `16 Aug 2026`,
+  so `humaniseDates` is doing its job here too.
+
+Unlike an iOS simulator, `adb shell input tap` works, so screens can be driven without the FIFO
+hot-restart trick below: `adb exec-out screencap -p > shot.png` plus taps is the whole loop.
 
 ## What the payload does not carry yet, and what the screens do about it
 
@@ -435,15 +481,13 @@ Each of these is one stub in `app_state.dart`, so landing the backend work is a 
 
 Listed plainly because the test count above could otherwise imply more than it should.
 
-1. **The Android app has never been executed**, and no physical device of either kind has run this.
-   The APK builds and contains the right native libraries, which proves the toolchain and the
-   `sqlite3mc` cross-compile — and nothing about behaviour. Unproven on Android specifically: that
-   the store opens at all, that `flutter_secure_storage` reaches the Keystore (the iOS equivalent was
-   proven only *by consequence* of the store opening, and that consequence has not happened here),
-   `path_provider`'s directories, the pickers, and every screen. An emulator is installed
-   (`crewcomp_api36`) and has not been booted. On iOS, everything above was a *simulator*; a physical
-   device additionally needs code signing, and the Keychain behaves differently under a real
-   `first_unlock` accessibility class and a locked screen.
+1. **No physical device has run this, on either platform.** Both have now run on a simulator with an
+   encrypted store and a working offline mode, so what remains is specifically hardware: code signing
+   and a real Keychain `first_unlock` class behind a locked screen on iOS; on Android, a real Keystore
+   (an emulator's is software-backed — there is no StrongBox or TEE here, which is exactly the property
+   SEC-12 leans on), plus Play Store signing. **Only the four shipped tabs have been driven on
+   Android**; the eight newer screens have been rendered on iOS only, and the pickers, MOB-4's upload
+   and MOB-9's sign-off have never run there.
 2. **Nothing verifies the crew's data is wiped on logout** (SEC-12). There is no logout, because
    there is no login (#6).
 3. **No push notifications.** MOB-3 renders the in-app list, which is the source of truth, but

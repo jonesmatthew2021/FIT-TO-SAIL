@@ -15,7 +15,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 |---|---|---|
 | `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + ADM-11 + every crew-app write path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync, MOB-8's course catalogue and MOB-11's supervisor watch |
 | `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules plus ADM-11, on the Nocturne dark design system** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, crew requests, notifications centre, evidence queue, administration |
-| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **all twelve of the design handoff's screens, on the Nocturne dark design system** — the four shipped ones restyled, eight new ones built; over an encrypted store, sync, outbox and resumable evidence upload. **iOS builds and runs on a simulator; Android builds** (SDK + pinned NDK installed, APK carries `libsqlite3mc.so` for all three ABIs) but has never been launched |
+| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **all twelve of the design handoff's screens, on the Nocturne dark design system** — the four shipped ones restyled, eight new ones built; over an encrypted store, sync, outbox and resumable evidence upload. **iOS and Android both build and run on simulators** — Android as of 29 July, with an encrypted Keystore-keyed store and a working offline cold start; no physical device yet |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
 | `scripts/` | `dev-start.sh` / `dev-stop.sh` — the local development stack; `mobile-start.sh` — the crew app on an iOS simulator | works; see below |
@@ -186,18 +186,18 @@ What exists end to end, verified over real HTTP against a seeded database and dr
 
 The largest functional gaps, in the order they bite:
 
-1. **No physical device has run either app, and neither has an Android emulator.** Both platforms
-   now *build*: iOS on Xcode 26.6, and **Android as of 29 July** — the SDK, the pinned NDK and an
-   AVD are installed here, and `flutter build apk --debug` produces an APK carrying
-   `libsqlite3mc.so` for all three ABIs, so SEC-12's encrypted store cross-compiles. That closes
-   the parity gap ADR 0002 cares about at the *build* level only. The iOS app has additionally been
-   run on a simulator against the live backend with a genuinely encrypted Keychain-keyed store and
-   a working offline mode (`mobile/CLAUDE.md` §"What the iOS run proved"); **the Android APK has
-   never been launched** — the AVD has not been booted, so nothing about the app's Android runtime
-   is proven: not the Keystore-backed key, not the store actually opening, not a single screen.
-   Still unproven on either platform: the camera (a simulator has none, so evidence submission's
-   library and file paths have run and its capture branch has not), biometric binding, background
-   upload surviving a kill, and code signing.
+1. **No physical device has run either app.** Both platforms now build *and* run on simulators —
+   iOS on Xcode 26.6, and **Android as of 29 July**, which closes the parity gap ADR 0002 cares
+   about as far as a simulator can. The Android run established the three things only the platform
+   itself could: `libsqlite3mc.so` cross-compiles for all three ABIs, the on-disk store is genuinely
+   encrypted (no crew name recoverable from a file the app is displaying), and
+   `flutter_secure_storage` reaches the **Android Keystore** — direct evidence, where iOS had it only
+   by consequence. Offline cold start works on both (`mobile/CLAUDE.md` §"What the Android run
+   proved"). What hardware still owes: a **real** Keystore/Keychain (an emulator's is software-backed,
+   with no TEE or StrongBox, which is the property SEC-12 leans on), code signing on both stores, the
+   camera (no simulator has one, so evidence submission's library and file paths have run and its
+   capture branch has not), biometric binding, and background upload surviving a kill. Also: only the
+   four shipped tabs have been driven on Android — the eight newer screens are iOS-only so far.
 2. **No login** anywhere, and it now blocks more than it did. `GET /api/v1/session` is the stable
    half of the ADR 0003 contract; the code flow, token store and opaque cookie are the identity
    spike's. Until it lands, back-office users have no real accounts — so §9's per-role fan-out has
