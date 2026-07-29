@@ -25,8 +25,8 @@
 # the database. Pass --keep-data when the persisted store is the thing under test — offline mode
 # across a relaunch, or a delta arriving on top of an existing snapshot.
 #
-# iOS only. There is no Android SDK on this machine, so ADR 0002's parity mandate is enforced
-# by CI's Android build and by nothing here.
+# iOS only — ./scripts/android-start.sh is the same app on an emulator. ADR 0002's parity mandate
+# means a change verified here should be verified there too.
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dev-common.sh"
@@ -47,7 +47,7 @@ while (( $# )); do
     --keep-data) fresh=0; shift ;;
     --fresh) fresh=1; shift ;;
     --list) xcrun simctl list devices available; exit 0 ;;
-    -h|--help) sed -n '2,28p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,29p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "Unknown option '$1'. Try --help." ;;
   esac
 done

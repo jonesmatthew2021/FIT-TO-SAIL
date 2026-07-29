@@ -97,14 +97,22 @@ flutter build ios --debug --no-codesign   # iOS
 flutter build apk --debug                 # Android — ~30s warm, a few minutes cold
 ```
 
-On an Android emulator, note `10.0.2.2` — see Traps; `127.0.0.1` silently reaches the emulator itself:
+Android has its own runner, because an emulator is a process something has to own — it is started
+detached and outlives the `flutter run` in front of it:
 
 ```bash
-~/Library/Android/sdk/emulator/emulator -avd crewcomp_api36 -no-boot-anim &
-adb wait-for-device && until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 3; done
-flutter run -d emulator-5554 \
-  --dart-define=CREWCOMP_API=http://10.0.2.2:8080 --dart-define=CREWCOMP_DEV_PERSON=2
+./scripts/android-start.sh                 # boot the AVD, then run the app
+./scripts/android-start.sh --boot-only     # just the emulator, left up
+./scripts/android-stop.sh                  # the app, then the emulator
+./scripts/android-stop.sh app              # keep the emulator, drop the run
+```
 
+It passes `CREWCOMP_API=http://10.0.2.2:8080` because `127.0.0.1` is the *emulator* — see Traps; it
+shares `mobile.pid` with `mobile-start.sh`, so an Android run and an iOS run exclude each other; and
+it reinstalls by default for the same store-outlives-the-database reason the iOS runner does. By
+hand, when the script is not what you want:
+
+```bash
 adb exec-out screencap -p > /tmp/shot.png            # and `adb shell input tap X Y` — taps work here
 adb shell run-as au.crewcomp.crewcomp_crew ls -l /data/data/au.crewcomp.crewcomp_crew/files/crewcomp.db
 adb shell cmd connectivity airplane-mode enable      # the offline test

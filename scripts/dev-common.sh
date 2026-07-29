@@ -20,6 +20,13 @@ backend_pidfile="$run_dir/backend.pid"
 web_pidfile="$run_dir/web.pid"
 mobile_pidfile="$run_dir/mobile.pid"
 
+# The Android emulator, which unlike an iOS simulator is a process these scripts own: it is
+# started detached and outlives the flutter run in front of it, so it needs a pidfile and a log
+# of its own. `mobile_pidfile` is deliberately shared between the iOS and Android runners —
+# the constraint it guards is one `flutter run` per mobile/, which is not per platform.
+emulator_log="$run_dir/emulator.log"
+emulator_pidfile="$run_dir/emulator.pid"
+
 # Ports are fixed by the components: Quarkus defaults to 8080, and admin-web's Vite config
 # proxies /api to it from 5173. Changing either means changing vite.config.ts too.
 backend_port=8080
