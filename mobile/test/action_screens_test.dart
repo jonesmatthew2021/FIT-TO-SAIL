@@ -107,9 +107,11 @@ void main() {
   });
 
   group('MOB-8 course booking', () {
-    testWidgets('says it has no dates rather than showing a plausible one', (tester) async {
-      // There is no course catalogue in the system yet. The honest empty state offers the one
-      // action that does exist — asking the office — instead of an invented list.
+    testWidgets('says no date would work rather than showing a plausible one', (tester) async {
+      // The catalogue exists now, so an empty list means something specific: every date it holds
+      // either finishes too late or runs while this person is at sea. For anybody rostered across
+      // a whole swing that is not an edge case — an expiring certificate can never have an
+      // attendable date — so the empty state offers the two things that do exist.
       var asked = 0;
       await pump(
         tester,
@@ -121,7 +123,7 @@ void main() {
         ),
       );
 
-      expect(find.text('No dates to show yet'), findsOneWidget);
+      expect(find.text('No dates that would work'), findsOneWidget);
       await tester.tap(find.text('Ask the office to arrange it'));
       await tester.pump();
       expect(asked, 1);

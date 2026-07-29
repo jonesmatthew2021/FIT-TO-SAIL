@@ -13,7 +13,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 
 | Path | Contents | Status |
 |---|---|---|
-| `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + mobile read path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync |
+| `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + ADM-11 + every crew-app write path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync, MOB-8's course catalogue and MOB-11's supervisor watch |
 | `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules plus ADM-11, on the Nocturne dark design system** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, crew requests, notifications centre, evidence queue, administration |
 | `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **all twelve of the design handoff's screens, on the Nocturne dark design system** — the four shipped ones restyled, eight new ones built; over an encrypted store, sync, outbox and resumable evidence upload. **iOS builds and runs on a simulator**, Android never built (no SDK) |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
@@ -62,10 +62,11 @@ The component guides document running each piece by hand.
 
 ## Current phase
 
-Early P1 across three components, with **the whole of §6 now built** and one module beyond it
-(ADM-11). Green: **125 pure-domain tests**, **172 backend integration tests** against real PostgreSQL
-(Colima + Quarkus Dev Services), **68 frontend tests** with a production bundle that builds, and
-**141 Flutter tests** including a real encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
+Early P1 across three components, with **the whole of §6 now built**, one module beyond it (ADM-11),
+and **every operation the crew app posts now accepted**. Green: **141 pure-domain tests**,
+**193 backend integration tests** against real PostgreSQL (Colima + Quarkus Dev Services),
+**69 frontend tests** with a production bundle that builds, and **145 Flutter tests** including a
+real encrypted SQLite file. `backend/CLAUDE.md`, `admin-web/CLAUDE.md` and `mobile/CLAUDE.md` carry the
 component detail — including the traps each has already paid for and the spec questions each takes a
 position on.
 
@@ -156,6 +157,24 @@ What exists end to end, verified over real HTTP against a seeded database and dr
   whose **timestamp and its formatting are both the server's** — a legal record timestamped from the
   phone of the person making it is an assertion by the party it is evidence against.
 
+- **The last three operations landed, and each needed a decision rather than work.** A **course
+  catalogue** that is ours *behind a `CourseCatalogue` port* — because a provider feed may replace it
+  and the interesting half is ours either way: an option is only worth showing if it beats the crew
+  member's expiry and does not fall inside a swing they are aboard for, and both come from our
+  roster. **A seat request is a statement, not a booking** — a crew member cannot commit a training
+  budget, so it lands in ADM-11 beside the other asks, and nothing holds a seat this system has no
+  contract for. And **`vessel_master` is the supervisory role**, with a watch derived from
+  co-assignment rather than from an org chart nobody would maintain: change the roster and the watch
+  changes with it. A nudge names its sender, is audited whether or not it could be delivered, and is
+  one nudge however many times a device replays it.
+
+- **Two rules came out of that pass and are worth keeping.** Suppression is now stated as data
+  (`NEVER` / `ON_WORD` / `ON_ACTION`): "I have booked the course" is believed on the crew member's
+  word because only they know it, where "I would like that seat" earns nothing until the office
+  answers — asking is not having, and the certificate is still lapsing. And a supervisor's *write*
+  is never wider than their read: `TeamService.supervisedCrew` is the single definition both the
+  watch and the nudge authorise against.
+
 - **And the loop closes: the decision reaches the phone.** The statement is now a replicated
   person-scoped row like a holding — same trigger-assigned cursor, same tombstones — joined to the
   device's own outbox record by the `opId` the device minted, so the app matches a decision to the
@@ -194,14 +213,14 @@ The largest functional gaps, in the order they bite:
    against a live backend, and every crew screen on an iOS simulator against the same — which is
    how five rendering bugs have been found so far — but making either a committed lane is the
    pipeline bootstrap's.
-7. **The crew app's eight new screens are ahead of the server they need.** Course catalogue,
-   extraction fields, readiness and credits in the sync payload, a status-only team endpoint, and
-   the three remaining sync operations. None of
-   it is speculative work — every item has a built screen waiting on it, and
-   `docs/handoff/mobile-crew-app-backend.md` says what each one needs. Two of them are also
-   blocked on something else: the team endpoint needs a supervisory role, which is the identity
-   spike's, and MOB-6's real intake route — Attest as a share target in Mail, Files and WhatsApp —
-   is native iOS and Android work rather than backend work.
+7. **Two of the crew app's screens are still ahead of the server, down from eight.** The course
+   catalogue, the team endpoint and all seven sync operations landed on 29 July. What is left is
+   **MOB-7's extraction fields**, which are waiting on §14.5's provider choice rather than on work,
+   and **MOB-0's credit tiles**, which need swing history nobody has computed. Readiness, the
+   headline and the declaration wording are all still client-derived and should come down the wire.
+   `docs/handoff/mobile-crew-app-backend.md` says what each one needs. MOB-6's real intake route —
+   Attest as a share target in Mail, Files and WhatsApp — is native iOS and Android work rather
+   than backend work.
 
 Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended spike sequence"):
 1. Pipeline bootstrap — **the verification half is built and the deploy half cannot be.**
@@ -233,14 +252,18 @@ Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended s
 
 The spike sequence has not changed, but what depends on it has. With §6 built and the crew app's
 twelve screens with it, **all four spikes are now unblocking finished features rather than enabling
-unwritten ones**: the identity spike replaces ADM-8's and ADM-10's scaffolding and is what lets
-MOB-11's Team tab exist at all, the platform spike replaces ADM-9's byte-streaming preview with a
+unwritten ones**: the identity spike replaces ADM-8's and ADM-10's scaffolding and is where MOB-11's
+`vessel_master` claim comes from once a session exists — the *scoping* is built and the Team tab
+already appears on the server's say-so, so what the spike owns is narrower than it was. The platform
+spike replaces ADM-9's byte-streaming preview with a
 signed URL and the in-memory job history with real monitoring, §14.5's provider choice turns the
 evidence pipeline from a correct empty extractor into a working one *and* fills MOB-7's fields, and
 the device spike is the only way the camera, biometric binding and kill-surviving upload behind
 MOB-6 and MOB-9 get proven. That is a better position to be in — each spike now has a screen to
 verify itself against.
 
-Sitting alongside them, and not a spike: the crew app's backend handoff
-(`docs/handoff/mobile-crew-app-backend.md`). It needs no decision, only work, and it is what turns
-eight honestly-degrading screens into working ones.
+Sitting alongside them, and not a spike: what is left of the crew app's backend handoff
+(`docs/handoff/mobile-crew-app-backend.md`). Most of it has been done — six decisions taken on
+29 July closed the course catalogue, the supervisory role, the seat-request model, the register's
+triage question and ADM-11's module number. What remains there is genuinely waiting on §14.5 and on
+a history nobody has computed, rather than on a decision.

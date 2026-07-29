@@ -1,5 +1,6 @@
 package au.crewcomp.api
 
+import au.crewcomp.courses.CourseOffer
 import au.crewcomp.evidence.EvidenceDocument
 import au.crewcomp.notify.Notification
 import au.crewcomp.people.Attestation
@@ -45,6 +46,8 @@ data class SyncSnapshotDto(
     val crewStatements: List<CrewStatementSyncDto>,
     /** MOB-9's pre-sail declarations, as signed. */
     val attestations: List<AttestationSyncDto>,
+    /** MOB-8's course dates, already filtered to this crew member — see [CourseOfferDto]. */
+    val courseOptions: List<CourseOfferDto>,
     val reference: SyncReferenceDto,
     /** Null when the crew member has no assignment to evaluate against — see [SyncStandingDto]. */
     val standing: SyncStandingDto?,
@@ -91,6 +94,37 @@ data class CrewStatementSyncDto(
      */
     val decisionNote: String?,
     val decidedAt: Instant?,
+)
+
+/**
+ * One course date MOB-8 may offer this crew member.
+ *
+ * **Already filtered, and that is the contract.** The screen lists only dates that resolve the
+ * requirement before it lapses and that the person is not at sea for; it is never a generic
+ * catalogue the crew member has to sift. Both of those need the roster, so both are the server's —
+ * see [au.crewcomp.courses.CourseOffers] for the rules and why "on leave" is labelled rather than
+ * excluded.
+ *
+ * [seats] is what the provider last told us, not an inventory this system controls. Nothing
+ * decrements it and [id] does not reserve anything: choosing a date raises a request a coordinator
+ * actions (ADM-11), because this system has no contract with the provider.
+ */
+data class CourseOfferDto(
+    /** The catalogue's business key — what the device sends back as `subjectRef`. */
+    val id: String,
+    val requirementId: Long,
+    val starts: LocalDate,
+    val finishes: LocalDate,
+    val provider: String,
+    val location: String,
+    /** The provider's own phrasing. Empty rather than derived when they did not give one. */
+    val durationLabel: String,
+    val seats: Int,
+    /** "Clear of your leave · 11 days before expiry" — composed server-side, roster in hand. */
+    val note: String,
+    /** At most one per requirement: the soonest date with a seat that is clear of their leave. */
+    val recommended: Boolean,
+    val waitlistOnly: Boolean,
 )
 
 /**
@@ -175,6 +209,15 @@ data class SyncDeltaDto(
     val submissions: List<EvidenceSubmissionDto>,
     val crewStatements: List<CrewStatementSyncDto>,
     val attestations: List<AttestationSyncDto>,
+    /**
+     * Recomputed in full on every delta, never diffed — like [standing] and for the same reason.
+     *
+     * A course offer is a derived answer rather than a row: it changes when the catalogue changes,
+     * when the person's roster changes, when a certificate is renewed, and when a day passes. A
+     * client applying row-level deltas would show a stale set indefinitely after any of those, and
+     * there is no tombstone that could tell it a date is no longer worth offering.
+     */
+    val courseOptions: List<CourseOfferDto>,
     val tombstones: List<SyncTombstoneDto>,
     /** Recomputed on every delta: a holding change silently changes the roll-up. */
     val standing: SyncStandingDto?,
@@ -218,6 +261,14 @@ data class SyncOperationDto(
      * member is answering or asking about.
      */
     val requirementId: Long? = null,
+    /**
+     * `course.seat_request` | `course.waitlist`: the course option the crew member picked.
+     *
+     * A catalogue key and opaque to the queue — resolved through [au.crewcomp.courses.CourseCatalogue]
+     * so that the office's record of the ask carries a sentence naming the date, not just a key
+     * that may not resolve in six months.
+     */
+    val subjectRef: String? = null,
     /** `register.exemption_request`: `no_seat` | `medical_personal` | `with_authority`. */
     val reason: String? = null,
     /** `register.exemption_request`: the crew member's own words, optional. */
@@ -242,6 +293,14 @@ data class SyncOperationDto(
     val assignmentId: Long? = null,
     /** `attestation.sign_off`: the declaration ids the crew member confirmed. */
     val declarations: List<String>? = null,
+    /**
+     * `team.nudge`: whom to nudge, by Sam #.
+     *
+     * The only field on this queue that names another person, and it is checked against the
+     * supervisor's own watch rather than trusted. A Sam # rather than a person id because that is
+     * what MOB-11's payload carries — [TeamMemberDto] deliberately has no internal id on it.
+     */
+    val targetSam: String? = null,
 )
 
 data class EvidenceSubmitDto(
@@ -363,6 +422,22 @@ fun Attestation.toSyncDto(zone: ZoneId) = AttestationSyncDto(
 /** `28 Jul 2026, 07:05 AWST` — the design's own format for MOB-9's signature block. */
 private val ATTESTATION_SIGNED_AT: DateTimeFormatter =
     DateTimeFormatter.ofPattern("d MMM uuuu, HH:mm zzz", Locale.ENGLISH)
+
+fun CourseOffer.toDto() = CourseOfferDto(
+    id = option.ref,
+    requirementId = option.requirementId,
+    starts = option.starts,
+    finishes = option.finishes,
+    provider = option.provider,
+    location = option.location,
+    // Empty rather than invented. A duration derived from the date range is wrong as often as it
+    // is right — a two-day course can span a weekend — and the screen omits a blank line happily.
+    durationLabel = option.durationLabel.orEmpty(),
+    seats = option.seats,
+    note = note,
+    recommended = recommended,
+    waitlistOnly = waitlistOnly,
+)
 
 fun CrewStatement.toSyncDto() = CrewStatementSyncDto(
     id = requiredId,

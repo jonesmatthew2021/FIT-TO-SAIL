@@ -1,5 +1,6 @@
 package au.crewcomp.platform.dev
 
+import au.crewcomp.courses.CourseOptionEntity
 import au.crewcomp.engine.HoldingStatus
 import au.crewcomp.engine.PersonStatus
 import au.crewcomp.engine.QuotaScope
@@ -172,8 +173,19 @@ class DevDataSeeder(
             rule(position, induction, RuleLevel.MANDATORY)
             // Work at Heights is quota-only: an individual miss is `quota_only`, not a gap.
             rule(position, heights, RuleLevel("M9"))
-            rule(position, confined, RuleLevel.RECOMMENDED)
+            // Mandatory for the Chief Officer, recommended for everyone else. That asymmetry is
+            // what gives the fixture a *servable* MOB-8 case: a recommended requirement is never a
+            // gap (§5.1 rule 1), so it never appears in the states a course is offered against,
+            // and without one mandatory cell somewhere the seeded catalogue would be unreachable.
+            //
+            // It is also the shape the rule below could not produce. For anybody rostered across a
+            // whole swing, an `expiring` cell can never have an attendable date: a course that
+            // finishes before the expiry finishes before the swing ends, and they are at sea for
+            // all of it. Bruno's Sea Survival is exactly that, and it is why he is offered nothing
+            // for it — which is not a fixture accident but the squeeze MOB-10 exists for.
+            if (position != chiefOfficer) rule(position, confined, RuleLevel.RECOMMENDED)
         }
+        rule(chiefOfficer, confined, RuleLevel.MANDATORY)
         rule(master, coc, RuleLevel.MANDATORY)
         rule(chiefOfficer, coc2, RuleLevel.MANDATORY)
         rule(gph, gphTicket, RuleLevel.MANDATORY)
@@ -396,7 +408,14 @@ class DevDataSeeder(
 
         val mateAccount = crewAccount(mate)
         crewAccount(gapCrew)
-        crewAccount(skipper)
+        val skipperAccount = crewAccount(skipper)
+
+        // MOB-11's supervisor. Ada is the Master on UNI CC24, so her watch is everyone else
+        // rostered onto that swing — derived from the assignments above rather than from an org
+        // chart, which is the whole point of `TeamService`. Locally the shim also has to be told
+        // her partnership (`X-Dev-Partnerships`), because a Vessel Master's ambient scope is
+        // partnership-wide and the team view narrows *within* it.
+        skipperAccount.grantRole(Role.VESSEL_MASTER, actor, now)
 
         // -------------------------------------------------------------------
         // Back-office accounts (ADM-8, ADM-10).
@@ -717,6 +736,85 @@ class DevDataSeeder(
             ),
             reason = "'Advanced Fire Fighting' matches no catalogue entry by code, title or alias",
             source = EvidenceSource.ADMIN_UPLOAD,
+        )
+
+        // -------------------------------------------------------------------
+        // MOB-8's course catalogue.
+        //
+        // Dates chosen so the filter can be seen working rather than merely present. Against
+        // Bruno — the demonstration crew member, at sea on UNI CC24 until ${uniCurrent.toDate}
+        // and on leave for nine days after that — Confined Space Entry produces one of each
+        // outcome: a date dropped for colliding with his swing, one recommended, one labelled as
+        // eating into his leave, and one waitlist-only.
+        //
+        // Two things the fixture deliberately does *not* show. Bruno's Sea Survival expires
+        // inside his swing, so **every** course date that would beat it collides with being at
+        // sea and he correctly sees none — which is precisely the squeeze MOB-10's exemption
+        // request exists for. And with no expiring-and-attendable case anywhere in the fixture,
+        // the "11 days before expiry" half of the note is covered by `CourseOffersTest` instead.
+        // -------------------------------------------------------------------
+
+        fun courseOption(
+            ref: String,
+            forWhat: Requirement,
+            from: LocalDate,
+            days: Long,
+            providerName: String,
+            where: String,
+            duration: String,
+            seatsLeft: Int,
+        ) {
+            em.persist(
+                CourseOptionEntity().apply {
+                    optionRef = ref
+                    requirement = forWhat
+                    starts = from
+                    finishes = from.plusDays(days)
+                    provider = providerName
+                    location = where
+                    durationLabel = duration
+                    seats = seatsLeft
+                    stampCreated(actor, now)
+                },
+            )
+        }
+
+        val leaveStarts = uniCurrent.toDate.plusDays(3)
+
+        // Inside the swing: dropped, because he cannot attend from a vessel.
+        courseOption(
+            "CSE-2026-01", confined, uniCurrent.fromDate.plusDays(9), 1,
+            "Fremantle Marine Training", "Fremantle", "2 days", 6,
+        )
+        // Between coming ashore and going on leave: the recommendation.
+        courseOption(
+            "CSE-2026-02", confined, uniCurrent.toDate.plusDays(1), 1,
+            "Fremantle Marine Training", "Fremantle", "2 days", 4,
+        )
+        // Inside his leave: offered, labelled, and not recommended.
+        courseOption(
+            "CSE-2026-03", confined, leaveStarts.plusDays(2), 1,
+            "Pilbara Safety Institute", "Karratha", "2 days", 9,
+        )
+        // Clear of everything, but full — the waitlist row.
+        courseOption(
+            "CSE-2026-04", confined, leaveStarts.plusDays(14), 1,
+            "Fremantle Marine Training", "Fremantle", "2 days", 0,
+        )
+
+        // Finn holds neither of these, so there is no expiry to beat and every future date
+        // qualifies — the "gap" case, where the screen should be at its most helpful.
+        courseOption(
+            "SS-2026-01", sea, uniCurrent.toDate.plusDays(4), 2,
+            "Fremantle Marine Training", "Fremantle", "3 days", 8,
+        )
+        courseOption(
+            "SS-2026-02", sea, uniCurrent.toDate.plusDays(25), 2,
+            "Pilbara Safety Institute", "Karratha", "3 days", 0,
+        )
+        courseOption(
+            "GPH-2026-01", gphTicket, uniCurrent.toDate.plusDays(6), 4,
+            "Westport Maritime College", "Fremantle", "5 days", 3,
         )
 
         exception(

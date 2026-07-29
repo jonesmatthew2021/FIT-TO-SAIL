@@ -371,6 +371,18 @@ const NOTIFICATION_KINDS: Record<string, StateDisplay> = {
     tone: 'caution',
     description: 'The office could not act on a crew request; the reason is in the body.',
   },
+  crew_course_requested: {
+    label: 'Course wanted',
+    tone: 'caution',
+    description: 'A crew member has asked for a seat on a course date, or joined its waitlist.',
+  },
+  // Crew-facing, and here for the same reason the two above are: a kind with no entry renders as
+  // its wire value, and ADM-8's role proxy can surface anything.
+  crew_nudged: {
+    label: 'Nudged',
+    tone: 'caution',
+    description: 'A supervisor asked a member of their watch to look at their certificates.',
+  },
 }
 
 export function notificationKind(kind: string): StateDisplay {

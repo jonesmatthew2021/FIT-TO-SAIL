@@ -448,6 +448,62 @@ class ConfigSettingDto {
       };
 }
 
+class CourseOfferDto {
+  final String id;
+  final int requirementId;
+  final String starts;
+  final String finishes;
+  final String provider;
+  final String location;
+  final String durationLabel;
+  final int seats;
+  final String note;
+  final bool recommended;
+  final bool waitlistOnly;
+
+  const CourseOfferDto({
+    required this.id,
+    required this.requirementId,
+    required this.starts,
+    required this.finishes,
+    required this.provider,
+    required this.location,
+    required this.durationLabel,
+    required this.seats,
+    required this.note,
+    required this.recommended,
+    required this.waitlistOnly,
+  });
+
+  factory CourseOfferDto.fromJson(Map<String, dynamic> json) => CourseOfferDto(
+        id: json['id'] as String,
+        requirementId: json['requirementId'] as int,
+        starts: json['starts'] as String,
+        finishes: json['finishes'] as String,
+        provider: json['provider'] as String,
+        location: json['location'] as String,
+        durationLabel: json['durationLabel'] as String,
+        seats: json['seats'] as int,
+        note: json['note'] as String,
+        recommended: json['recommended'] as bool,
+        waitlistOnly: json['waitlistOnly'] as bool,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'requirementId': requirementId,
+        'starts': starts,
+        'finishes': finishes,
+        'provider': provider,
+        'location': location,
+        'durationLabel': durationLabel,
+        'seats': seats,
+        'note': note,
+        'recommended': recommended,
+        'waitlistOnly': waitlistOnly,
+      };
+}
+
 class CreateIdentityProviderRequest {
   final String provider;
   final String issuer;
@@ -629,6 +685,8 @@ class CrewRequestDto {
   final String code;
   final String title;
   final String? aboutExpiry;
+  final String? subjectLabel;
+  final String? subjectRef;
   final DateTime raisedAt;
   final String? decisionNote;
   final DateTime? decidedAt;
@@ -647,6 +705,8 @@ class CrewRequestDto {
     required this.code,
     required this.title,
     this.aboutExpiry,
+    this.subjectLabel,
+    this.subjectRef,
     required this.raisedAt,
     this.decisionNote,
     this.decidedAt,
@@ -666,6 +726,8 @@ class CrewRequestDto {
         code: json['code'] as String,
         title: json['title'] as String,
         aboutExpiry: json['aboutExpiry'] == null ? null : json['aboutExpiry'] as String,
+        subjectLabel: json['subjectLabel'] == null ? null : json['subjectLabel'] as String,
+        subjectRef: json['subjectRef'] == null ? null : json['subjectRef'] as String,
         raisedAt: DateTime.parse(json['raisedAt'] as String).toUtc(),
         decisionNote: json['decisionNote'] == null ? null : json['decisionNote'] as String,
         decidedAt: json['decidedAt'] == null ? null : DateTime.parse(json['decidedAt'] as String).toUtc(),
@@ -685,6 +747,8 @@ class CrewRequestDto {
         'code': code,
         'title': title,
         'aboutExpiry': aboutExpiry,
+        'subjectLabel': subjectLabel,
+        'subjectRef': subjectRef,
         'raisedAt': raisedAt.toIso8601String(),
         'decisionNote': decisionNote,
         'decidedAt': decidedAt?.toIso8601String(),
@@ -1981,6 +2045,7 @@ class RegisterRecordDto {
   final String? approvalTo;
   final String raisedDate;
   final bool lateSubmissionAcknowledged;
+  final bool raisedByCrew;
 
   const RegisterRecordDto({
     required this.recordId,
@@ -2003,6 +2068,7 @@ class RegisterRecordDto {
     this.approvalTo,
     required this.raisedDate,
     required this.lateSubmissionAcknowledged,
+    required this.raisedByCrew,
   });
 
   factory RegisterRecordDto.fromJson(Map<String, dynamic> json) => RegisterRecordDto(
@@ -2026,6 +2092,7 @@ class RegisterRecordDto {
         approvalTo: json['approvalTo'] == null ? null : json['approvalTo'] as String,
         raisedDate: json['raisedDate'] as String,
         lateSubmissionAcknowledged: json['lateSubmissionAcknowledged'] as bool,
+        raisedByCrew: json['raisedByCrew'] as bool,
       );
 
   Map<String, dynamic> toJson() => {
@@ -2049,6 +2116,7 @@ class RegisterRecordDto {
         'approvalTo': approvalTo,
         'raisedDate': raisedDate,
         'lateSubmissionAcknowledged': lateSubmissionAcknowledged,
+        'raisedByCrew': raisedByCrew,
       };
 }
 
@@ -2657,6 +2725,7 @@ class SyncDeltaDto {
   final List<EvidenceSubmissionDto> submissions;
   final List<CrewStatementSyncDto> crewStatements;
   final List<AttestationSyncDto> attestations;
+  final List<CourseOfferDto> courseOptions;
   final List<SyncTombstoneDto> tombstones;
   final SyncStandingDto? standing;
 
@@ -2673,6 +2742,7 @@ class SyncDeltaDto {
     required this.submissions,
     required this.crewStatements,
     required this.attestations,
+    required this.courseOptions,
     required this.tombstones,
     this.standing,
   });
@@ -2690,6 +2760,7 @@ class SyncDeltaDto {
         submissions: (json['submissions'] as List<dynamic>).map((e) => EvidenceSubmissionDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         crewStatements: (json['crewStatements'] as List<dynamic>).map((e) => CrewStatementSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         attestations: (json['attestations'] as List<dynamic>).map((e) => AttestationSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        courseOptions: (json['courseOptions'] as List<dynamic>).map((e) => CourseOfferDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         tombstones: (json['tombstones'] as List<dynamic>).map((e) => SyncTombstoneDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         standing: json['standing'] == null ? null : SyncStandingDto.fromJson(json['standing'] as Map<String, dynamic>),
       );
@@ -2707,6 +2778,7 @@ class SyncDeltaDto {
         'submissions': submissions.map((e) => e.toJson()).toList(growable: false),
         'crewStatements': crewStatements.map((e) => e.toJson()).toList(growable: false),
         'attestations': attestations.map((e) => e.toJson()).toList(growable: false),
+        'courseOptions': courseOptions.map((e) => e.toJson()).toList(growable: false),
         'tombstones': tombstones.map((e) => e.toJson()).toList(growable: false),
         'standing': standing?.toJson(),
       };
@@ -2719,12 +2791,14 @@ class SyncOperationDto {
   final DateTime? readAt;
   final EvidenceSubmitDto? submission;
   final int? requirementId;
+  final String? subjectRef;
   final String? reason;
   final String? note;
   final String? ccId;
   final List<String>? attachedOpIds;
   final int? assignmentId;
   final List<String>? declarations;
+  final String? targetSam;
 
   const SyncOperationDto({
     required this.opId,
@@ -2733,12 +2807,14 @@ class SyncOperationDto {
     this.readAt,
     this.submission,
     this.requirementId,
+    this.subjectRef,
     this.reason,
     this.note,
     this.ccId,
     this.attachedOpIds,
     this.assignmentId,
     this.declarations,
+    this.targetSam,
   });
 
   factory SyncOperationDto.fromJson(Map<String, dynamic> json) => SyncOperationDto(
@@ -2748,12 +2824,14 @@ class SyncOperationDto {
         readAt: json['readAt'] == null ? null : DateTime.parse(json['readAt'] as String).toUtc(),
         submission: json['submission'] == null ? null : EvidenceSubmitDto.fromJson(json['submission'] as Map<String, dynamic>),
         requirementId: json['requirementId'] == null ? null : json['requirementId'] as int,
+        subjectRef: json['subjectRef'] == null ? null : json['subjectRef'] as String,
         reason: json['reason'] == null ? null : json['reason'] as String,
         note: json['note'] == null ? null : json['note'] as String,
         ccId: json['ccId'] == null ? null : json['ccId'] as String,
         attachedOpIds: json['attachedOpIds'] == null ? null : (json['attachedOpIds'] as List<dynamic>).map((e) => (e as String)).toList(growable: false),
         assignmentId: json['assignmentId'] == null ? null : json['assignmentId'] as int,
         declarations: json['declarations'] == null ? null : (json['declarations'] as List<dynamic>).map((e) => (e as String)).toList(growable: false),
+        targetSam: json['targetSam'] == null ? null : json['targetSam'] as String,
       );
 
   Map<String, dynamic> toJson() => {
@@ -2763,12 +2841,14 @@ class SyncOperationDto {
         'readAt': readAt?.toIso8601String(),
         'submission': submission?.toJson(),
         'requirementId': requirementId,
+        'subjectRef': subjectRef,
         'reason': reason,
         'note': note,
         'ccId': ccId,
         'attachedOpIds': attachedOpIds,
         'assignmentId': assignmentId,
         'declarations': declarations,
+        'targetSam': targetSam,
       };
 }
 
@@ -2888,6 +2968,7 @@ class SyncSnapshotDto {
   final List<EvidenceSubmissionDto> submissions;
   final List<CrewStatementSyncDto> crewStatements;
   final List<AttestationSyncDto> attestations;
+  final List<CourseOfferDto> courseOptions;
   final SyncReferenceDto reference;
   final SyncStandingDto? standing;
 
@@ -2903,6 +2984,7 @@ class SyncSnapshotDto {
     required this.submissions,
     required this.crewStatements,
     required this.attestations,
+    required this.courseOptions,
     required this.reference,
     this.standing,
   });
@@ -2919,6 +3001,7 @@ class SyncSnapshotDto {
         submissions: (json['submissions'] as List<dynamic>).map((e) => EvidenceSubmissionDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         crewStatements: (json['crewStatements'] as List<dynamic>).map((e) => CrewStatementSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         attestations: (json['attestations'] as List<dynamic>).map((e) => AttestationSyncDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+        courseOptions: (json['courseOptions'] as List<dynamic>).map((e) => CourseOfferDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
         reference: SyncReferenceDto.fromJson(json['reference'] as Map<String, dynamic>),
         standing: json['standing'] == null ? null : SyncStandingDto.fromJson(json['standing'] as Map<String, dynamic>),
       );
@@ -2935,6 +3018,7 @@ class SyncSnapshotDto {
         'submissions': submissions.map((e) => e.toJson()).toList(growable: false),
         'crewStatements': crewStatements.map((e) => e.toJson()).toList(growable: false),
         'attestations': attestations.map((e) => e.toJson()).toList(growable: false),
+        'courseOptions': courseOptions.map((e) => e.toJson()).toList(growable: false),
         'reference': reference.toJson(),
         'standing': standing?.toJson(),
       };
@@ -2997,6 +3081,74 @@ class SyncTombstoneDto {
         'entityType': entityType,
         'entityId': entityId,
         'seq': seq,
+      };
+}
+
+class TeamDto {
+  final String? ccId;
+  final String? partnershipAbbrev;
+  final String? from;
+  final String? to;
+  final List<TeamMemberDto> members;
+
+  const TeamDto({
+    this.ccId,
+    this.partnershipAbbrev,
+    this.from,
+    this.to,
+    required this.members,
+  });
+
+  factory TeamDto.fromJson(Map<String, dynamic> json) => TeamDto(
+        ccId: json['ccId'] == null ? null : json['ccId'] as String,
+        partnershipAbbrev: json['partnershipAbbrev'] == null ? null : json['partnershipAbbrev'] as String,
+        from: json['from'] == null ? null : json['from'] as String,
+        to: json['to'] == null ? null : json['to'] as String,
+        members: (json['members'] as List<dynamic>).map((e) => TeamMemberDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'ccId': ccId,
+        'partnershipAbbrev': partnershipAbbrev,
+        'from': from,
+        'to': to,
+        'members': members.map((e) => e.toJson()).toList(growable: false),
+      };
+}
+
+class TeamMemberDto {
+  final String sam;
+  final String name;
+  final String worstState;
+  final String? reason;
+  final bool inHand;
+  final DateTime? nudgedAt;
+
+  const TeamMemberDto({
+    required this.sam,
+    required this.name,
+    required this.worstState,
+    this.reason,
+    required this.inHand,
+    this.nudgedAt,
+  });
+
+  factory TeamMemberDto.fromJson(Map<String, dynamic> json) => TeamMemberDto(
+        sam: json['sam'] as String,
+        name: json['name'] as String,
+        worstState: json['worstState'] as String,
+        reason: json['reason'] == null ? null : json['reason'] as String,
+        inHand: json['inHand'] as bool,
+        nudgedAt: json['nudgedAt'] == null ? null : DateTime.parse(json['nudgedAt'] as String).toUtc(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'sam': sam,
+        'name': name,
+        'worstState': worstState,
+        'reason': reason,
+        'inHand': inHand,
+        'nudgedAt': nudgedAt?.toIso8601String(),
       };
 }
 

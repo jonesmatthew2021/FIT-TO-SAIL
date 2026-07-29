@@ -226,6 +226,18 @@ class LeaveRecordRepository(private val scopeGuard: ScopeGuard) : PanacheReposit
     fun overlappingForPersonUnscoped(personId: Long, from: LocalDate, to: LocalDate): List<LeaveRecord> =
         list(
             "person.id = ?1 and fromDate <= ?2 and toDate >= ?3 and status in ?4 order by fromDate",
-            personId, to, from, listOf("recorded", "requested", "approved"),
+            personId, to, from, STANDING_STATUSES,
         )
+
+    companion object {
+        /**
+         * Leave that still means the person is away. Declined and cancelled leave does not.
+         *
+         * Named rather than repeated because two callers now depend on the same reading —
+         * ADM-2's clash check and MOB-8's "clear of your leave" — and a course offer that
+         * disagreed with the clash check about whether somebody is on leave would be worse than
+         * either being wrong on its own.
+         */
+        val STANDING_STATUSES: List<String> = listOf("recorded", "requested", "approved")
+    }
 }

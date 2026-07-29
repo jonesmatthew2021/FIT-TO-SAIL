@@ -4,6 +4,7 @@ import au.crewcomp.platform.security.Role
 import au.crewcomp.platform.security.ScopeGuard
 import io.quarkus.hibernate.orm.panache.kotlin.PanacheRepositoryBase
 import jakarta.enterprise.context.ApplicationScoped
+import java.time.Instant
 
 /**
  * §9 notification reads.
@@ -81,6 +82,28 @@ class NotificationRepository(private val scopeGuard: ScopeGuard) :
                 roles.map { it.wire },
             ).list()
         }
+
+    /**
+     * When each of [userAccountIds] was last sent a notification of [kind] — MOB-11's `nudgedAt`.
+     *
+     * Read from the notifications themselves rather than from a column on the person, because the
+     * notification **is** the nudge: there is no second record of one, and a `last_nudged_at` that
+     * could be set without a notification arriving is precisely the untraceable nudge this feature
+     * refuses to allow.
+     */
+    fun latestByKind(userAccountIds: Collection<Long>, kind: NotificationKind): Map<Long, Instant> {
+        if (userAccountIds.isEmpty()) return emptyMap()
+        return getEntityManager()
+            .createQuery(
+                "select n.recipient.id, max(n.createdAt) from Notification n " +
+                    "where n.recipient.id in :ids and n.kind = :kind group by n.recipient.id",
+                Array<Any>::class.java,
+            )
+            .setParameter("ids", userAccountIds)
+            .setParameter("kind", kind.wire)
+            .resultList
+            .associate { (it[0] as Number).toLong() to it[1] as Instant }
+    }
 
     /** The idempotency lookup for a scheduled scan (V4) — see [Notification.dedupeKey]. */
     fun byDedupeKey(userAccountId: Long, dedupeKey: String): Notification? =

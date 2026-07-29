@@ -5,6 +5,7 @@ import au.crewcomp.notify.NotificationKind
 import au.crewcomp.notify.NotificationService
 import au.crewcomp.people.Assignment
 import au.crewcomp.people.AssignmentRepository
+import au.crewcomp.people.CrewStatement
 import au.crewcomp.people.CrewStatementKind
 import au.crewcomp.people.CrewStatementRepository
 import au.crewcomp.people.PersonRepository
@@ -58,11 +59,22 @@ enum class CrewExemptionReason(val wire: String, val label: String) {
     }
 }
 
-/** How an earlier crew statement reads in the note attached to a request (MOB-10). */
-private val CrewStatementKind.attemptWording: String
-    get() = when (this) {
+/**
+ * How an earlier crew statement reads in the note attached to a request (MOB-10).
+ *
+ * Takes the statement rather than its kind because MOB-8's two name a course date, and "asked for
+ * a seat" without saying which date is exactly the sentence that makes a Compliance Lead go and
+ * look it up. The label is the one the server rendered when the request was recorded, so it still
+ * reads correctly after the option has been withdrawn.
+ */
+private val CrewStatement.attemptWording: String
+    get() = when (kind) {
         CrewStatementKind.COURSE_BOOKED -> "said a course was booked"
         CrewStatementKind.HELP_REQUESTED -> "asked the office for help arranging it"
+        CrewStatementKind.SEAT_REQUESTED ->
+            "asked for a seat" + (subjectLabel?.let { " on $it" } ?: " on a course")
+        CrewStatementKind.WAITLISTED ->
+            "joined the waitlist" + (subjectLabel?.let { " for $it" } ?: "")
     }
 
 /**
@@ -413,7 +425,7 @@ class RegisterService(
     ): String {
         val tried = attachedOpIds
             .mapNotNull { crewStatements.byOpId(it) }
-            .map { it.kind.attemptWording }
+            .map { it.attemptWording }
             .distinct()
 
         return buildString {

@@ -34,6 +34,7 @@ class TeamScreen extends StatelessWidget {
       stream: state.watchIntents(),
       builder: (context, snapshot) => TeamView(
         members: state.team,
+        ccId: state.teamCcId,
         nudges: (snapshot.data ?? const <LocalCrewIntent>[])
             .where((intent) => intent.kind == IntentKind.nudge)
             .toList(),
@@ -44,7 +45,12 @@ class TeamScreen extends StatelessWidget {
         onNudge: (member) => state.answer(
           kind: IntentKind.nudge,
           summary: 'Nudged ${member.name}',
+          // Both, and they are not redundant. `subjectRef` is how this screen recognises its own
+          // outbox entry; `targetSam` is the wire field, named for what it is — the one field on
+          // the whole queue that points at somebody other than the sender, and the one the server
+          // checks against the sender's own watch rather than trusting.
           subjectRef: member.sam,
+          payload: {'targetSam': member.sam},
         ),
       ),
     );
@@ -55,6 +61,7 @@ class TeamView extends StatelessWidget {
   const TeamView({
     super.key,
     required this.members,
+    this.ccId,
     this.nudges = const <LocalCrewIntent>[],
     this.sync,
     this.syncing = false,
@@ -64,6 +71,15 @@ class TeamView extends StatelessWidget {
   });
 
   final List<TeamMember> members;
+
+  /// The swing this watch is over, or null when the supervisor is rostered nowhere.
+  ///
+  /// The distinction this carries is the whole reason it exists: an empty [members] with a swing
+  /// means everyone is clear, and an empty one *without* means the app has nothing to show. A
+  /// screen that drew them the same way would tell a supervisor their watch was fine when it had
+  /// simply not been loaded.
+  final String? ccId;
+
   final List<LocalCrewIntent> nudges;
   final LocalSyncState? sync;
   final bool syncing;
@@ -85,16 +101,23 @@ class TeamView extends StatelessWidget {
             error: error,
             onRetry: onSync,
           ),
-          const Expanded(
-            child: EmptyState(
-              icon: PhosphorIconsRegular.usersThree,
-              title: 'No watch to show',
-              // Honest about why. A supervisor seeing an empty list needs to know whether their
-              // watch is clear or whether the app simply has not been told who is on it.
-              message:
-                  'Attest does not yet send a supervisor the status of their watch. '
-                  'Your own record is on Home.',
-            ),
+          Expanded(
+            // Two different silences, said differently. A supervisor reading "no watch to show"
+            // as "everyone is fine" is the worst outcome this tab has, so the case where there is
+            // nothing to *be* fine about says so in as many words.
+            child: ccId == null
+                ? const EmptyState(
+                    icon: PhosphorIconsRegular.usersThree,
+                    title: 'No swing under way',
+                    message:
+                        'Your watch appears here once you are rostered onto a swing. '
+                        'Your own record is on Home.',
+                  )
+                : EmptyState(
+                    icon: PhosphorIconsRegular.usersThree,
+                    title: 'Nobody else on $ccId',
+                    message: 'You are the only person rostered onto this swing.',
+                  ),
           ),
         ],
       );

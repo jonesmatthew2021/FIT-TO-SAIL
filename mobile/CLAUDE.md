@@ -18,13 +18,14 @@ certificate. Below, a number in a sentence about a **screen** is the handoff's; 
 sentence about a **capability or a rule** is the spec's. Where it could go either way, the sentence
 says which.
 
-**Three-quarters of the new screens are ahead of the backend, deliberately.** The server has no
-course catalogue, no extraction fields, no credits history, no team endpoint and — until 28 July —
-none of the seven new sync operations the one-tap answers post. **Two of those have now landed**
-(`requirement.progress`, `requirement.help`), and they needed no change in `lib/` beyond the
-regenerated schema: the app was already sending exactly what the server grew a reader for. The rest
-degrade honestly rather than convincingly — see "What the payload does not carry yet" — and
-`docs/handoff/mobile-crew-app-backend.md` is the list of what has to become true.
+**The screens ran ahead of the backend, deliberately, and most of them have been caught up.** As of
+29 July 2026 there is a course catalogue, a team endpoint, and **all seven** of the new sync
+operations. Every one of the seven needed *no change in `lib/`* beyond the regenerated schema and,
+for `team.nudge`, one field name: the app was already sending what the server grew readers for,
+which is what writing the client against the contract it wanted rather than the one that existed
+bought. What is still ahead: **extraction fields** (waiting on §14.5's provider choice) and
+**credits**. Both degrade honestly rather than convincingly — see "What the payload does not carry
+yet" — and `docs/handoff/mobile-crew-app-backend.md` is the list.
 
 **MOB-4 submission is built end to end** — capture (camera, photo library, PDF/image attachment),
 a staged copy inside the app container, a queue entry, and a resumable chunked upload that asks
@@ -83,7 +84,7 @@ and `test/encrypted_store_test.dart` fails.
 ## Build and test
 
 ```bash
-flutter test                              # 127 tests
+flutter test                              # 145 tests
 flutter analyze                           # clean
 dart run tool/generate_api.dart           # regenerate lib/src/api/schema.g.dart
 dart run tool/generate_api.dart --check   # fail if committed types are stale — the CI check
@@ -113,9 +114,12 @@ xcrun simctl boot 'iPhone 17 Pro'
 open /Applications/Xcode.app/Contents/Developer/Applications/Simulator.app
 flutter run -d <simulator-udid> --dart-define=CREWCOMP_DEV_PERSON=2
 
-# MOB-11's Team tab, which needs a supervisory role nothing yet grants. Debug-only: `kDebugMode`
-# is a compile-time constant, so a release build cannot reach the flag at all.
-flutter run -d <udid> --dart-define=CREWCOMP_DEV_PERSON=2 --dart-define=CREWCOMP_DEV_SUPERVISOR=true
+# MOB-11's Team tab. The define no longer turns the tab on — it makes the *dev shim* claim
+# `vessel_master` and a partnership scope, and the tab appears only because `/api/v1/me/team`
+# then answered 200. The server decides; this is only how a local request says who it is.
+# Or: ./scripts/mobile-start.sh --person 1 --supervisor
+flutter run -d <udid> --dart-define=CREWCOMP_DEV_PERSON=1 \
+  --dart-define=CREWCOMP_DEV_SUPERVISOR=true --dart-define=CREWCOMP_DEV_PARTNERSHIP=1
 ```
 
 Without `DOCKER_HOST` the backend fails at `DevServicesDatasourceProcessor#launchDatabases` and
@@ -325,6 +329,29 @@ AppleScript clicking needs an accessibility grant this machine does not have. Wh
 pointing `_CrewHomeState.initState` at the screen you want. Hot restart is ~400ms, so the whole
 set takes a couple of minutes rather than a rebuild each.
 
+## What the 29 July run proved (the course catalogue and the supervisor's watch)
+
+Two screens went from honest degradation to real data, both driven on the simulator against the
+live backend.
+
+**MOB-8** now lists the catalogue's dates for the requirement, filtered server-side: the option
+inside Bruno's swing is absent, the one between coming ashore and going on leave is recommended,
+the one inside his leave is offered and labelled *Overlaps your leave*, and the full one is a
+waitlist row. Every one of those four outcomes is the server's judgement rendered as received.
+Two copy defects surfaced only once real data reached the screen — the heading said "Fits before
+the expiry" for a requirement that has no expiry, and the empty state still said the app held no
+course calendar when it now does.
+
+**MOB-11**'s Team tab appeared *because `/api/v1/me/team` answered 200*, which is the change worth
+remembering: the tab used to be a `--dart-define`. The watch read "4 of 6 sail clean", with Bruno
+marked **In hand** (an open seat request suppresses his nudge), Gita offered a Nudge, and Finn
+reading "QL-08 — a request is with the office".
+
+The FIFO technique below is still how a pushed screen gets driven. The store migration is the one
+thing this run could **not** prove: `mobile-start.sh` reinstalls by default, so the v4 store was
+gone before v5 existed. The three `if (from < N)` steps follow the pattern the previous three were
+verified with, and a device carrying a v4 store is the case to check on the next real install.
+
 ## What the payload does not carry yet, and what the screens do about it
 
 The design handoff describes a finished product. Eight of its twelve screens are built against
@@ -341,15 +368,17 @@ Each of these is one stub in `app_state.dart`, so landing the backend work is a 
 | MOB-0's credit tiles — "14 months · never sailed short" | needs history the device is never sent | draws no tiles at all; the rest of Home is unaffected |
 | MOB-0's readiness ring | derived on the device from the server's own cells | counts them with the same `needsAttention` grouping the list uses, so ring and list cannot disagree — but *which states count as ready* should be the engine's |
 | MOB-0's headline sentence | mapped from `standing.evaluation.rollUp` | a `switch` in `HomeView._headline`; it is a compliance sentence living in a client and should come down the wire |
-| MOB-8's course dates | no course catalogue exists | says so, and offers the one action that does — asking the office |
+| MOB-8's course dates | **landed** — filtered server-side against this person's roster and expiry | nothing is degraded. The empty state survives and now means something narrower: every date the catalogue holds either finishes too late or runs while they are at sea — which for anybody rostered across a whole swing is what an `expiring` cell always means, and is the case MOB-10 exists for |
 | MOB-7's extracted fields | no LLM provider (§14.5) | opens at its third confidence level with `Not read — add it` in every field, which **is** LLM-2's launch posture, not a degraded mode |
-| MOB-11's watch | no team endpoint, no supervisory role | the tab is off unless `--dart-define=CREWCOMP_DEV_SUPERVISOR=true` under `kDebugMode`, and the screen says the app is not sent a watch — *not* an empty list a supervisor would read as "everyone is fine" |
+| MOB-11's watch | **landed** — `/api/v1/me/team`, scoped to the crew co-assigned to the supervisor's swing | nothing is degraded. The tab appears because the endpoint answered 200 rather than 403, which is the server deciding the role; the two empty states are kept apart — "No swing under way" versus "Nobody else on CC24" |
 | MOB-9's declaration wording | a client constant carrying the handoff's copy | renders it, and draws the supporting fact under each line from the person's real evaluated cells |
 | MOB-9's "Face ID · 28 Jul 2026, 07:05 AWST" | no biometric binding, and the timestamp must be the server's | the block says "the office records the time it arrives, in the vessel's timezone" rather than printing a plausible one |
 | `requirement.progress` / `requirement.help` | **landed end to end** — a `crew_statement` row, ADM-11's queue, and the decision back down the sync payload | nothing is degraded. The card reports the office's own answer, and a dismissal puts the ask back |
 | `register.exemption_request` | **landed** — a real §6.4 register record | nothing. The cell moves to `pending` through §5.1 step 4's overlay, which is how the decision reaches the phone |
 | `attestation.sign_off` | **landed** — an `attestation` row, and the record back in the payload | nothing. The screen shows what was ticked and the server's own "28 Jul 2026, 21:33 AWST" |
-| the remaining three one-tap operations | `SyncService` rejects each as `Unsupported operation type` | queues them anyway; the row shows the server's own words and a Retry. Evidence submissions and read-marks are unaffected — rejection is per operation, not per batch |
+| `course.seat_request` / `course.waitlist` | **landed** — a `crew_statement` naming the course option, in ADM-11 | nothing. A request is an *ask*: nothing holds a seat, and it earns no silence from the expiry reminders until a coordinator actions it |
+| `team.nudge` | **landed** — a §9 notification to the person nudged, naming who sent it | nothing. Suppressed for anyone whose row already reads `In hand`, because chasing somebody who has acted is how a supervisor's tool gets resented |
+| `evidence.reading` | the one operation still rejected — it needs MOB-7's fields, which need a provider | queues it anyway; the row shows the server's own words and a Retry. Rejection is per operation, not per batch |
 | MOB-6 as an OS share target | an iOS Share Extension and an Android intent filter, unwritten | the in-app half of the sheet at the mock's geometry (Files · Photos · Camera). The mock's four-up with Files/Print/More is the *operating system's* sheet; drawing our own greyed-out "Print" would be a picture of a feature |
 | crew-facing dates in notification bodies | the server composes them with a raw `LocalDate.toString()` | `humaniseDates` rewrites `2026-08-14` to `14 Aug 2026` at display time. A date-format substitution and nothing else, deletable the moment the server composes properly |
 
@@ -377,8 +406,10 @@ Listed plainly because the test count above could otherwise imply more than it s
    and resumes from the server-held offset. True kill-surviving background transfer is
    `background_downloader` (URLSession/WorkManager), which cannot be validated without Xcode.
 6. **No sign-in.** Onboarding and identity — the *spec's* MOB-6 — is the identity spike's, like
-   the admin SPA's. The header shim stands in. It is also what gates MOB-11: a supervisory role
-   has nowhere to come from until a session does.
+   the admin SPA's. The header shim stands in. MOB-11 is no longer gated on it in the way it was:
+   the *scoping* is the backend's and is built, and the tab now appears because `/me/team` said so.
+   What the spike still owns is where the `vessel_master` claim and the partnership scope come from
+   — locally the shim asserts both, which is a header a real session will replace.
 7. **No biometric unlock.** ADR 0002 wants biometric-*bound* keys via `local_auth`; the key is
    currently Keychain-held with `first_unlock` accessibility and no biometric gate.
 8. **Accessibility has had a first pass, not an audit.** Every tag carries a text label as well as

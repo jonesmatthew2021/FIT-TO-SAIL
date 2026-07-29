@@ -65,14 +65,19 @@ class NotificationScans(
      * ### Answering stops the chasing
      *
      * A crew member who has tapped "Course booked" (MOB-5) has answered, and repeating the question
-     * every morning is how a warning system teaches people to ignore it. So a `course_booked`
-     * statement against **this expiry date** suppresses the crew-facing warning — and only that one:
+     * every morning is how a warning system teaches people to ignore it. So a statement against
+     * **this expiry date** suppresses the crew-facing warning — and only that one:
      *
      *  * The **coordinator's** notice still fires. A booked course is not a held certificate, and a
      *    planner deciding whether to crew a swing needs the risk, not the reassurance.
      *  * Renewing the certificate moves the expiry, so no statement matches the new one and the
      *    chasing resumes by itself. That is the same "the key includes the value" rule as the dedupe
      *    key beside it, and it is why the statement records the date it was about.
+     *
+     * **Which statements earn it is [au.crewcomp.people.Suppression]'s answer, not this scan's.**
+     * "Course booked" is the crew member's own word and is believed until ADM-11 contradicts it; a
+     * MOB-8 seat *request* earns nothing until a coordinator actions it, because asking for a seat
+     * is not having one and the certificate is lapsing either way.
      */
     @Transactional
     fun expiryScan(): String {
@@ -82,7 +87,7 @@ class NotificationScans(
 
         val codes = requirementCodes()
         // One query for the whole scan rather than one per alert; this job walks the fleet.
-        val answered = crewStatements.courseBookedIndexUnscoped()
+        val answered = crewStatements.suppressedExpiriesUnscoped()
         var toCrew = 0
         var unreachable = 0
         var answeredAlready = 0

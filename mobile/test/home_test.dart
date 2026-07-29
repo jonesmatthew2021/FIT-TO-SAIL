@@ -27,6 +27,7 @@ void main() {
     id: 0,
     cursor: 100,
     referenceCursor: 50,
+    supervisor: false,
     serverToday: '2026-07-26',
     lastSyncedAt: DateTime.now().toUtc(),
     standingCcId: ccId,

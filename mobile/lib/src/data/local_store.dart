@@ -302,6 +302,65 @@ class Attestations extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// MOB-8's course dates, already filtered to this crew member by the server.
+///
+/// A replica of a *derived* answer rather than of a row, which is why it has no cursor and no
+/// tombstone: the server recomputes the whole set on every snapshot and every delta, and this table
+/// is replaced with it. An offer changes when the catalogue changes, when the roster changes, when
+/// a certificate is renewed and when a day passes — none of which move a row's cursor, so a
+/// device that applied deltas to it would show a stale set for ever.
+///
+/// [note] and [recommended] are the server's judgement, not this app's. Both need the crew
+/// member's roster to compute ("clear of your leave", "11 days before expiry"), and AUTH-1's
+/// habit holds here as it does for a cell state: the phone is told, and does not work it out.
+@DataClassName('LocalCourseOption')
+class CourseOptions extends Table {
+  /// The catalogue's business key — what goes back as `subjectRef` when a seat is requested.
+  TextColumn get id => text()();
+  IntColumn get requirementId => integer()();
+  TextColumn get starts => text()();
+  TextColumn get finishes => text()();
+  TextColumn get provider => text()();
+  TextColumn get location => text()();
+  TextColumn get durationLabel => text()();
+
+  /// What the provider last said. Zero means waitlist-only; nothing here reserves a place.
+  IntColumn get seats => integer()();
+  TextColumn get note => text()();
+  BoolColumn get recommended => boolean()();
+  BoolColumn get waitlistOnly => boolean()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// MOB-11's watch — the crew on a supervisor's swing, status only.
+///
+/// Fetched from `/api/v1/me/team` rather than carried in the sync payload, and deliberately: the
+/// payload is *this crew member's own data* and has no person id anywhere in it, which is a
+/// property worth keeping rather than diluting with other people's rows.
+///
+/// What is here is what the endpoint sends and no more. There is nowhere to put a document, a
+/// medical detail or a reason a certificate lapsed, because the privacy rule is the shape of the
+/// payload rather than the discretion of the screen — a device that held the detail would leak it
+/// to anyone who read this database, which is exactly what SEC-12 encrypts against.
+@DataClassName('LocalTeamMember')
+class TeamMembers extends Table {
+  TextColumn get sam => text()();
+  TextColumn get name => text()();
+
+  /// A §5.1 cell state, the engine's own roll-up.
+  TextColumn get worstState => text()();
+  TextColumn get reason => text().nullable()();
+
+  /// Something is already moving, so the nudge is suppressed.
+  BoolColumn get inHand => boolean()();
+  DateTimeColumn get nudgedAt => dateTime().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {sam};
+}
+
 /// Single-row sync bookkeeping. `id` is pinned to 0.
 @DataClassName('LocalSyncState')
 class SyncStates extends Table {
@@ -320,6 +379,24 @@ class SyncStates extends Table {
   TextColumn get standingTo => text().nullable()();
   BoolColumn get standingCurrent => boolean().nullable()();
   TextColumn get standingRollUp => text().nullable()();
+
+  /// Whether the **server** says this person supervises a watch (MOB-11).
+  ///
+  /// Persisted rather than held in memory so that the Team tab is there on a cold start in a dead
+  /// spot — a supervisor who opens the app at sea should see their last watch, not lose the tab
+  /// until the next successful sync.
+  ///
+  /// It replaces a `kDebugMode` `--dart-define`, which a release build could never reach. The
+  /// server decides: `/me/team` answers 403 for anyone who does not hold the role, and that is a
+  /// role check in one place rather than a compile-time guess in another.
+  BoolColumn get supervisor => boolean().withDefault(const Constant(false))();
+
+  /// The swing the watch is over, or null when the supervisor is not rostered anywhere.
+  ///
+  /// Distinct from an empty [TeamMembers] on purpose: "you are not on a swing" and "everyone on
+  /// your watch is fine" are opposite messages, and a screen that collapsed them would show a
+  /// reassuring blank to a supervisor whose team simply is not loaded.
+  TextColumn get teamCcId => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -340,6 +417,8 @@ class SyncStates extends Table {
     CrewIntents,
     CrewStatements,
     Attestations,
+    CourseOptions,
+    TeamMembers,
     SyncStates,
   ],
 )
@@ -347,9 +426,10 @@ class LocalStore extends _$LocalStore {
   LocalStore(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
-  /// v1 → v2 adds [CrewIntents]; v2 → v3 [CrewStatements]; v3 → v4 [Attestations].
+  /// v1 → v2 adds [CrewIntents]; v2 → v3 [CrewStatements]; v3 → v4 [Attestations]; v4 → v5
+  /// [CourseOptions], [TeamMembers] and the two supervisor columns on [SyncStates].
   ///
   /// Additive, and it has to be: an upgrade that dropped and re-created the database would take
   /// the outbox with it, and the outbox is the only copy of writes the server has never seen. A
@@ -367,6 +447,16 @@ class LocalStore extends _$LocalStore {
           if (from < 2) await m.createTable(crewIntents);
           if (from < 3) await m.createTable(crewStatements);
           if (from < 4) await m.createTable(attestations);
+          if (from < 5) {
+            await m.createTable(courseOptions);
+            await m.createTable(teamMembers);
+            // Columns rather than a table, so `addColumn` rather than `createTable`. Both have
+            // defaults, which is what lets an existing row acquire them without a backfill: a
+            // device that upgrades mid-swing is simply "not a supervisor" until its next sync
+            // says otherwise, and that is the correct answer to give in the meantime.
+            await m.addColumn(syncStates, syncStates.supervisor);
+            await m.addColumn(syncStates, syncStates.teamCcId);
+          }
         },
       );
 

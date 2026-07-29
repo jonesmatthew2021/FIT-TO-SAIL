@@ -9,6 +9,12 @@ queue (ADM-9), and configuration, jobs, users and the SEC-1a allow-list (ADM-10)
 and **ADM-11**, the crew request queue, which §6 does not enumerate and the crew app's one-tap
 answers needed.
 
+**Every operation the crew app posts is now accepted** (29 July 2026). The last three needed
+decisions rather than work, and got them: a course catalogue that is ours *behind a
+`CourseCatalogue` port* (`au.crewcomp.courses`), a seat request modelled as a **statement** rather
+than a booking, and `vessel_master` reused for MOB-11 with a watch derived from co-assignment
+(`TeamService`). `docs/handoff/mobile-crew-app-backend.md` records what each one settled.
+
 What is left is not a module but the four spikes: the platform decision, identity, the pipeline, and
 mobile hardware. Two things in this component are honest placeholders rather than gaps, and both are
 waiting on a decision rather than on work: **no LLM provider** is selected (§14.5), so extraction
@@ -35,9 +41,9 @@ to survive a restart mid-run** — that is the property to check before adding o
 ## Build and test
 
 ```bash
-./mvnw test                        # 125 pure-domain tests — no Docker needed
+./mvnw test                        # 141 pure-domain tests — no Docker needed
 ./mvnw verify                      # + package; ITs skipped by default
-./mvnw verify -DskipITs=false      # + 143 integration tests — needs a container runtime
+./mvnw verify -DskipITs=false      # + 193 integration tests — needs a container runtime
 ./mvnw -Dnative verify -DskipITs=false   # native image; CI on every merge (ADR 0001)
 ./mvnw quarkus:dev                 # :8080, dev auth shim + dev data fixture (see below)
 ```
@@ -101,6 +107,8 @@ the working loop is dev mode for iteration, a full `verify` before committing.
 | `au.crewcomp.reference` | §4.1 partnerships, vessels, positions, slots, crew changes, requirements. `ReferenceService` also carries the ADM-6 catalogue write path and its usage counts |
 | `au.crewcomp.rules` | §4.2 matrix versions, requirement/conditional/quota rules. `MatrixService` is ADM-3's whole lifecycle: draft → edit → publish |
 | `au.crewcomp.people` | §4.3 people, user accounts, identity providers, holdings, assignments, leave. `HoldingService` and `AssignmentService` are the two write paths; `UserAdminService` is ADM-10's access surface; `CrewStatementService` is the crew app's one-tap answers (deliberately none of the above) and ADM-11's queue over them; `AttestationService` is MOB-9's pre-sail declaration |
+| `au.crewcomp.people` (cont.) | `TeamService` is MOB-11's watch and its nudge — the one read here that answers about *other* people, scoped by co-assignment rather than by the actor's ambient `DataScope` |
+| `au.crewcomp.courses` | MOB-8's catalogue. `CourseCatalogue` is a **port** (the domain question of who owns these dates is open); `DatabaseCourseCatalogue` is its only adapter; `CourseOffers` is the pure per-person filtering; `CourseOfferService` gathers what it needs; `CourseCatalogueService` is the MCP-only write path |
 | `au.crewcomp.workflow` | §4.4 register records, conditions, notes, exception items. `RegisterService` is ADM-4's whole lifecycle; `ExceptionService` is ADM-7's worklist |
 | `au.crewcomp.compliance` | Application service around the engine: entity↔engine mapping, matrix snapshots, `ComplianceService` |
 | `au.crewcomp.sync` | §10.3 mobile sync: delta reads, tombstones, `SyncService`. Takes no person id anywhere — it answers for the authenticated crew member only |
@@ -150,6 +158,16 @@ these.
   alone; ADM-11's dismissal is what puts it back. The general rule: if a device can turn a warning
   off, a human has to be able to turn it back on, and the queue that lets them is part of the
   feature rather than a follow-up to it.
+- **What earns that silence is stated once, as data.** `CrewStatementKind.suppression` is
+  `NEVER` / `ON_WORD` / `ON_ACTION`, and the expiry scan's query reads it rather than naming kinds.
+  The middle case is the design: "I have booked the course" is a fact only the crew member knows,
+  so they are believed until contradicted; "I would like that seat" is an unanswered ask, so it
+  earns nothing until a coordinator actions it. A fourth kind that got the wrong one of those would
+  quietly stop chasing somebody whose certificate was still lapsing.
+- **A supervisor's watch is narrower than their scope, and one definition serves both ends.** A
+  Vessel Master reads their whole partnership; MOB-11's watch is only the crew co-assigned to their
+  swing, and `TeamService.supervisedCrew` is what both the list *and* the nudge authorise against.
+  A supervisor who could nudge anyone in their partnership would have a wider write than read.
 - **Dates are calendar dates** (NFR-5). `BusinessClock` is the only source of "today", so the
   admin date override has exactly one place to take effect. `GET /api/v1/session` hands it to
   clients, because a browser cannot know the operating timezone.
@@ -290,6 +308,15 @@ Defects this codebase has actually hit. Most surfaced only against a real databa
 — they compiled cleanly, read correctly, and no unit test could have seen them. The one that did
 fail to compile is here because it very nearly did not.
 
+- **A payload's whole set is a shape the client's fixtures have to know about.** Adding
+  `courseOptions` to the snapshot and delta broke nine Flutter tests with
+  `type 'Null' is not a subtype of type 'List<dynamic>'` — their stub payloads predated the field.
+  That is the *good* failure mode, and the reason to add non-nullable arrays rather than nullable
+  ones: the same omission behind a nullable field is a screen that silently shows nothing.
+- **A new endpoint called from `sync()` reaches every test that stubs the client.** `/me/team` is
+  fetched on every sync, so twenty inline `MockClient` handlers that asserted on a path started
+  seeing a request they were never written for. One passthrough client answering that path with a
+  403 fixed all of them — and the 403 is the production answer too, so the stub is not a fiction.
 - **Enumerated columns are queried by their `*Value` field.** `Person.status` is a Kotlin
   property over the mapped `statusValue`; only the field is a JPA attribute. HQL naming the
   property compiles and then fails at runtime with "could not interpret path expression".

@@ -20,6 +20,7 @@ void main() {
         id: 0,
         cursor: 100,
         referenceCursor: 50,
+        supervisor: false,
         serverToday: '2026-07-26',
         lastSyncedAt: DateTime.utc(2026, 7, 26, 7),
         standingCcId: ccId,

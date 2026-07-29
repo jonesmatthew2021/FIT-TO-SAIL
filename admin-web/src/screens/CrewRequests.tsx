@@ -50,7 +50,21 @@ export function CrewRequests(): React.ReactNode {
       id: 'kind',
       header: 'Asked for',
       accessorFn: (row) => row.kind,
-      cell: ({ row }) => <span className="text-sm">{kindLabel(row.original.kind)}</span>,
+      // The course goes under the label rather than in a column of its own: only two of the four
+      // kinds have one, and an empty column on every help request would be a worse trade than a
+      // second line on the rows that need it. It is the server's rendering, stored when the
+      // request was made, so it still reads correctly after the option has been withdrawn.
+      cell: ({ row }) => (
+        <span className="table__wrap">
+          <span className="text-sm">{kindLabel(row.original.kind)}</span>
+          {row.original.subjectLabel !== null && (
+            <>
+              <br />
+              <span className="muted text-sm">{row.original.subjectLabel}</span>
+            </>
+          )}
+        </span>
+      ),
     },
     {
       id: 'person',
@@ -212,6 +226,7 @@ export function CrewRequests(): React.ReactNode {
             columns: [
               { header: 'Status', value: (row) => row.status },
               { header: 'Asked for', value: (row) => kindLabel(row.kind) },
+              { header: 'Course', value: (row) => row.subjectLabel },
               { header: 'Sam #', value: (row) => row.sam },
               { header: 'Crew member', value: (row) => row.personName },
               { header: 'Position', value: (row) => row.positionName },
@@ -252,6 +267,11 @@ function StatusChip({ status }: { status: string }): React.ReactNode {
 export function kindLabel(kind: string): string {
   if (kind === 'course_booked') return 'Says a course is booked'
   if (kind === 'help_requested') return 'Needs help arranging it'
+  if (kind === 'seat_requested') return 'Wants a seat on a course'
+  // Named for what the office has to do about it, which is not the same job as booking a seat:
+  // a waitlist gets chased with the provider, and a coordinator triaging their morning should be
+  // able to tell the two apart before opening anything.
+  if (kind === 'waitlisted') return 'Waitlisted for a course'
   // An unrecognised kind renders verbatim rather than as something reassuring — the same rule the
   // crew app applies to a cell state it has never heard of. Both revisions are live during an
   // expand/contract deploy, so a kind this build predates must not blank the row.
@@ -260,7 +280,9 @@ export function kindLabel(kind: string): string {
 
 /** The positive action, named for what the coordinator actually did. */
 export function actionLabel(kind: string): string {
-  return kind === 'course_booked' ? 'Confirm' : 'Arranged'
+  if (kind === 'course_booked') return 'Confirm'
+  if (kind === 'seat_requested' || kind === 'waitlisted') return 'Booked'
+  return 'Arranged'
 }
 
 function DecideForm({

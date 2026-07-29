@@ -5,6 +5,7 @@
 #   ./scripts/mobile-start.sh                          iPhone 17 Pro, crew member 2, fresh install
 #   ./scripts/mobile-start.sh --person 3               a different seeded crew member
 #   ./scripts/mobile-start.sh --device 'iPhone 17 Pro Max'
+#   ./scripts/mobile-start.sh --supervisor             also claim vessel_master, for MOB-11
 #   ./scripts/mobile-start.sh --keep-data              keep the on-device store (see below)
 #   ./scripts/mobile-start.sh --list                   the simulators available here
 #
@@ -34,11 +35,15 @@ bundle_id="au.crewcomp.crewcompCrew"
 device="${CREWCOMP_SIM_DEVICE:-iPhone 17 Pro}"
 person=2
 fresh=1
+supervisor=false
+partnership=1
 
 while (( $# )); do
   case "$1" in
     --device) device="${2:?--device needs a simulator name or UDID}"; shift 2 ;;
     --person) person="${2:?--person needs a person id}"; shift 2 ;;
+    --supervisor) supervisor=true; shift ;;
+    --partnership) partnership="${2:?--partnership needs a partnership id}"; shift 2 ;;
     --keep-data) fresh=0; shift ;;
     --fresh) fresh=1; shift ;;
     --list) xcrun simctl list devices available; exit 0 ;;
@@ -140,4 +145,6 @@ echo "$$" > "$mobile_pidfile"
 cd "$mobile_dir"
 exec flutter run -d "$udid" \
   --dart-define=CREWCOMP_API="$api_base" \
-  --dart-define=CREWCOMP_DEV_PERSON="$person"
+  --dart-define=CREWCOMP_DEV_PERSON="$person" \
+  --dart-define=CREWCOMP_DEV_SUPERVISOR="$supervisor" \
+  --dart-define=CREWCOMP_DEV_PARTNERSHIP="$partnership"

@@ -1,5 +1,6 @@
 package au.crewcomp.sync
 
+import au.crewcomp.api.CourseOfferDto
 import au.crewcomp.api.EvidenceSubmissionDto
 import au.crewcomp.api.HoldingDto
 import au.crewcomp.api.NotificationDto
@@ -14,6 +15,7 @@ import au.crewcomp.api.SyncStandingDto
 import au.crewcomp.api.toDto
 import au.crewcomp.api.toSyncDto
 import au.crewcomp.compliance.ComplianceService
+import au.crewcomp.courses.CourseOfferService
 import au.crewcomp.evidence.EvidenceService
 import au.crewcomp.evidence.EvidenceSource
 import au.crewcomp.notify.NotificationRepository
@@ -28,6 +30,7 @@ import au.crewcomp.people.CrewStatementService
 import au.crewcomp.people.LeaveRecordRepository
 import au.crewcomp.people.PersonRepository
 import au.crewcomp.people.QualificationHoldingRepository
+import au.crewcomp.people.TeamService
 import au.crewcomp.platform.persistence.EntityNotFoundException
 import au.crewcomp.platform.security.AccessDeniedException
 import au.crewcomp.platform.security.AccessPolicy
@@ -77,10 +80,12 @@ class SyncService(
     private val evidence: EvidenceService,
     private val notificationService: NotificationService,
     private val crewStatements: CrewStatementService,
+    private val courseOffers: CourseOfferService,
     private val crewStatementRepository: CrewStatementRepository,
     private val register: RegisterService,
     private val attestationService: AttestationService,
     private val attestationRepository: AttestationRepository,
+    private val team: TeamService,
     private val policy: AccessPolicy,
     private val clock: BusinessClock,
 ) {
@@ -96,6 +101,7 @@ class SyncService(
     fun snapshot(): SyncSnapshotDto {
         val personId = selfPersonId()
         val person = people.findScoped(personId) ?: throw EntityNotFoundException("No person $personId")
+        val standing = standingFor(personId)
 
         // Read the cursor FIRST, inside the same transaction and therefore the same snapshot as
         // the rows below. Taken afterwards it could include a sequence assigned by a concurrent
@@ -116,8 +122,9 @@ class SyncService(
             submissions = documents.forPersonScoped(personId).map { it.toDto() },
             crewStatements = crewStatementRepository.forPersonScoped(personId).map { it.toSyncDto() },
             attestations = attestationRepository.forPersonScoped(personId).map { it.toSyncDto(clock.zone) },
+            courseOptions = courseOffersFor(personId, standing),
             reference = reference(referenceCursor),
-            standing = standingFor(personId),
+            standing = standing,
         )
     }
 
@@ -129,6 +136,7 @@ class SyncService(
 
         val newCursor = delta.currentCursor()
         val referenceCursor = delta.referenceCursor()
+        val standing = standingFor(personId)
 
         return SyncDeltaDto(
             cursor = newCursor,
@@ -143,11 +151,12 @@ class SyncService(
             submissions = delta.submissions(personId, cursor).map { it.toDto() },
             crewStatements = delta.crewStatements(personId, cursor).map { it.toSyncDto() },
             attestations = delta.attestations(personId, cursor).map { it.toSyncDto(clock.zone) },
+            courseOptions = courseOffersFor(personId, standing),
             tombstones = delta.tombstones(personId, cursor).map { it.toDto() },
             // Always recomputed, never diffed: a holding expiring overnight changes the roll-up
             // without changing a single row, so a client that only applied row deltas would show
             // a stale "compliant" indefinitely.
-            standing = standingFor(personId),
+            standing = standing,
         )
     }
 
@@ -239,6 +248,13 @@ class SyncService(
             OP_REQUIREMENT_PROGRESS -> crewStatement(operation, personId, CrewStatementKind.COURSE_BOOKED)
             OP_REQUIREMENT_HELP -> crewStatement(operation, personId, CrewStatementKind.HELP_REQUESTED)
 
+            // MOB-8's two, and they are statements for the same reason: a crew member cannot
+            // commit a training budget or bind a provider, so asking for a seat is an *ask*. They
+            // land in ADM-11 beside the other two and a coordinator books the course. Nothing here
+            // holds a seat — see [au.crewcomp.courses.CourseCatalogue].
+            OP_COURSE_SEAT_REQUEST -> crewStatement(operation, personId, CrewStatementKind.SEAT_REQUESTED)
+            OP_COURSE_WAITLIST -> crewStatement(operation, personId, CrewStatementKind.WAITLISTED)
+
             // MOB-10. Unlike the two above this is *not* a statement — it writes a real §6.4
             // register record, which §5.1 step 4 then overlays onto the crew member's cell. It is
             // the one client-originated write that changes what the engine answers, and it does so
@@ -281,6 +297,17 @@ class SyncService(
                 SyncOperationResultDto(operation.opId, STATUS_APPLIED)
             }
 
+            // MOB-11. The only operation on this queue that acts on somebody *else*, which is why
+            // the target is checked against the supervisor's own watch rather than trusted, and why
+            // the person nudged is always told who sent it — see [TeamService.nudge].
+            OP_TEAM_NUDGE -> {
+                val sam = requireNotNull(operation.targetSam) {
+                    "${operation.type} requires the sam of the person to nudge"
+                }
+                team.nudge(sam = sam, note = operation.note)
+                SyncOperationResultDto(operation.opId, STATUS_APPLIED)
+            }
+
             else -> rejected(operation, "Unsupported operation type '${operation.type}'")
         }
 
@@ -297,6 +324,12 @@ class SyncService(
             personId = personId,
             requirementId = requirementId,
             kind = kind,
+            // Passed straight through, mismatch and all. Only the two course kinds may carry one
+            // and the service refuses either error rather than tidying it away: a seat request
+            // that does not say which seat is not actionable, and a "course booked" that names a
+            // catalogue option is a client that has confused two screens. Both are worth a
+            // rejection the device can show, not a silent null.
+            subjectRef = operation.subjectRef,
         )
         return SyncOperationResultDto(operation.opId, STATUS_APPLIED)
     }
@@ -363,6 +396,27 @@ class SyncService(
         )
     }
 
+    /**
+     * MOB-8's dates, for the requirements this crew member actually needs something for.
+     *
+     * Driven off the standing evaluation rather than off the catalogue, which is what keeps the
+     * design's "only dates that would work" promise honest at the other end too: no swing means no
+     * evaluation means no offers, and a requirement the person already holds gets none either.
+     *
+     * [ATTENTION_STATES] is deliberately the same grouping the app calls `needsAttention`
+     * (`mobile/lib/src/domain/states.dart`). The screen that offers a course is reached from a
+     * certification row in that group, so a mismatch would produce either a row with a "Book a
+     * course" button and no dates behind it, or dates for a row nobody can reach.
+     */
+    private fun courseOffersFor(personId: Long, standing: SyncStandingDto?): List<CourseOfferDto> {
+        val needs = standing?.evaluation?.cells
+            ?.filter { it.state in ATTENTION_STATES }
+            ?.map { it.requirementId }
+            ?: return emptyList()
+
+        return courseOffers.forPerson(personId, needs).map { it.toDto() }
+    }
+
     private fun currentOrNext(assignments: List<Assignment>, today: LocalDate): Assignment? {
         val inProgress = assignments.firstOrNull {
             !today.isBefore(it.crewChange.fromDate) && !today.isAfter(it.crewChange.toDate)
@@ -390,11 +444,18 @@ class SyncService(
         val OP_REQUIREMENT_PROGRESS: String = CrewStatementKind.COURSE_BOOKED.operation
         val OP_REQUIREMENT_HELP: String = CrewStatementKind.HELP_REQUESTED.operation
 
+        /** MOB-8's two, named the same way and for the same reason. */
+        val OP_COURSE_SEAT_REQUEST: String = CrewStatementKind.SEAT_REQUESTED.operation
+        val OP_COURSE_WAITLIST: String = CrewStatementKind.WAITLISTED.operation
+
         /** MOB-10: "I cannot get this in time — please consider an exemption." */
         const val OP_REGISTER_EXEMPTION_REQUEST = "register.exemption_request"
 
         /** MOB-9: the pre-sail declaration, signed. */
         const val OP_ATTESTATION_SIGN_OFF = "attestation.sign_off"
+
+        /** MOB-11: a supervisor chasing a member of their watch. */
+        const val OP_TEAM_NUDGE = "team.nudge"
 
         const val STATUS_APPLIED = "applied"
         const val STATUS_REJECTED = "rejected"
@@ -402,5 +463,15 @@ class SyncService(
 
         /** Bounded so a device cannot present an unbounded batch after a long offline spell. */
         const val MAX_BATCH = 200
+
+        /**
+         * Cell states worth offering a course against — the app's `needsAttention` grouping,
+         * kept in step deliberately.
+         *
+         * `pending` and `exempt` are absent because something is already moving: offering a course
+         * to somebody whose exemption is with a Workflow Manager invites them to solve a problem
+         * twice.
+         */
+        val ATTENTION_STATES = setOf("gap", "expiring", "unknown", "review")
     }
 }

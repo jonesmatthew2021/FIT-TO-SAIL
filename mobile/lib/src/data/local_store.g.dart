@@ -6140,6 +6140,1104 @@ class AttestationsCompanion extends UpdateCompanion<LocalAttestation> {
   }
 }
 
+class $CourseOptionsTable extends CourseOptions
+    with TableInfo<$CourseOptionsTable, LocalCourseOption> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CourseOptionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _requirementIdMeta = const VerificationMeta(
+    'requirementId',
+  );
+  @override
+  late final GeneratedColumn<int> requirementId = GeneratedColumn<int>(
+    'requirement_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startsMeta = const VerificationMeta('starts');
+  @override
+  late final GeneratedColumn<String> starts = GeneratedColumn<String>(
+    'starts',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _finishesMeta = const VerificationMeta(
+    'finishes',
+  );
+  @override
+  late final GeneratedColumn<String> finishes = GeneratedColumn<String>(
+    'finishes',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerMeta = const VerificationMeta(
+    'provider',
+  );
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+    'provider',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _locationMeta = const VerificationMeta(
+    'location',
+  );
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+    'location',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationLabelMeta = const VerificationMeta(
+    'durationLabel',
+  );
+  @override
+  late final GeneratedColumn<String> durationLabel = GeneratedColumn<String>(
+    'duration_label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _seatsMeta = const VerificationMeta('seats');
+  @override
+  late final GeneratedColumn<int> seats = GeneratedColumn<int>(
+    'seats',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recommendedMeta = const VerificationMeta(
+    'recommended',
+  );
+  @override
+  late final GeneratedColumn<bool> recommended = GeneratedColumn<bool>(
+    'recommended',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("recommended" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _waitlistOnlyMeta = const VerificationMeta(
+    'waitlistOnly',
+  );
+  @override
+  late final GeneratedColumn<bool> waitlistOnly = GeneratedColumn<bool>(
+    'waitlist_only',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("waitlist_only" IN (0, 1))',
+    ),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    requirementId,
+    starts,
+    finishes,
+    provider,
+    location,
+    durationLabel,
+    seats,
+    note,
+    recommended,
+    waitlistOnly,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'course_options';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalCourseOption> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('requirement_id')) {
+      context.handle(
+        _requirementIdMeta,
+        requirementId.isAcceptableOrUnknown(
+          data['requirement_id']!,
+          _requirementIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_requirementIdMeta);
+    }
+    if (data.containsKey('starts')) {
+      context.handle(
+        _startsMeta,
+        starts.isAcceptableOrUnknown(data['starts']!, _startsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startsMeta);
+    }
+    if (data.containsKey('finishes')) {
+      context.handle(
+        _finishesMeta,
+        finishes.isAcceptableOrUnknown(data['finishes']!, _finishesMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_finishesMeta);
+    }
+    if (data.containsKey('provider')) {
+      context.handle(
+        _providerMeta,
+        provider.isAcceptableOrUnknown(data['provider']!, _providerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerMeta);
+    }
+    if (data.containsKey('location')) {
+      context.handle(
+        _locationMeta,
+        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_locationMeta);
+    }
+    if (data.containsKey('duration_label')) {
+      context.handle(
+        _durationLabelMeta,
+        durationLabel.isAcceptableOrUnknown(
+          data['duration_label']!,
+          _durationLabelMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_durationLabelMeta);
+    }
+    if (data.containsKey('seats')) {
+      context.handle(
+        _seatsMeta,
+        seats.isAcceptableOrUnknown(data['seats']!, _seatsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seatsMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteMeta);
+    }
+    if (data.containsKey('recommended')) {
+      context.handle(
+        _recommendedMeta,
+        recommended.isAcceptableOrUnknown(
+          data['recommended']!,
+          _recommendedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_recommendedMeta);
+    }
+    if (data.containsKey('waitlist_only')) {
+      context.handle(
+        _waitlistOnlyMeta,
+        waitlistOnly.isAcceptableOrUnknown(
+          data['waitlist_only']!,
+          _waitlistOnlyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_waitlistOnlyMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LocalCourseOption map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalCourseOption(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      requirementId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}requirement_id'],
+      )!,
+      starts: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}starts'],
+      )!,
+      finishes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}finishes'],
+      )!,
+      provider: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider'],
+      )!,
+      location: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location'],
+      )!,
+      durationLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}duration_label'],
+      )!,
+      seats: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seats'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      )!,
+      recommended: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}recommended'],
+      )!,
+      waitlistOnly: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}waitlist_only'],
+      )!,
+    );
+  }
+
+  @override
+  $CourseOptionsTable createAlias(String alias) {
+    return $CourseOptionsTable(attachedDatabase, alias);
+  }
+}
+
+class LocalCourseOption extends DataClass
+    implements Insertable<LocalCourseOption> {
+  /// The catalogue's business key — what goes back as `subjectRef` when a seat is requested.
+  final String id;
+  final int requirementId;
+  final String starts;
+  final String finishes;
+  final String provider;
+  final String location;
+  final String durationLabel;
+
+  /// What the provider last said. Zero means waitlist-only; nothing here reserves a place.
+  final int seats;
+  final String note;
+  final bool recommended;
+  final bool waitlistOnly;
+  const LocalCourseOption({
+    required this.id,
+    required this.requirementId,
+    required this.starts,
+    required this.finishes,
+    required this.provider,
+    required this.location,
+    required this.durationLabel,
+    required this.seats,
+    required this.note,
+    required this.recommended,
+    required this.waitlistOnly,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['requirement_id'] = Variable<int>(requirementId);
+    map['starts'] = Variable<String>(starts);
+    map['finishes'] = Variable<String>(finishes);
+    map['provider'] = Variable<String>(provider);
+    map['location'] = Variable<String>(location);
+    map['duration_label'] = Variable<String>(durationLabel);
+    map['seats'] = Variable<int>(seats);
+    map['note'] = Variable<String>(note);
+    map['recommended'] = Variable<bool>(recommended);
+    map['waitlist_only'] = Variable<bool>(waitlistOnly);
+    return map;
+  }
+
+  CourseOptionsCompanion toCompanion(bool nullToAbsent) {
+    return CourseOptionsCompanion(
+      id: Value(id),
+      requirementId: Value(requirementId),
+      starts: Value(starts),
+      finishes: Value(finishes),
+      provider: Value(provider),
+      location: Value(location),
+      durationLabel: Value(durationLabel),
+      seats: Value(seats),
+      note: Value(note),
+      recommended: Value(recommended),
+      waitlistOnly: Value(waitlistOnly),
+    );
+  }
+
+  factory LocalCourseOption.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalCourseOption(
+      id: serializer.fromJson<String>(json['id']),
+      requirementId: serializer.fromJson<int>(json['requirementId']),
+      starts: serializer.fromJson<String>(json['starts']),
+      finishes: serializer.fromJson<String>(json['finishes']),
+      provider: serializer.fromJson<String>(json['provider']),
+      location: serializer.fromJson<String>(json['location']),
+      durationLabel: serializer.fromJson<String>(json['durationLabel']),
+      seats: serializer.fromJson<int>(json['seats']),
+      note: serializer.fromJson<String>(json['note']),
+      recommended: serializer.fromJson<bool>(json['recommended']),
+      waitlistOnly: serializer.fromJson<bool>(json['waitlistOnly']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'requirementId': serializer.toJson<int>(requirementId),
+      'starts': serializer.toJson<String>(starts),
+      'finishes': serializer.toJson<String>(finishes),
+      'provider': serializer.toJson<String>(provider),
+      'location': serializer.toJson<String>(location),
+      'durationLabel': serializer.toJson<String>(durationLabel),
+      'seats': serializer.toJson<int>(seats),
+      'note': serializer.toJson<String>(note),
+      'recommended': serializer.toJson<bool>(recommended),
+      'waitlistOnly': serializer.toJson<bool>(waitlistOnly),
+    };
+  }
+
+  LocalCourseOption copyWith({
+    String? id,
+    int? requirementId,
+    String? starts,
+    String? finishes,
+    String? provider,
+    String? location,
+    String? durationLabel,
+    int? seats,
+    String? note,
+    bool? recommended,
+    bool? waitlistOnly,
+  }) => LocalCourseOption(
+    id: id ?? this.id,
+    requirementId: requirementId ?? this.requirementId,
+    starts: starts ?? this.starts,
+    finishes: finishes ?? this.finishes,
+    provider: provider ?? this.provider,
+    location: location ?? this.location,
+    durationLabel: durationLabel ?? this.durationLabel,
+    seats: seats ?? this.seats,
+    note: note ?? this.note,
+    recommended: recommended ?? this.recommended,
+    waitlistOnly: waitlistOnly ?? this.waitlistOnly,
+  );
+  LocalCourseOption copyWithCompanion(CourseOptionsCompanion data) {
+    return LocalCourseOption(
+      id: data.id.present ? data.id.value : this.id,
+      requirementId: data.requirementId.present
+          ? data.requirementId.value
+          : this.requirementId,
+      starts: data.starts.present ? data.starts.value : this.starts,
+      finishes: data.finishes.present ? data.finishes.value : this.finishes,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      location: data.location.present ? data.location.value : this.location,
+      durationLabel: data.durationLabel.present
+          ? data.durationLabel.value
+          : this.durationLabel,
+      seats: data.seats.present ? data.seats.value : this.seats,
+      note: data.note.present ? data.note.value : this.note,
+      recommended: data.recommended.present
+          ? data.recommended.value
+          : this.recommended,
+      waitlistOnly: data.waitlistOnly.present
+          ? data.waitlistOnly.value
+          : this.waitlistOnly,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalCourseOption(')
+          ..write('id: $id, ')
+          ..write('requirementId: $requirementId, ')
+          ..write('starts: $starts, ')
+          ..write('finishes: $finishes, ')
+          ..write('provider: $provider, ')
+          ..write('location: $location, ')
+          ..write('durationLabel: $durationLabel, ')
+          ..write('seats: $seats, ')
+          ..write('note: $note, ')
+          ..write('recommended: $recommended, ')
+          ..write('waitlistOnly: $waitlistOnly')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    requirementId,
+    starts,
+    finishes,
+    provider,
+    location,
+    durationLabel,
+    seats,
+    note,
+    recommended,
+    waitlistOnly,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalCourseOption &&
+          other.id == this.id &&
+          other.requirementId == this.requirementId &&
+          other.starts == this.starts &&
+          other.finishes == this.finishes &&
+          other.provider == this.provider &&
+          other.location == this.location &&
+          other.durationLabel == this.durationLabel &&
+          other.seats == this.seats &&
+          other.note == this.note &&
+          other.recommended == this.recommended &&
+          other.waitlistOnly == this.waitlistOnly);
+}
+
+class CourseOptionsCompanion extends UpdateCompanion<LocalCourseOption> {
+  final Value<String> id;
+  final Value<int> requirementId;
+  final Value<String> starts;
+  final Value<String> finishes;
+  final Value<String> provider;
+  final Value<String> location;
+  final Value<String> durationLabel;
+  final Value<int> seats;
+  final Value<String> note;
+  final Value<bool> recommended;
+  final Value<bool> waitlistOnly;
+  final Value<int> rowid;
+  const CourseOptionsCompanion({
+    this.id = const Value.absent(),
+    this.requirementId = const Value.absent(),
+    this.starts = const Value.absent(),
+    this.finishes = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.location = const Value.absent(),
+    this.durationLabel = const Value.absent(),
+    this.seats = const Value.absent(),
+    this.note = const Value.absent(),
+    this.recommended = const Value.absent(),
+    this.waitlistOnly = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CourseOptionsCompanion.insert({
+    required String id,
+    required int requirementId,
+    required String starts,
+    required String finishes,
+    required String provider,
+    required String location,
+    required String durationLabel,
+    required int seats,
+    required String note,
+    required bool recommended,
+    required bool waitlistOnly,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       requirementId = Value(requirementId),
+       starts = Value(starts),
+       finishes = Value(finishes),
+       provider = Value(provider),
+       location = Value(location),
+       durationLabel = Value(durationLabel),
+       seats = Value(seats),
+       note = Value(note),
+       recommended = Value(recommended),
+       waitlistOnly = Value(waitlistOnly);
+  static Insertable<LocalCourseOption> custom({
+    Expression<String>? id,
+    Expression<int>? requirementId,
+    Expression<String>? starts,
+    Expression<String>? finishes,
+    Expression<String>? provider,
+    Expression<String>? location,
+    Expression<String>? durationLabel,
+    Expression<int>? seats,
+    Expression<String>? note,
+    Expression<bool>? recommended,
+    Expression<bool>? waitlistOnly,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (requirementId != null) 'requirement_id': requirementId,
+      if (starts != null) 'starts': starts,
+      if (finishes != null) 'finishes': finishes,
+      if (provider != null) 'provider': provider,
+      if (location != null) 'location': location,
+      if (durationLabel != null) 'duration_label': durationLabel,
+      if (seats != null) 'seats': seats,
+      if (note != null) 'note': note,
+      if (recommended != null) 'recommended': recommended,
+      if (waitlistOnly != null) 'waitlist_only': waitlistOnly,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CourseOptionsCompanion copyWith({
+    Value<String>? id,
+    Value<int>? requirementId,
+    Value<String>? starts,
+    Value<String>? finishes,
+    Value<String>? provider,
+    Value<String>? location,
+    Value<String>? durationLabel,
+    Value<int>? seats,
+    Value<String>? note,
+    Value<bool>? recommended,
+    Value<bool>? waitlistOnly,
+    Value<int>? rowid,
+  }) {
+    return CourseOptionsCompanion(
+      id: id ?? this.id,
+      requirementId: requirementId ?? this.requirementId,
+      starts: starts ?? this.starts,
+      finishes: finishes ?? this.finishes,
+      provider: provider ?? this.provider,
+      location: location ?? this.location,
+      durationLabel: durationLabel ?? this.durationLabel,
+      seats: seats ?? this.seats,
+      note: note ?? this.note,
+      recommended: recommended ?? this.recommended,
+      waitlistOnly: waitlistOnly ?? this.waitlistOnly,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (requirementId.present) {
+      map['requirement_id'] = Variable<int>(requirementId.value);
+    }
+    if (starts.present) {
+      map['starts'] = Variable<String>(starts.value);
+    }
+    if (finishes.present) {
+      map['finishes'] = Variable<String>(finishes.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (durationLabel.present) {
+      map['duration_label'] = Variable<String>(durationLabel.value);
+    }
+    if (seats.present) {
+      map['seats'] = Variable<int>(seats.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (recommended.present) {
+      map['recommended'] = Variable<bool>(recommended.value);
+    }
+    if (waitlistOnly.present) {
+      map['waitlist_only'] = Variable<bool>(waitlistOnly.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CourseOptionsCompanion(')
+          ..write('id: $id, ')
+          ..write('requirementId: $requirementId, ')
+          ..write('starts: $starts, ')
+          ..write('finishes: $finishes, ')
+          ..write('provider: $provider, ')
+          ..write('location: $location, ')
+          ..write('durationLabel: $durationLabel, ')
+          ..write('seats: $seats, ')
+          ..write('note: $note, ')
+          ..write('recommended: $recommended, ')
+          ..write('waitlistOnly: $waitlistOnly, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TeamMembersTable extends TeamMembers
+    with TableInfo<$TeamMembersTable, LocalTeamMember> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TeamMembersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _samMeta = const VerificationMeta('sam');
+  @override
+  late final GeneratedColumn<String> sam = GeneratedColumn<String>(
+    'sam',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _worstStateMeta = const VerificationMeta(
+    'worstState',
+  );
+  @override
+  late final GeneratedColumn<String> worstState = GeneratedColumn<String>(
+    'worst_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _inHandMeta = const VerificationMeta('inHand');
+  @override
+  late final GeneratedColumn<bool> inHand = GeneratedColumn<bool>(
+    'in_hand',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("in_hand" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _nudgedAtMeta = const VerificationMeta(
+    'nudgedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nudgedAt = GeneratedColumn<DateTime>(
+    'nudged_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    sam,
+    name,
+    worstState,
+    reason,
+    inHand,
+    nudgedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'team_members';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalTeamMember> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('sam')) {
+      context.handle(
+        _samMeta,
+        sam.isAcceptableOrUnknown(data['sam']!, _samMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_samMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('worst_state')) {
+      context.handle(
+        _worstStateMeta,
+        worstState.isAcceptableOrUnknown(data['worst_state']!, _worstStateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_worstStateMeta);
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    }
+    if (data.containsKey('in_hand')) {
+      context.handle(
+        _inHandMeta,
+        inHand.isAcceptableOrUnknown(data['in_hand']!, _inHandMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_inHandMeta);
+    }
+    if (data.containsKey('nudged_at')) {
+      context.handle(
+        _nudgedAtMeta,
+        nudgedAt.isAcceptableOrUnknown(data['nudged_at']!, _nudgedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {sam};
+  @override
+  LocalTeamMember map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalTeamMember(
+      sam: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sam'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      worstState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}worst_state'],
+      )!,
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      ),
+      inHand: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}in_hand'],
+      )!,
+      nudgedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}nudged_at'],
+      ),
+    );
+  }
+
+  @override
+  $TeamMembersTable createAlias(String alias) {
+    return $TeamMembersTable(attachedDatabase, alias);
+  }
+}
+
+class LocalTeamMember extends DataClass implements Insertable<LocalTeamMember> {
+  final String sam;
+  final String name;
+
+  /// A §5.1 cell state, the engine's own roll-up.
+  final String worstState;
+  final String? reason;
+
+  /// Something is already moving, so the nudge is suppressed.
+  final bool inHand;
+  final DateTime? nudgedAt;
+  const LocalTeamMember({
+    required this.sam,
+    required this.name,
+    required this.worstState,
+    this.reason,
+    required this.inHand,
+    this.nudgedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['sam'] = Variable<String>(sam);
+    map['name'] = Variable<String>(name);
+    map['worst_state'] = Variable<String>(worstState);
+    if (!nullToAbsent || reason != null) {
+      map['reason'] = Variable<String>(reason);
+    }
+    map['in_hand'] = Variable<bool>(inHand);
+    if (!nullToAbsent || nudgedAt != null) {
+      map['nudged_at'] = Variable<DateTime>(nudgedAt);
+    }
+    return map;
+  }
+
+  TeamMembersCompanion toCompanion(bool nullToAbsent) {
+    return TeamMembersCompanion(
+      sam: Value(sam),
+      name: Value(name),
+      worstState: Value(worstState),
+      reason: reason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reason),
+      inHand: Value(inHand),
+      nudgedAt: nudgedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nudgedAt),
+    );
+  }
+
+  factory LocalTeamMember.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalTeamMember(
+      sam: serializer.fromJson<String>(json['sam']),
+      name: serializer.fromJson<String>(json['name']),
+      worstState: serializer.fromJson<String>(json['worstState']),
+      reason: serializer.fromJson<String?>(json['reason']),
+      inHand: serializer.fromJson<bool>(json['inHand']),
+      nudgedAt: serializer.fromJson<DateTime?>(json['nudgedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'sam': serializer.toJson<String>(sam),
+      'name': serializer.toJson<String>(name),
+      'worstState': serializer.toJson<String>(worstState),
+      'reason': serializer.toJson<String?>(reason),
+      'inHand': serializer.toJson<bool>(inHand),
+      'nudgedAt': serializer.toJson<DateTime?>(nudgedAt),
+    };
+  }
+
+  LocalTeamMember copyWith({
+    String? sam,
+    String? name,
+    String? worstState,
+    Value<String?> reason = const Value.absent(),
+    bool? inHand,
+    Value<DateTime?> nudgedAt = const Value.absent(),
+  }) => LocalTeamMember(
+    sam: sam ?? this.sam,
+    name: name ?? this.name,
+    worstState: worstState ?? this.worstState,
+    reason: reason.present ? reason.value : this.reason,
+    inHand: inHand ?? this.inHand,
+    nudgedAt: nudgedAt.present ? nudgedAt.value : this.nudgedAt,
+  );
+  LocalTeamMember copyWithCompanion(TeamMembersCompanion data) {
+    return LocalTeamMember(
+      sam: data.sam.present ? data.sam.value : this.sam,
+      name: data.name.present ? data.name.value : this.name,
+      worstState: data.worstState.present
+          ? data.worstState.value
+          : this.worstState,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      inHand: data.inHand.present ? data.inHand.value : this.inHand,
+      nudgedAt: data.nudgedAt.present ? data.nudgedAt.value : this.nudgedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalTeamMember(')
+          ..write('sam: $sam, ')
+          ..write('name: $name, ')
+          ..write('worstState: $worstState, ')
+          ..write('reason: $reason, ')
+          ..write('inHand: $inHand, ')
+          ..write('nudgedAt: $nudgedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(sam, name, worstState, reason, inHand, nudgedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalTeamMember &&
+          other.sam == this.sam &&
+          other.name == this.name &&
+          other.worstState == this.worstState &&
+          other.reason == this.reason &&
+          other.inHand == this.inHand &&
+          other.nudgedAt == this.nudgedAt);
+}
+
+class TeamMembersCompanion extends UpdateCompanion<LocalTeamMember> {
+  final Value<String> sam;
+  final Value<String> name;
+  final Value<String> worstState;
+  final Value<String?> reason;
+  final Value<bool> inHand;
+  final Value<DateTime?> nudgedAt;
+  final Value<int> rowid;
+  const TeamMembersCompanion({
+    this.sam = const Value.absent(),
+    this.name = const Value.absent(),
+    this.worstState = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.inHand = const Value.absent(),
+    this.nudgedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TeamMembersCompanion.insert({
+    required String sam,
+    required String name,
+    required String worstState,
+    this.reason = const Value.absent(),
+    required bool inHand,
+    this.nudgedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : sam = Value(sam),
+       name = Value(name),
+       worstState = Value(worstState),
+       inHand = Value(inHand);
+  static Insertable<LocalTeamMember> custom({
+    Expression<String>? sam,
+    Expression<String>? name,
+    Expression<String>? worstState,
+    Expression<String>? reason,
+    Expression<bool>? inHand,
+    Expression<DateTime>? nudgedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (sam != null) 'sam': sam,
+      if (name != null) 'name': name,
+      if (worstState != null) 'worst_state': worstState,
+      if (reason != null) 'reason': reason,
+      if (inHand != null) 'in_hand': inHand,
+      if (nudgedAt != null) 'nudged_at': nudgedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TeamMembersCompanion copyWith({
+    Value<String>? sam,
+    Value<String>? name,
+    Value<String>? worstState,
+    Value<String?>? reason,
+    Value<bool>? inHand,
+    Value<DateTime?>? nudgedAt,
+    Value<int>? rowid,
+  }) {
+    return TeamMembersCompanion(
+      sam: sam ?? this.sam,
+      name: name ?? this.name,
+      worstState: worstState ?? this.worstState,
+      reason: reason ?? this.reason,
+      inHand: inHand ?? this.inHand,
+      nudgedAt: nudgedAt ?? this.nudgedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (sam.present) {
+      map['sam'] = Variable<String>(sam.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (worstState.present) {
+      map['worst_state'] = Variable<String>(worstState.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (inHand.present) {
+      map['in_hand'] = Variable<bool>(inHand.value);
+    }
+    if (nudgedAt.present) {
+      map['nudged_at'] = Variable<DateTime>(nudgedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TeamMembersCompanion(')
+          ..write('sam: $sam, ')
+          ..write('name: $name, ')
+          ..write('worstState: $worstState, ')
+          ..write('reason: $reason, ')
+          ..write('inHand: $inHand, ')
+          ..write('nudgedAt: $nudgedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SyncStatesTable extends SyncStates
     with TableInfo<$SyncStatesTable, LocalSyncState> {
   @override
@@ -6269,6 +7367,32 @@ class $SyncStatesTable extends SyncStates
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _supervisorMeta = const VerificationMeta(
+    'supervisor',
+  );
+  @override
+  late final GeneratedColumn<bool> supervisor = GeneratedColumn<bool>(
+    'supervisor',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("supervisor" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _teamCcIdMeta = const VerificationMeta(
+    'teamCcId',
+  );
+  @override
+  late final GeneratedColumn<String> teamCcId = GeneratedColumn<String>(
+    'team_cc_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6282,6 +7406,8 @@ class $SyncStatesTable extends SyncStates
     standingTo,
     standingCurrent,
     standingRollUp,
+    supervisor,
+    teamCcId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6382,6 +7508,18 @@ class $SyncStatesTable extends SyncStates
         ),
       );
     }
+    if (data.containsKey('supervisor')) {
+      context.handle(
+        _supervisorMeta,
+        supervisor.isAcceptableOrUnknown(data['supervisor']!, _supervisorMeta),
+      );
+    }
+    if (data.containsKey('team_cc_id')) {
+      context.handle(
+        _teamCcIdMeta,
+        teamCcId.isAcceptableOrUnknown(data['team_cc_id']!, _teamCcIdMeta),
+      );
+    }
     return context;
   }
 
@@ -6435,6 +7573,14 @@ class $SyncStatesTable extends SyncStates
         DriftSqlType.string,
         data['${effectivePrefix}standing_roll_up'],
       ),
+      supervisor: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}supervisor'],
+      )!,
+      teamCcId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}team_cc_id'],
+      ),
     );
   }
 
@@ -6460,6 +7606,24 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
   final String? standingTo;
   final bool? standingCurrent;
   final String? standingRollUp;
+
+  /// Whether the **server** says this person supervises a watch (MOB-11).
+  ///
+  /// Persisted rather than held in memory so that the Team tab is there on a cold start in a dead
+  /// spot — a supervisor who opens the app at sea should see their last watch, not lose the tab
+  /// until the next successful sync.
+  ///
+  /// It replaces a `kDebugMode` `--dart-define`, which a release build could never reach. The
+  /// server decides: `/me/team` answers 403 for anyone who does not hold the role, and that is a
+  /// role check in one place rather than a compile-time guess in another.
+  final bool supervisor;
+
+  /// The swing the watch is over, or null when the supervisor is not rostered anywhere.
+  ///
+  /// Distinct from an empty [TeamMembers] on purpose: "you are not on a swing" and "everyone on
+  /// your watch is fine" are opposite messages, and a screen that collapsed them would show a
+  /// reassuring blank to a supervisor whose team simply is not loaded.
+  final String? teamCcId;
   const LocalSyncState({
     required this.id,
     required this.cursor,
@@ -6472,6 +7636,8 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     this.standingTo,
     this.standingCurrent,
     this.standingRollUp,
+    required this.supervisor,
+    this.teamCcId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6502,6 +7668,10 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     }
     if (!nullToAbsent || standingRollUp != null) {
       map['standing_roll_up'] = Variable<String>(standingRollUp);
+    }
+    map['supervisor'] = Variable<bool>(supervisor);
+    if (!nullToAbsent || teamCcId != null) {
+      map['team_cc_id'] = Variable<String>(teamCcId);
     }
     return map;
   }
@@ -6535,6 +7705,10 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
       standingRollUp: standingRollUp == null && nullToAbsent
           ? const Value.absent()
           : Value(standingRollUp),
+      supervisor: Value(supervisor),
+      teamCcId: teamCcId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(teamCcId),
     );
   }
 
@@ -6557,6 +7731,8 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
       standingTo: serializer.fromJson<String?>(json['standingTo']),
       standingCurrent: serializer.fromJson<bool?>(json['standingCurrent']),
       standingRollUp: serializer.fromJson<String?>(json['standingRollUp']),
+      supervisor: serializer.fromJson<bool>(json['supervisor']),
+      teamCcId: serializer.fromJson<String?>(json['teamCcId']),
     );
   }
   @override
@@ -6574,6 +7750,8 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
       'standingTo': serializer.toJson<String?>(standingTo),
       'standingCurrent': serializer.toJson<bool?>(standingCurrent),
       'standingRollUp': serializer.toJson<String?>(standingRollUp),
+      'supervisor': serializer.toJson<bool>(supervisor),
+      'teamCcId': serializer.toJson<String?>(teamCcId),
     };
   }
 
@@ -6589,6 +7767,8 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     Value<String?> standingTo = const Value.absent(),
     Value<bool?> standingCurrent = const Value.absent(),
     Value<String?> standingRollUp = const Value.absent(),
+    bool? supervisor,
+    Value<String?> teamCcId = const Value.absent(),
   }) => LocalSyncState(
     id: id ?? this.id,
     cursor: cursor ?? this.cursor,
@@ -6607,6 +7787,8 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     standingRollUp: standingRollUp.present
         ? standingRollUp.value
         : this.standingRollUp,
+    supervisor: supervisor ?? this.supervisor,
+    teamCcId: teamCcId.present ? teamCcId.value : this.teamCcId,
   );
   LocalSyncState copyWithCompanion(SyncStatesCompanion data) {
     return LocalSyncState(
@@ -6639,6 +7821,10 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
       standingRollUp: data.standingRollUp.present
           ? data.standingRollUp.value
           : this.standingRollUp,
+      supervisor: data.supervisor.present
+          ? data.supervisor.value
+          : this.supervisor,
+      teamCcId: data.teamCcId.present ? data.teamCcId.value : this.teamCcId,
     );
   }
 
@@ -6655,7 +7841,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
           ..write('standingFrom: $standingFrom, ')
           ..write('standingTo: $standingTo, ')
           ..write('standingCurrent: $standingCurrent, ')
-          ..write('standingRollUp: $standingRollUp')
+          ..write('standingRollUp: $standingRollUp, ')
+          ..write('supervisor: $supervisor, ')
+          ..write('teamCcId: $teamCcId')
           ..write(')'))
         .toString();
   }
@@ -6673,6 +7861,8 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     standingTo,
     standingCurrent,
     standingRollUp,
+    supervisor,
+    teamCcId,
   );
   @override
   bool operator ==(Object other) =>
@@ -6688,7 +7878,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
           other.standingFrom == this.standingFrom &&
           other.standingTo == this.standingTo &&
           other.standingCurrent == this.standingCurrent &&
-          other.standingRollUp == this.standingRollUp);
+          other.standingRollUp == this.standingRollUp &&
+          other.supervisor == this.supervisor &&
+          other.teamCcId == this.teamCcId);
 }
 
 class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
@@ -6703,6 +7895,8 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
   final Value<String?> standingTo;
   final Value<bool?> standingCurrent;
   final Value<String?> standingRollUp;
+  final Value<bool> supervisor;
+  final Value<String?> teamCcId;
   const SyncStatesCompanion({
     this.id = const Value.absent(),
     this.cursor = const Value.absent(),
@@ -6715,6 +7909,8 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     this.standingTo = const Value.absent(),
     this.standingCurrent = const Value.absent(),
     this.standingRollUp = const Value.absent(),
+    this.supervisor = const Value.absent(),
+    this.teamCcId = const Value.absent(),
   });
   SyncStatesCompanion.insert({
     this.id = const Value.absent(),
@@ -6728,6 +7924,8 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     this.standingTo = const Value.absent(),
     this.standingCurrent = const Value.absent(),
     this.standingRollUp = const Value.absent(),
+    this.supervisor = const Value.absent(),
+    this.teamCcId = const Value.absent(),
   });
   static Insertable<LocalSyncState> custom({
     Expression<int>? id,
@@ -6741,6 +7939,8 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     Expression<String>? standingTo,
     Expression<bool>? standingCurrent,
     Expression<String>? standingRollUp,
+    Expression<bool>? supervisor,
+    Expression<String>? teamCcId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -6755,6 +7955,8 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
       if (standingTo != null) 'standing_to': standingTo,
       if (standingCurrent != null) 'standing_current': standingCurrent,
       if (standingRollUp != null) 'standing_roll_up': standingRollUp,
+      if (supervisor != null) 'supervisor': supervisor,
+      if (teamCcId != null) 'team_cc_id': teamCcId,
     });
   }
 
@@ -6770,6 +7972,8 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     Value<String?>? standingTo,
     Value<bool?>? standingCurrent,
     Value<String?>? standingRollUp,
+    Value<bool>? supervisor,
+    Value<String?>? teamCcId,
   }) {
     return SyncStatesCompanion(
       id: id ?? this.id,
@@ -6783,6 +7987,8 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
       standingTo: standingTo ?? this.standingTo,
       standingCurrent: standingCurrent ?? this.standingCurrent,
       standingRollUp: standingRollUp ?? this.standingRollUp,
+      supervisor: supervisor ?? this.supervisor,
+      teamCcId: teamCcId ?? this.teamCcId,
     );
   }
 
@@ -6822,6 +8028,12 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     if (standingRollUp.present) {
       map['standing_roll_up'] = Variable<String>(standingRollUp.value);
     }
+    if (supervisor.present) {
+      map['supervisor'] = Variable<bool>(supervisor.value);
+    }
+    if (teamCcId.present) {
+      map['team_cc_id'] = Variable<String>(teamCcId.value);
+    }
     return map;
   }
 
@@ -6838,7 +8050,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
           ..write('standingFrom: $standingFrom, ')
           ..write('standingTo: $standingTo, ')
           ..write('standingCurrent: $standingCurrent, ')
-          ..write('standingRollUp: $standingRollUp')
+          ..write('standingRollUp: $standingRollUp, ')
+          ..write('supervisor: $supervisor, ')
+          ..write('teamCcId: $teamCcId')
           ..write(')'))
         .toString();
   }
@@ -6860,6 +8074,8 @@ abstract class _$LocalStore extends GeneratedDatabase {
   late final $CrewIntentsTable crewIntents = $CrewIntentsTable(this);
   late final $CrewStatementsTable crewStatements = $CrewStatementsTable(this);
   late final $AttestationsTable attestations = $AttestationsTable(this);
+  late final $CourseOptionsTable courseOptions = $CourseOptionsTable(this);
+  late final $TeamMembersTable teamMembers = $TeamMembersTable(this);
   late final $SyncStatesTable syncStates = $SyncStatesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -6879,6 +8095,8 @@ abstract class _$LocalStore extends GeneratedDatabase {
     crewIntents,
     crewStatements,
     attestations,
+    courseOptions,
+    teamMembers,
     syncStates,
   ];
 }
@@ -10030,6 +11248,553 @@ typedef $$AttestationsTableProcessedTableManager =
       LocalAttestation,
       PrefetchHooks Function()
     >;
+typedef $$CourseOptionsTableCreateCompanionBuilder =
+    CourseOptionsCompanion Function({
+      required String id,
+      required int requirementId,
+      required String starts,
+      required String finishes,
+      required String provider,
+      required String location,
+      required String durationLabel,
+      required int seats,
+      required String note,
+      required bool recommended,
+      required bool waitlistOnly,
+      Value<int> rowid,
+    });
+typedef $$CourseOptionsTableUpdateCompanionBuilder =
+    CourseOptionsCompanion Function({
+      Value<String> id,
+      Value<int> requirementId,
+      Value<String> starts,
+      Value<String> finishes,
+      Value<String> provider,
+      Value<String> location,
+      Value<String> durationLabel,
+      Value<int> seats,
+      Value<String> note,
+      Value<bool> recommended,
+      Value<bool> waitlistOnly,
+      Value<int> rowid,
+    });
+
+class $$CourseOptionsTableFilterComposer
+    extends Composer<_$LocalStore, $CourseOptionsTable> {
+  $$CourseOptionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get starts => $composableBuilder(
+    column: $table.starts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get finishes => $composableBuilder(
+    column: $table.finishes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seats => $composableBuilder(
+    column: $table.seats,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get recommended => $composableBuilder(
+    column: $table.recommended,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get waitlistOnly => $composableBuilder(
+    column: $table.waitlistOnly,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CourseOptionsTableOrderingComposer
+    extends Composer<_$LocalStore, $CourseOptionsTable> {
+  $$CourseOptionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get starts => $composableBuilder(
+    column: $table.starts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get finishes => $composableBuilder(
+    column: $table.finishes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seats => $composableBuilder(
+    column: $table.seats,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get recommended => $composableBuilder(
+    column: $table.recommended,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get waitlistOnly => $composableBuilder(
+    column: $table.waitlistOnly,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CourseOptionsTableAnnotationComposer
+    extends Composer<_$LocalStore, $CourseOptionsTable> {
+  $$CourseOptionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get requirementId => $composableBuilder(
+    column: $table.requirementId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get starts =>
+      $composableBuilder(column: $table.starts, builder: (column) => column);
+
+  GeneratedColumn<String> get finishes =>
+      $composableBuilder(column: $table.finishes, builder: (column) => column);
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<String> get durationLabel => $composableBuilder(
+    column: $table.durationLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seats =>
+      $composableBuilder(column: $table.seats, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<bool> get recommended => $composableBuilder(
+    column: $table.recommended,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get waitlistOnly => $composableBuilder(
+    column: $table.waitlistOnly,
+    builder: (column) => column,
+  );
+}
+
+class $$CourseOptionsTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $CourseOptionsTable,
+          LocalCourseOption,
+          $$CourseOptionsTableFilterComposer,
+          $$CourseOptionsTableOrderingComposer,
+          $$CourseOptionsTableAnnotationComposer,
+          $$CourseOptionsTableCreateCompanionBuilder,
+          $$CourseOptionsTableUpdateCompanionBuilder,
+          (
+            LocalCourseOption,
+            BaseReferences<
+              _$LocalStore,
+              $CourseOptionsTable,
+              LocalCourseOption
+            >,
+          ),
+          LocalCourseOption,
+          PrefetchHooks Function()
+        > {
+  $$CourseOptionsTableTableManager(_$LocalStore db, $CourseOptionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CourseOptionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CourseOptionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CourseOptionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<int> requirementId = const Value.absent(),
+                Value<String> starts = const Value.absent(),
+                Value<String> finishes = const Value.absent(),
+                Value<String> provider = const Value.absent(),
+                Value<String> location = const Value.absent(),
+                Value<String> durationLabel = const Value.absent(),
+                Value<int> seats = const Value.absent(),
+                Value<String> note = const Value.absent(),
+                Value<bool> recommended = const Value.absent(),
+                Value<bool> waitlistOnly = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CourseOptionsCompanion(
+                id: id,
+                requirementId: requirementId,
+                starts: starts,
+                finishes: finishes,
+                provider: provider,
+                location: location,
+                durationLabel: durationLabel,
+                seats: seats,
+                note: note,
+                recommended: recommended,
+                waitlistOnly: waitlistOnly,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required int requirementId,
+                required String starts,
+                required String finishes,
+                required String provider,
+                required String location,
+                required String durationLabel,
+                required int seats,
+                required String note,
+                required bool recommended,
+                required bool waitlistOnly,
+                Value<int> rowid = const Value.absent(),
+              }) => CourseOptionsCompanion.insert(
+                id: id,
+                requirementId: requirementId,
+                starts: starts,
+                finishes: finishes,
+                provider: provider,
+                location: location,
+                durationLabel: durationLabel,
+                seats: seats,
+                note: note,
+                recommended: recommended,
+                waitlistOnly: waitlistOnly,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CourseOptionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $CourseOptionsTable,
+      LocalCourseOption,
+      $$CourseOptionsTableFilterComposer,
+      $$CourseOptionsTableOrderingComposer,
+      $$CourseOptionsTableAnnotationComposer,
+      $$CourseOptionsTableCreateCompanionBuilder,
+      $$CourseOptionsTableUpdateCompanionBuilder,
+      (
+        LocalCourseOption,
+        BaseReferences<_$LocalStore, $CourseOptionsTable, LocalCourseOption>,
+      ),
+      LocalCourseOption,
+      PrefetchHooks Function()
+    >;
+typedef $$TeamMembersTableCreateCompanionBuilder =
+    TeamMembersCompanion Function({
+      required String sam,
+      required String name,
+      required String worstState,
+      Value<String?> reason,
+      required bool inHand,
+      Value<DateTime?> nudgedAt,
+      Value<int> rowid,
+    });
+typedef $$TeamMembersTableUpdateCompanionBuilder =
+    TeamMembersCompanion Function({
+      Value<String> sam,
+      Value<String> name,
+      Value<String> worstState,
+      Value<String?> reason,
+      Value<bool> inHand,
+      Value<DateTime?> nudgedAt,
+      Value<int> rowid,
+    });
+
+class $$TeamMembersTableFilterComposer
+    extends Composer<_$LocalStore, $TeamMembersTable> {
+  $$TeamMembersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get sam => $composableBuilder(
+    column: $table.sam,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get worstState => $composableBuilder(
+    column: $table.worstState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get inHand => $composableBuilder(
+    column: $table.inHand,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nudgedAt => $composableBuilder(
+    column: $table.nudgedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TeamMembersTableOrderingComposer
+    extends Composer<_$LocalStore, $TeamMembersTable> {
+  $$TeamMembersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get sam => $composableBuilder(
+    column: $table.sam,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get worstState => $composableBuilder(
+    column: $table.worstState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get inHand => $composableBuilder(
+    column: $table.inHand,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nudgedAt => $composableBuilder(
+    column: $table.nudgedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TeamMembersTableAnnotationComposer
+    extends Composer<_$LocalStore, $TeamMembersTable> {
+  $$TeamMembersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get sam =>
+      $composableBuilder(column: $table.sam, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get worstState => $composableBuilder(
+    column: $table.worstState,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<bool> get inHand =>
+      $composableBuilder(column: $table.inHand, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get nudgedAt =>
+      $composableBuilder(column: $table.nudgedAt, builder: (column) => column);
+}
+
+class $$TeamMembersTableTableManager
+    extends
+        RootTableManager<
+          _$LocalStore,
+          $TeamMembersTable,
+          LocalTeamMember,
+          $$TeamMembersTableFilterComposer,
+          $$TeamMembersTableOrderingComposer,
+          $$TeamMembersTableAnnotationComposer,
+          $$TeamMembersTableCreateCompanionBuilder,
+          $$TeamMembersTableUpdateCompanionBuilder,
+          (
+            LocalTeamMember,
+            BaseReferences<_$LocalStore, $TeamMembersTable, LocalTeamMember>,
+          ),
+          LocalTeamMember,
+          PrefetchHooks Function()
+        > {
+  $$TeamMembersTableTableManager(_$LocalStore db, $TeamMembersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TeamMembersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TeamMembersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TeamMembersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> sam = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> worstState = const Value.absent(),
+                Value<String?> reason = const Value.absent(),
+                Value<bool> inHand = const Value.absent(),
+                Value<DateTime?> nudgedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TeamMembersCompanion(
+                sam: sam,
+                name: name,
+                worstState: worstState,
+                reason: reason,
+                inHand: inHand,
+                nudgedAt: nudgedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String sam,
+                required String name,
+                required String worstState,
+                Value<String?> reason = const Value.absent(),
+                required bool inHand,
+                Value<DateTime?> nudgedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TeamMembersCompanion.insert(
+                sam: sam,
+                name: name,
+                worstState: worstState,
+                reason: reason,
+                inHand: inHand,
+                nudgedAt: nudgedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TeamMembersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$LocalStore,
+      $TeamMembersTable,
+      LocalTeamMember,
+      $$TeamMembersTableFilterComposer,
+      $$TeamMembersTableOrderingComposer,
+      $$TeamMembersTableAnnotationComposer,
+      $$TeamMembersTableCreateCompanionBuilder,
+      $$TeamMembersTableUpdateCompanionBuilder,
+      (
+        LocalTeamMember,
+        BaseReferences<_$LocalStore, $TeamMembersTable, LocalTeamMember>,
+      ),
+      LocalTeamMember,
+      PrefetchHooks Function()
+    >;
 typedef $$SyncStatesTableCreateCompanionBuilder =
     SyncStatesCompanion Function({
       Value<int> id,
@@ -10043,6 +11808,8 @@ typedef $$SyncStatesTableCreateCompanionBuilder =
       Value<String?> standingTo,
       Value<bool?> standingCurrent,
       Value<String?> standingRollUp,
+      Value<bool> supervisor,
+      Value<String?> teamCcId,
     });
 typedef $$SyncStatesTableUpdateCompanionBuilder =
     SyncStatesCompanion Function({
@@ -10057,6 +11824,8 @@ typedef $$SyncStatesTableUpdateCompanionBuilder =
       Value<String?> standingTo,
       Value<bool?> standingCurrent,
       Value<String?> standingRollUp,
+      Value<bool> supervisor,
+      Value<String?> teamCcId,
     });
 
 class $$SyncStatesTableFilterComposer
@@ -10120,6 +11889,16 @@ class $$SyncStatesTableFilterComposer
 
   ColumnFilters<String> get standingRollUp => $composableBuilder(
     column: $table.standingRollUp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get supervisor => $composableBuilder(
+    column: $table.supervisor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get teamCcId => $composableBuilder(
+    column: $table.teamCcId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -10187,6 +11966,16 @@ class $$SyncStatesTableOrderingComposer
     column: $table.standingRollUp,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get supervisor => $composableBuilder(
+    column: $table.supervisor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get teamCcId => $composableBuilder(
+    column: $table.teamCcId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SyncStatesTableAnnotationComposer
@@ -10248,6 +12037,14 @@ class $$SyncStatesTableAnnotationComposer
     column: $table.standingRollUp,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get supervisor => $composableBuilder(
+    column: $table.supervisor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get teamCcId =>
+      $composableBuilder(column: $table.teamCcId, builder: (column) => column);
 }
 
 class $$SyncStatesTableTableManager
@@ -10292,6 +12089,8 @@ class $$SyncStatesTableTableManager
                 Value<String?> standingTo = const Value.absent(),
                 Value<bool?> standingCurrent = const Value.absent(),
                 Value<String?> standingRollUp = const Value.absent(),
+                Value<bool> supervisor = const Value.absent(),
+                Value<String?> teamCcId = const Value.absent(),
               }) => SyncStatesCompanion(
                 id: id,
                 cursor: cursor,
@@ -10304,6 +12103,8 @@ class $$SyncStatesTableTableManager
                 standingTo: standingTo,
                 standingCurrent: standingCurrent,
                 standingRollUp: standingRollUp,
+                supervisor: supervisor,
+                teamCcId: teamCcId,
               ),
           createCompanionCallback:
               ({
@@ -10318,6 +12119,8 @@ class $$SyncStatesTableTableManager
                 Value<String?> standingTo = const Value.absent(),
                 Value<bool?> standingCurrent = const Value.absent(),
                 Value<String?> standingRollUp = const Value.absent(),
+                Value<bool> supervisor = const Value.absent(),
+                Value<String?> teamCcId = const Value.absent(),
               }) => SyncStatesCompanion.insert(
                 id: id,
                 cursor: cursor,
@@ -10330,6 +12133,8 @@ class $$SyncStatesTableTableManager
                 standingTo: standingTo,
                 standingCurrent: standingCurrent,
                 standingRollUp: standingRollUp,
+                supervisor: supervisor,
+                teamCcId: teamCcId,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
@@ -10386,6 +12191,10 @@ class $LocalStoreManager {
       $$CrewStatementsTableTableManager(_db, _db.crewStatements);
   $$AttestationsTableTableManager get attestations =>
       $$AttestationsTableTableManager(_db, _db.attestations);
+  $$CourseOptionsTableTableManager get courseOptions =>
+      $$CourseOptionsTableTableManager(_db, _db.courseOptions);
+  $$TeamMembersTableTableManager get teamMembers =>
+      $$TeamMembersTableTableManager(_db, _db.teamMembers);
   $$SyncStatesTableTableManager get syncStates =>
       $$SyncStatesTableTableManager(_db, _db.syncStates);
 }

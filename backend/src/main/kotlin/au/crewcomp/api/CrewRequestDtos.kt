@@ -18,7 +18,7 @@ import java.time.LocalDate
  */
 data class CrewRequestDto(
     val id: Long,
-    /** `course_booked` | `help_requested`. */
+    /** `course_booked` | `help_requested` | `seat_requested` | `waitlisted`. */
     val kind: String,
     /** `open` | `actioned` | `dismissed`. Both non-open states are terminal. */
     val status: String,
@@ -41,6 +41,17 @@ data class CrewRequestDto(
      * is a different request from "booked, and there is a year to run".
      */
     val aboutExpiry: LocalDate?,
+
+    /**
+     * MOB-8 only: the course date asked for, as one line.
+     *
+     * The server's rendering, stored when the request was made. It survives the option being
+     * withdrawn from the catalogue, which is exactly the case where the coordinator most needs to
+     * know which date the crew member meant — and it is why [subjectRef] is not enough on its own.
+     */
+    val subjectLabel: String?,
+    /** The catalogue key, for a coordinator who needs to find the course itself. */
+    val subjectRef: String?,
 
     /** When the crew member tapped, and who they are as the audit trail records them. */
     val raisedAt: Instant,
@@ -75,6 +86,8 @@ fun CrewStatement.toDto() = CrewRequestDto(
     code = requirement.code,
     title = requirement.title,
     aboutExpiry = aboutExpiry,
+    subjectLabel = subjectLabel,
+    subjectRef = subjectRef,
     raisedAt = createdAt,
     decisionNote = decisionNote,
     decidedAt = decidedAt,

@@ -385,6 +385,53 @@ class NotificationIT {
         }
 
         @Test
+        fun `a seat request earns no silence until the office has actioned it`() {
+            // The other half of the suppression rule, and the one that is easy to get wrong.
+            // "I have booked the course" is a fact only the crew member knows, so they are
+            // believed. "I would like that seat" is a request nobody has answered — they still do
+            // not have a booking, the certificate is still lapsing, and stopping the reminders on
+            // the strength of an unanswered ask would quietly drop them.
+            asRoles("data_steward")
+                .body("""{"status":"held_expiry","expiry":"2026-08-15"}""")
+                .put("/api/v1/people/${seed.compliantPersonId}/holdings/${seed.medRequirementId}")
+                .then()
+                .statusCode(200)
+
+            seeder.seedCourseOption("MED-2026-09", seed.medRequirementId, LocalDate.of(2026, 9, 14))
+
+            asCrew()
+                .body(
+                    """{"operations":[{"opId":"op-seat","type":"course.seat_request",
+                        "requirementId":${seed.medRequirementId},"subjectRef":"MED-2026-09"}]}"""
+                        .trimIndent(),
+                )
+                .post("/api/v1/sync/queue")
+                .then()
+                .body("results[0].status", equalTo("applied"))
+
+            runJob("expiry-scan")
+                .body("detail", containsString("1 addressed to crew"))
+                .body("detail", containsString("0 already answered"))
+
+            val requestId: Int = asRoles("crew_coordinator")
+                .get("/api/v1/crew-requests?status=open")
+                .then()
+                .body("[0].kind", equalTo("seat_requested"))
+                .extract()
+                .path("[0].id")
+
+            asRoles("crew_coordinator")
+                .body("""{"note":"Booked — confirmation emailed to the vessel."}""")
+                .post("/api/v1/crew-requests/$requestId/action")
+                .then()
+                .statusCode(200)
+
+            // Now there is a booking, and the chasing stops. Two facts, one rule: the office's
+            // answer is worth what the crew member's word was worth for `course_booked`.
+            runJob("expiry-scan").body("detail", containsString("1 already answered"))
+        }
+
+        @Test
         fun `a crew member's one-tap answer reaches the coordinator`() {
             backOfficeAccount("crew_coordinator", name = "Coordinator")
 

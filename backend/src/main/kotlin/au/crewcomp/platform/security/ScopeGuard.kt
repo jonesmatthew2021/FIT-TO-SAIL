@@ -34,15 +34,33 @@ class ScopeGuard(private val policy: AccessPolicy) {
                 params = mapOf("scopePersonId" to scope.personId),
             )
 
-            is DataScope.Partnerships ->
-                if (partnershipPath == null) {
-                    ScopeClause.DENY_ALL
-                } else {
-                    ScopeClause(
+            is DataScope.Partnerships -> {
+                val own = scope.ownPersonId
+                when {
+                    // Their own rows are readable whichever entity this is, because a Vessel
+                    // Master is also a crew member using the crew app — see [DataScope.Partnerships].
+                    partnershipPath == null && own == null -> ScopeClause.DENY_ALL
+
+                    partnershipPath == null -> ScopeClause(
+                        hql = "$personPath = :scopeOwnPersonId",
+                        params = mapOf("scopeOwnPersonId" to own!!),
+                    )
+
+                    own == null -> ScopeClause(
                         hql = "$partnershipPath in (:scopePartnershipIds)",
                         params = mapOf("scopePartnershipIds" to scope.partnershipIds),
                     )
+
+                    else -> ScopeClause(
+                        hql = "($partnershipPath in (:scopePartnershipIds) " +
+                            "or $personPath = :scopeOwnPersonId)",
+                        params = mapOf(
+                            "scopePartnershipIds" to scope.partnershipIds,
+                            "scopeOwnPersonId" to own,
+                        ),
+                    )
                 }
+            }
 
             is DataScope.None -> ScopeClause.DENY_ALL
         }
@@ -55,10 +73,14 @@ class ScopeGuard(private val policy: AccessPolicy) {
                 if (personId != scope.personId) {
                     throw AccessDeniedException("Out of scope: person $personId")
                 }
-            is DataScope.Partnerships ->
-                if (partnershipId == null || partnershipId !in scope.partnershipIds) {
+            is DataScope.Partnerships -> {
+                // `personId != null` matters: both sides being null is not "their own record",
+                // it is two absences, and treating it as a match would permit an unattributed row.
+                val isOwn = personId != null && personId == scope.ownPersonId
+                if (!isOwn && (partnershipId == null || partnershipId !in scope.partnershipIds)) {
                     throw AccessDeniedException("Out of scope: partnership $partnershipId")
                 }
+            }
             is DataScope.None -> throw AccessDeniedException("No readable scope for this actor")
         }
     }
@@ -71,7 +93,10 @@ class ScopeGuard(private val policy: AccessPolicy) {
     ): List<T> = when (val scope = policy.scope()) {
         is DataScope.All -> items.toList()
         is DataScope.OwnPersonOnly -> items.filter { personId(it) == scope.personId }
-        is DataScope.Partnerships -> items.filter { partnershipId(it) in scope.partnershipIds }
+        is DataScope.Partnerships -> items.filter {
+            partnershipId(it) in scope.partnershipIds ||
+                (scope.ownPersonId != null && personId(it) == scope.ownPersonId)
+        }
         is DataScope.None -> emptyList()
     }
 }

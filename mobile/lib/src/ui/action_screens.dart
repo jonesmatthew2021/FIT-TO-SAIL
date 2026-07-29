@@ -427,24 +427,34 @@ class CourseBookingView extends StatelessWidget {
             ),
           ),
 
-          const SectionLabel(
-            'Fits before the expiry',
-            padding: EdgeInsets.only(top: 20, bottom: 8),
+          // "Fits before the expiry" is only true when there is one. A gap or an unconfirmed
+          // holding has no deadline to beat, and the server offers every future date against it —
+          // a heading claiming otherwise would describe a filter that did not run.
+          SectionLabel(
+            expiry == null ? 'Dates you could attend' : 'Fits before the expiry',
+            padding: const EdgeInsets.only(top: 20, bottom: 8),
           ),
 
           if (options.isEmpty)
-            // Not a failure, and not styled as one. There is no course catalogue in the system
-            // yet, so the honest thing to say is that the office has to find the date — with the
-            // one tap that asks them to.
+            // Not a failure, and not styled as one. There *is* a catalogue now, so the honest
+            // reading of an empty list is different from what it used to be: every date it holds
+            // either finishes too late or falls inside a swing this person is aboard for. That is
+            // a real and common answer — for anybody rostered across a whole swing, an expiring
+            // certificate can never have an attendable date — and it is precisely the case the
+            // exemption request exists for. The office still has to be asked either way.
             NCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('No dates to show yet', style: NoctType.cardTitleSm),
+                  Text('No dates that would work', style: NoctType.cardTitleSm),
                   const SizedBox(height: 4),
                   Text(
-                    'Attest does not hold a course calendar yet, so there is nothing here to '
-                    'pick from. Ask the office and they will find a date that beats the expiry.',
+                    expiry == null
+                        ? 'Nothing is currently scheduled that you could get to. Ask the office '
+                              'and they will find one.'
+                        : 'Every course on the calendar either finishes too late or runs while '
+                              'you are at sea. Ask the office — they can look further afield, or '
+                              'raise an exemption for this swing.',
                     style: NoctType.cardBody,
                   ),
                   const SizedBox(height: 12),

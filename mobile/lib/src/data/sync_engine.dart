@@ -62,6 +62,11 @@ class SyncEngine {
 
       final pulled = await pull();
 
+      // MOB-11, and after the pull because it is a different question about different people: a
+      // supervisor's watch going wrong must not cost a crew member their own data. It swallows
+      // its own failures for the same reason.
+      await refreshTeam();
+
       // After the pull, so an intent is only forgotten once whatever it caused has had a chance
       // to come back down as a real record.
       await pruneSettledIntents();
@@ -187,6 +192,7 @@ class SyncEngine {
       }
 
       await _replaceStanding(snapshot.standing);
+      await _replaceCourseOptions(snapshot.courseOptions);
       await _writeState(
         cursor: snapshot.cursor,
         referenceCursor: snapshot.referenceCursor,
@@ -227,6 +233,7 @@ class SyncEngine {
       // Always replaced, never diffed: a roll-up can change with no row change at all, when a
       // holding simply expires overnight.
       await _replaceStanding(delta.standing);
+      await _replaceCourseOptions(delta.courseOptions);
       await _writeState(
         cursor: delta.cursor,
         referenceCursor: delta.referenceCursor,
@@ -288,6 +295,73 @@ class SyncEngine {
             ),
           );
     }
+  }
+
+  /// MOB-8's offers, replaced wholesale.
+  ///
+  /// Never merged and never tombstoned, because the server sends the whole set every time: an
+  /// offer is a derived answer rather than a row, and a date that stopped being worth showing —
+  /// the course filled up, the roster changed, the certificate was renewed — leaves no trace for
+  /// a delta to carry. Merging would leave those on screen for ever.
+  Future<void> _replaceCourseOptions(List<CourseOfferDto> options) async {
+    await store.delete(store.courseOptions).go();
+    for (final option in options) {
+      await store.into(store.courseOptions).insertOnConflictUpdate(
+            CourseOptionsCompanion.insert(
+              id: option.id,
+              requirementId: option.requirementId,
+              starts: option.starts,
+              finishes: option.finishes,
+              provider: option.provider,
+              location: option.location,
+              durationLabel: option.durationLabel,
+              seats: option.seats,
+              note: option.note,
+              recommended: option.recommended,
+              waitlistOnly: option.waitlistOnly,
+            ),
+          );
+    }
+  }
+
+  /// MOB-11's watch, and whether there is one at all.
+  ///
+  /// Fetched after the pull rather than inside it: it is a different endpoint answering about
+  /// *other people*, and a supervisor's watch failing must not fail a crew member's own sync. A
+  /// 403 is the answer "you do not supervise a watch" and clears the tab; anything else leaves the
+  /// last known watch in place, which is the right thing to show at sea.
+  Future<void> refreshTeam() async {
+    final TeamDto? team;
+    try {
+      team = await api.team();
+    } on Exception {
+      // Offline, or the endpoint is unhappy. Either way the cached watch is better than none,
+      // and the "last synced" line already tells the supervisor how old it is.
+      return;
+    }
+
+    await store.transaction(() async {
+      await store.delete(store.teamMembers).go();
+      for (final member in team?.members ?? const <TeamMemberDto>[]) {
+        await store.into(store.teamMembers).insertOnConflictUpdate(
+              TeamMembersCompanion.insert(
+                sam: member.sam,
+                name: member.name,
+                worstState: member.worstState,
+                reason: Value(member.reason),
+                inHand: member.inHand,
+                nudgedAt: Value(member.nudgedAt),
+              ),
+            );
+      }
+      await store.into(store.syncStates).insertOnConflictUpdate(
+            SyncStatesCompanion.insert(
+              id: const Value(0),
+              supervisor: Value(team != null),
+              teamCcId: Value(team?.ccId),
+            ),
+          );
+    });
   }
 
   Future<void> _writeState({

@@ -11,6 +11,7 @@ import io.quarkus.test.junit.QuarkusTest
 import io.restassured.RestAssured.given
 import io.restassured.http.ContentType
 import jakarta.inject.Inject
+import org.hamcrest.Matchers.contains
 import org.hamcrest.Matchers.containsString
 import org.hamcrest.Matchers.equalTo
 import org.hamcrest.Matchers.greaterThan
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.security.MessageDigest
+import java.time.LocalDate
 import java.util.HexFormat
 import java.util.UUID
 
@@ -61,6 +63,12 @@ class SyncIT {
             .header("X-Dev-User", "Crew $personId")
             .header("X-Dev-Roles", Role.CREW_MEMBER.wire)
             .header("X-Dev-Person-Id", personId.toString())
+
+    /** The office end of a crew request — ADM-11's queue, for checking what actually landed. */
+    private fun asCoordinator() =
+        given()
+            .header("X-Dev-User", "Coordinator")
+            .header("X-Dev-Roles", Role.CREW_COORDINATOR.wire)
 
     /** Runs [block] as a back-office actor, for the server-side changes a delta must notice. */
     private fun <T> asSteward(block: () -> T): T = actorContext.runAs(
@@ -410,7 +418,13 @@ class SyncIT {
     @DisplayName("One-tap answers (MOB-5)")
     inner class CrewStatements {
 
-        private fun answer(opId: String, type: String, requirementId: Long?, personId: Long? = null) =
+        private fun answer(
+            opId: String,
+            type: String,
+            requirementId: Long?,
+            personId: Long? = null,
+            subjectRef: String? = null,
+        ) =
             asCrew(personId ?: seed.compliantPersonId)
                 .contentType(ContentType.JSON)
                 .body(
@@ -420,6 +434,7 @@ class SyncIT {
                                 put("opId", opId)
                                 put("type", type)
                                 if (requirementId != null) put("requirementId", requirementId)
+                                if (subjectRef != null) put("subjectRef", subjectRef)
                             },
                         ),
                     ),
@@ -561,8 +576,15 @@ class SyncIT {
             // answer at all — silently, and only on a device. That shipped once; this is the check
             // that would have caught it, and it deliberately asserts the two ends are the same
             // string rather than asserting a literal.
-            for (type in listOf("requirement.progress", "requirement.help")) {
-                answer("op-$type", type, seed.medRequirementId)
+            seeder.seedCourseOption("SS-1", seed.medRequirementId, LocalDate.of(2026, 12, 1))
+            val types = listOf(
+                "requirement.progress" to null,
+                "requirement.help" to null,
+                "course.seat_request" to "SS-1",
+                "course.waitlist" to "SS-1",
+            )
+            for ((type, ref) in types) {
+                answer("op-$type", type, seed.medRequirementId, subjectRef = ref)
                     .body("results[0].status", equalTo("applied"))
             }
 
@@ -575,13 +597,50 @@ class SyncIT {
                 .getList<Map<String, Any>>("crewStatements")
                 .associate { it["opId"] as String to it["kind"] as String }
 
-            assertEquals(
-                mapOf(
-                    "op-requirement.progress" to "requirement.progress",
-                    "op-requirement.help" to "requirement.help",
-                ),
-                kinds,
+            assertEquals(types.associate { (type, _) -> "op-$type" to type }, kinds)
+        }
+
+        @Test
+        fun `a seat request names the course, in the server's words`() {
+            seeder.seedCourseOption(
+                ref = "SS-2026-07",
+                requirementId = seed.medRequirementId,
+                starts = LocalDate.of(2026, 12, 1),
+                finishes = LocalDate.of(2026, 12, 2),
             )
+            answer("op-seat", "course.seat_request", seed.medRequirementId, subjectRef = "SS-2026-07")
+                .body("results[0].status", equalTo("applied"))
+
+            // The label is resolved and stored server-side rather than taken from the device's
+            // summary text, so the office's record of what was asked for survives the option being
+            // withdrawn — and is not composed on the phone of the person asking.
+            asCoordinator()
+                .get("/api/v1/crew-requests?status=open")
+                .then()
+                .statusCode(200)
+                .body("[0].kind", equalTo("seat_requested"))
+                .body("[0].subjectRef", equalTo("SS-2026-07"))
+                // Never ISO, and stored: a coordinator opening this in three weeks gets whatever
+                // was written here and no chance to re-render it.
+                .body("[0].subjectLabel", equalTo("1–2 Dec 2026 · Fremantle Marine Training, Fremantle"))
+        }
+
+        @Test
+        fun `a seat request that names no course is rejected`() {
+            // A seat request that does not say which seat is not actionable. Better a rejection
+            // the device can show than a queue entry a coordinator cannot work.
+            answer("op-seatless", "course.seat_request", seed.medRequirementId)
+                .body("results[0].status", equalTo("rejected"))
+                .body("results[0].detail", containsString("subjectRef"))
+        }
+
+        @Test
+        fun `a course-booked answer that names a course option is rejected`() {
+            // The other direction of the same check. A client sending both has confused two
+            // screens, and tidying it away silently would hide that.
+            seeder.seedCourseOption("SS-3", seed.medRequirementId, LocalDate.of(2026, 12, 1))
+            answer("op-confused", "requirement.progress", seed.medRequirementId, subjectRef = "SS-3")
+                .body("results[0].status", equalTo("rejected"))
         }
 
         @Test
@@ -614,6 +673,11 @@ class SyncIT {
             assertEquals(1, records.size)
             assertEquals("Exemption Request - PW", records.single()["type"])
             assertEquals("Open - PW", records.single()["status"])
+            // Provenance, not a state: it enters the same §6.4 workflow with the same statuses and
+            // there is deliberately no triage step in front of it. What the flag changes is how the
+            // row reads — "the crew member noticed this" is a different fact from "a coordinator
+            // raised it on their behalf", and only one of them means the office has already looked.
+            assertEquals(true, records.single()["raisedByCrew"])
 
             asCrew(seed.gapPersonId)
                 .get("/api/v1/sync/snapshot")
@@ -825,6 +889,69 @@ class SyncIT {
                 .get("/api/v1/sync/delta?cursor=$cursor")
                 .then()
                 .body("crewStatements", hasSize<Any>(0))
+        }
+    }
+
+    @Nested
+    @DisplayName("Course offers (MOB-8)")
+    inner class CourseOptions {
+
+        /**
+         * The gapped crew member: no Seafarer Medical at all, and rostered onto CC24
+         * (1–28 Aug 2026). So a course after the swing is offerable and one during it is not.
+         */
+        private fun asGapCrew() = asCrew(seed.gapPersonId)
+
+        @Test
+        fun `offers only the dates the crew member could actually attend`() {
+            seeder.seedCourseOption("MED-AT-SEA", seed.medRequirementId, LocalDate.of(2026, 8, 10))
+            seeder.seedCourseOption("MED-ASHORE", seed.medRequirementId, LocalDate.of(2026, 9, 10))
+
+            asGapCrew().get("/api/v1/sync/snapshot").then()
+                .statusCode(200)
+                .body("courseOptions.id", contains("MED-ASHORE"))
+                .body("courseOptions[0].requirementId", equalTo(seed.medRequirementId.toInt()))
+                .body("courseOptions[0].note", equalTo("Clear of your leave"))
+                .body("courseOptions[0].recommended", equalTo(true))
+                .body("courseOptions[0].waitlistOnly", equalTo(false))
+        }
+
+        @Test
+        fun `offers nothing against a requirement the person already holds`() {
+            // The compliant crew member's medical runs to 2027, so their cell is `ok` and there is
+            // nothing to book. Offering a course there is noise, and offering them against every
+            // requirement is the generic catalogue the design rules out.
+            seeder.seedCourseOption("MED-ASHORE", seed.medRequirementId, LocalDate.of(2026, 9, 10))
+
+            asCrew().get("/api/v1/sync/snapshot").then()
+                .statusCode(200)
+                .body("courseOptions", hasSize<Any>(0))
+        }
+
+        @Test
+        fun `a full date is offered as a waitlist rather than hidden`() {
+            seeder.seedCourseOption(
+                "MED-FULL", seed.medRequirementId, LocalDate.of(2026, 9, 10), seats = 0,
+            )
+
+            asGapCrew().get("/api/v1/sync/snapshot").then()
+                .body("courseOptions[0].waitlistOnly", equalTo(true))
+                .body("courseOptions[0].recommended", equalTo(false))
+        }
+
+        @Test
+        fun `are recomputed on a delta rather than diffed`() {
+            // An offer is a derived answer, not a row. It changes when the catalogue changes, when
+            // the roster changes, and when a day passes — none of which move a cursor, so a client
+            // applying row deltas would show a stale set for ever.
+            val cursor: Long = asGapCrew().get("/api/v1/sync/snapshot").then()
+                .extract().path<Int>("cursor").toLong()
+
+            seeder.seedCourseOption("MED-NEW", seed.medRequirementId, LocalDate.of(2026, 9, 10))
+
+            asGapCrew().get("/api/v1/sync/delta?cursor=$cursor").then()
+                .statusCode(200)
+                .body("courseOptions.id", contains("MED-NEW"))
         }
     }
 

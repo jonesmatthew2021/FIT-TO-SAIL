@@ -1,5 +1,6 @@
 package au.crewcomp.people
 
+import au.crewcomp.courses.CourseCatalogue
 import au.crewcomp.engine.HoldingStatus
 import au.crewcomp.notify.NotificationKind
 import au.crewcomp.notify.NotificationService
@@ -45,6 +46,7 @@ class CrewStatementService(
     private val holdings: QualificationHoldingRepository,
     private val requirements: RequirementRepository,
     private val notifications: NotificationService,
+    private val courses: CourseCatalogue,
     private val policy: AccessPolicy,
     private val audit: AuditWriter,
 ) {
@@ -58,6 +60,9 @@ class CrewStatementService(
      *   [AccessPolicy.assertCanSeePerson] re-checks it here rather than trusting that: for a crew
      *   actor the scope is their own person and nothing else, so a caller that ever passed
      *   somebody else's id fails at this line instead of writing the row.
+     * @param subjectRef MOB-8 only: the course option the crew member picked. Required for the two
+     *   course kinds, because a seat request that does not say which seat is not actionable — and
+     *   refused for the other two, which name nothing beyond the requirement.
      */
     @Transactional
     fun record(
@@ -65,8 +70,16 @@ class CrewStatementService(
         personId: Long,
         requirementId: Long,
         kind: CrewStatementKind,
+        subjectRef: String? = null,
     ): CrewStatement {
         policy.assertCanSeePerson(personId)
+        if (kind in CrewStatementKind.COURSE_KINDS) {
+            require(!subjectRef.isNullOrBlank()) {
+                "${kind.operation} requires a subjectRef naming the course option"
+            }
+        } else {
+            require(subjectRef == null) { "${kind.operation} does not name a course option" }
+        }
 
         statements.byOpId(opId)?.let { existing ->
             // A replay. Return what was already recorded rather than recording it again — and
@@ -81,11 +94,19 @@ class CrewStatementService(
         val requirement = requirements.findById(requirementId)
             ?: throw IllegalArgumentException("No requirement $requirementId")
 
+        // Resolved server-side, and stored beside the key rather than instead of it. The key is
+        // what a coordinator would use to find the course; the label is what tells them which
+        // course it was after the option has been withdrawn from the catalogue. A device's own
+        // summary text is neither — see [CrewStatement.subjectLabel].
+        val option = subjectRef?.let { courses.byRef(it) }
+
         val statement = CrewStatement().apply {
             this.opId = opId
             this.person = person
             this.requirement = requirement
             this.kind = kind
+            this.subjectRef = subjectRef
+            this.subjectLabel = option?.label
             this.aboutExpiry = expiringHoldingDate(personId, requirementId)
             stampCreated(policy.actor().label)
         }
@@ -100,6 +121,8 @@ class CrewStatementService(
                 "kind" to kind.wire,
                 "opId" to opId,
                 "aboutExpiry" to statement.aboutExpiry?.toString(),
+                "subjectRef" to subjectRef,
+                "subjectLabel" to statement.subjectLabel,
             ),
         )
 
@@ -297,6 +320,26 @@ class CrewStatementService(
                 NotificationKind.CREW_HELP_REQUESTED,
                 "A crew member has asked for help",
                 "${person.name} (${person.sam}) needs help arranging $requirementCode.",
+            )
+
+            // MOB-8. Both name a course date, and the body says which — a coordinator who has to
+            // ring a provider needs the date in the message, not one click away. The two are
+            // deliberately separate sentences: booking a seat and chasing a waitlist are different
+            // jobs, and a coordinator triaging their morning should be able to tell them apart
+            // before opening anything.
+            CrewStatementKind.SEAT_REQUESTED -> Triple(
+                NotificationKind.CREW_COURSE_REQUESTED,
+                "A crew member has asked for a course seat",
+                "${person.name} (${person.sam}) wants a seat on $requirementCode" +
+                    (statement.subjectLabel?.let { ": $it" } ?: "") + ".",
+            )
+
+            CrewStatementKind.WAITLISTED -> Triple(
+                NotificationKind.CREW_COURSE_REQUESTED,
+                "A crew member has joined a course waitlist",
+                "${person.name} (${person.sam}) is waitlisted for $requirementCode" +
+                    (statement.subjectLabel?.let { ": $it" } ?: "") +
+                    " — no seats were showing when they asked.",
             )
         }
 

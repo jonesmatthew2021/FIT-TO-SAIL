@@ -24,7 +24,10 @@ void main() {
   tearDown(() => store.close());
 
   SyncEngine engineFor(MockClient client, {DateTime Function()? now}) => SyncEngine(
-        api: CrewcompApi(baseUrl: Uri.parse('http://localhost'), client: client),
+        api: CrewcompApi(
+          baseUrl: Uri.parse('http://localhost'),
+          client: _NotASupervisor(client),
+        ),
         store: store,
         now: now ?? () => DateTime.utc(2026, 7, 26, 8),
       );
@@ -70,6 +73,7 @@ void main() {
         'submissions': [],
         'crewStatements': [],
         'attestations': [],
+        'courseOptions': [],
         'reference': {
           'cursor': referenceCursor,
           'matrixVersionId': 3,
@@ -164,6 +168,7 @@ void main() {
             'submissions': [],
             'crewStatements': [],
             'attestations': [],
+            'courseOptions': [],
             'tombstones': [],
             'standing': null,
           }),
@@ -203,6 +208,7 @@ void main() {
             'submissions': [],
             'crewStatements': [],
             'attestations': [],
+            'courseOptions': [],
             'tombstones': [
               {'entityType': 'QualificationHolding', 'entityId': 1, 'seq': 145},
             ],
@@ -242,6 +248,7 @@ void main() {
             'submissions': [],
             'crewStatements': [],
             'attestations': [],
+            'courseOptions': [],
             'tombstones': [],
             'standing': null,
           }),
@@ -285,6 +292,7 @@ void main() {
             'submissions': [],
             'crewStatements': [],
             'attestations': [],
+            'courseOptions': [],
             'tombstones': [],
             'standing': standingBody('expiring', [cell(11, 'expiring', expiry: '2026-08-01')]),
           }),
@@ -590,6 +598,7 @@ void main() {
               },
             ],
             'attestations': [],
+            'courseOptions': [],
             'tombstones': [],
             'standing': null,
           }),
@@ -652,6 +661,7 @@ void main() {
             'submissions': [],
             'crewStatements': [],
             'attestations': [],
+            'courseOptions': [],
             'tombstones': [
               {'entityType': 'CrewStatement', 'entityId': 4, 'seq': 190},
             ],
@@ -665,6 +675,122 @@ void main() {
       expect(await store.select(store.crewStatements).get(), hasLength(1));
       await engine.sync();
       expect(await store.select(store.crewStatements).get(), isEmpty);
+    });
+  });
+
+  group('course offers (MOB-8)', () {
+    Map<String, dynamic> offer(String id, {bool recommended = true, int seats = 4}) => {
+          'id': id,
+          'requirementId': 11,
+          'starts': '2026-09-10',
+          'finishes': '2026-09-11',
+          'provider': 'Fremantle Marine Training',
+          'location': 'Fremantle',
+          'durationLabel': '2 days',
+          'seats': seats,
+          'note': 'Clear of your leave · 11 days before expiry',
+          'recommended': recommended,
+          'waitlistOnly': seats == 0,
+        };
+
+    test('are replaced wholesale on a delta, never merged', () async {
+      // An offer is a derived answer rather than a row: a date that stopped being worth showing
+      // — the course filled, the roster moved, the certificate was renewed — leaves no tombstone
+      // for a delta to carry. Merging would leave it on screen for ever.
+      final engine = engineFor(MockClient((request) async {
+        if (request.url.path.endsWith('/snapshot')) {
+          final body = snapshotBody();
+          body['courseOptions'] = [offer('SS-1'), offer('SS-2', recommended: false)];
+          return http.Response(jsonEncode(body), 200);
+        }
+        return http.Response(
+          jsonEncode({
+            'cursor': 140,
+            'referenceCursor': 50,
+            'referenceStale': false,
+            'serverToday': '2026-07-27',
+            'person': null,
+            'holdings': [],
+            'assignments': [],
+            'leave': [],
+            'notifications': [],
+            'submissions': [],
+            'crewStatements': [],
+            'attestations': [],
+            'courseOptions': [offer('SS-2')],
+            'tombstones': [],
+            'standing': null,
+          }),
+          200,
+        );
+      }));
+
+      await engine.sync();
+      expect(await store.select(store.courseOptions).get(), hasLength(2));
+
+      await engine.sync();
+      final remaining = await store.select(store.courseOptions).get();
+      expect(remaining.map((o) => o.id), ['SS-2']);
+      // The server's own line, stored verbatim. Both halves of it need a roster the device does
+      // not hold, so re-deriving either here would be guessing.
+      expect(remaining.single.note, 'Clear of your leave · 11 days before expiry');
+    });
+  });
+
+  group("a supervisor's watch (MOB-11)", () {
+    test('is fetched on every sync, and the 403 is what says you do not have one', () async {
+      // The role is the server's to decide (§3), so asking is how the app finds out. This
+      // replaced a `kDebugMode` --dart-define that a release build could never reach.
+      final engine = SyncEngine(
+        api: CrewcompApi(
+          baseUrl: Uri.parse('http://localhost'),
+          client: MockClient((request) async {
+            if (request.url.path == '/api/v1/me/team') {
+              return http.Response(
+                jsonEncode({
+                  'ccId': 'CC24',
+                  'partnershipAbbrev': 'UNI',
+                  'from': '2026-07-20',
+                  'to': '2026-08-16',
+                  'members': [
+                    {
+                      'sam': 'SAM002',
+                      'name': 'Gap Crew',
+                      'worstState': 'gap',
+                      'reason': 'MS-01 not held',
+                      'inHand': false,
+                      'nudgedAt': null,
+                    },
+                  ],
+                }),
+                200,
+              );
+            }
+            return http.Response(jsonEncode(snapshotBody()), 200);
+          }),
+        ),
+        store: store,
+        now: () => DateTime.utc(2026, 7, 26, 8),
+      );
+
+      await engine.sync();
+
+      expect((await engine.currentState()).supervisor, isTrue);
+      expect((await engine.currentState()).teamCcId, 'CC24');
+      final watch = await store.select(store.teamMembers).get();
+      expect(watch.single.sam, 'SAM002');
+      expect(watch.single.reason, 'MS-01 not held');
+    });
+
+    test('a crew member gets no watch and no tab', () async {
+      final engine = engineFor(
+        MockClient((request) async => http.Response(jsonEncode(snapshotBody()), 200)),
+      );
+
+      await engine.sync();
+
+      expect((await engine.currentState()).supervisor, isFalse);
+      expect(await store.select(store.teamMembers).get(), isEmpty);
     });
   });
 
@@ -692,4 +818,26 @@ void main() {
       expect(SyncEngine.backOffDelay(50), const Duration(seconds: 300));
     });
   });
+}
+
+/// Answers `/api/v1/me/team` with a 403 and passes everything else through.
+///
+/// Every sync now asks whether this person supervises a watch (MOB-11), and 403 is the ordinary
+/// answer for a crew member. Handling it once here rather than in twenty inline handlers keeps
+/// each test's stub about the thing it is testing — and a handler that asserted on the path would
+/// otherwise fail on a request it was never written to expect.
+class _NotASupervisor extends http.BaseClient {
+  _NotASupervisor(this.inner);
+
+  final http.Client inner;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    if (request.url.path == '/api/v1/me/team') {
+      return Future.value(
+        http.StreamedResponse(Stream.value(utf8.encode('{}')), 403),
+      );
+    }
+    return inner.send(request);
+  }
 }

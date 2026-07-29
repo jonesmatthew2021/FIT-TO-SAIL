@@ -45,6 +45,22 @@ class CrewcompApi {
     );
   }
 
+  /// MOB-11's watch, or **null when this person does not supervise one**.
+  ///
+  /// The 403 is the answer, not an error. Whether somebody holds the supervisory role is the
+  /// server's to decide (§3, AUTH-1), and asking it is how the app finds out — the alternative
+  /// was a `kDebugMode` compile-time flag that a release build could never reach and that no
+  /// deployment could ever change. Every other status still throws.
+  Future<TeamDto?> team() async {
+    final response = await _client.get(
+      baseUrl.resolve('/api/v1/me/team'),
+      headers: _authHeaders(),
+    );
+    if (response.statusCode == 403) return null;
+    _check(response);
+    return TeamDto.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
   /// Where a resuming upload should continue from (MOB-5a).
   Future<UploadStateDto> uploadState(String publicId) async {
     final json = await _getJson('/api/v1/evidence/$publicId/chunks');
@@ -154,14 +170,32 @@ class ChunkOutOfOrder implements Exception {
 /// authentication, one that plainly sets a header cannot be. Constructed only under
 /// `kDebugMode`, so a release build contains neither the header names nor a way to set them.
 class DevIdentity {
-  const DevIdentity({required this.personId, required this.label});
+  const DevIdentity({
+    required this.personId,
+    required this.label,
+    this.supervisor = false,
+    this.partnershipIds = const <int>[],
+  });
 
   final int personId;
   final String label;
 
+  /// Claims `vessel_master` alongside `crew_member`, for driving MOB-11 locally.
+  ///
+  /// A **claim about the shim's identity**, not a switch on the app: the tab still appears only
+  /// because `/api/v1/me/team` answered 200, which is the server deciding. That is the difference
+  /// from the `CREWCOMP_DEV_SUPERVISOR` flag this replaced — that one turned the screen on
+  /// regardless of whether any watch existed.
+  final bool supervisor;
+
+  /// The partnerships a Vessel Master is scoped to (§3). The real thing comes from the account.
+  final List<int> partnershipIds;
+
   Map<String, String> headers() => {
         'X-Dev-User': label,
-        'X-Dev-Roles': 'crew_member',
+        'X-Dev-Roles': supervisor ? 'crew_member,vessel_master' : 'crew_member',
         'X-Dev-Person-Id': '$personId',
+        if (partnershipIds.isNotEmpty)
+          'X-Dev-Partnerships': partnershipIds.join(','),
       };
 }

@@ -105,6 +105,22 @@ export function Register(): React.ReactNode {
               </span>
             </>
           )}
+          {/* Provenance, not a state. A crew-raised record enters the same §6.4 workflow with the
+              same statuses — a triage step in front of it would be a second definition of "open"
+              and a second queue to forget. What this changes is how the row reads: "the crew
+              member noticed this" and "a coordinator raised it on their behalf" are different
+              facts, and only one of them means somebody in the office has already looked. */}
+          {row.original.raisedByCrew && (
+            <>
+              {' '}
+              <span
+                className="chip chip--neutral chip--small"
+                title="Raised by the crew member from the Attest app (MOB-10)"
+              >
+                from the app
+              </span>
+            </>
+          )}
         </>
       ),
     },
@@ -259,6 +275,7 @@ export function Register(): React.ReactNode {
                   { header: 'Approval to', value: (row) => row.approvalTo },
                   { header: 'Raised', value: (row) => row.raisedDate },
                   { header: 'Late acknowledged', value: (row) => row.lateSubmissionAcknowledged },
+                  { header: 'Raised from the app', value: (row) => row.raisedByCrew },
                 ],
               }}
             />

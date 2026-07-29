@@ -5,11 +5,14 @@
 **Status:** the client half is built, tested and running on a simulator. Every item below is the
 server half of a screen that already exists.
 
-**Four of the seven operations have landed** (28 July 2026): `requirement.progress`,
-`requirement.help`, `register.exemption_request` and `attestation.sign_off` are implemented, tested
-and verified against the live backend. §1, §5 and §6 record what they do; the remaining three —
-both course operations and `team.nudge` — are still rejected, still per operation, and still blocked
-on a decision rather than on work.
+**All seven operations have landed** (29 July 2026). The last three — `course.seat_request`,
+`course.waitlist` and `team.nudge` — went in with the decisions they were waiting on: a
+CREWCOMP-owned course catalogue behind a `CourseCatalogue` port, a seat request modelled as a
+*statement* rather than a booking, and `vessel_master` reused as the supervisory role with a watch
+derived from co-assignment. Nothing on this queue is rejected any more.
+
+What is still outstanding is **§4** (extraction fields on a submission, waiting on §14.5's provider
+choice), **§2's credits**, and the two items in §9 that are not the backend's at all.
 
 ---
 
@@ -21,13 +24,16 @@ screens needed rather a lot, and none of it exists.
 
 Rather than stub the screens or invent the data, the client was built to **degrade honestly**:
 
-* A course list with no course catalogue says it has no dates and offers the one action that does
-  exist — asking the office.
+* ~~A course list with no course catalogue says it has no dates and offers the one action that
+  does exist — asking the office.~~ **Landed.** The empty state survives and now means something
+  narrower and more useful: every date the catalogue holds either finishes too late or runs while
+  this person is at sea.
 * A parse result with no LLM provider opens at its third confidence level with empty fields, which
   is exactly LLM-2's launch posture and was one of the three cases the screen was designed for.
 * Home draws no credit tiles rather than inventing "14 months, never sailed short".
-* A supervisor with no team endpoint is told the app does not yet send them their watch — *not*
-  shown an empty list, which they would read as "everyone is fine".
+* ~~A supervisor with no team endpoint is told the app does not yet send them their watch — *not*
+  shown an empty list, which they would read as "everyone is fine".~~ **Landed.** The distinction
+  survives as two different empty states: "No swing under way" and "Nobody else on CC24".
 
 And the seven new write paths are **already queued and already posted**. The device raises them
 through the existing §7.6 outbox, and `SyncService` rejects the unimplemented ones with
@@ -35,11 +41,12 @@ through the existing §7.6 outbox, and `SyncService` rejects the unimplemented o
 sees `Couldn't send` with that string and a Retry. That is the intended state: nothing is silently
 dropped, evidence submissions and read-marks keep flowing, and the failure message names the work.
 
-It is also a state with a short half-life, and the first two are out of it. Whoever taps the button
-reads that string, and "Unsupported operation type 'requirement.progress'" is a developer's sentence
-on a crew member's phone.
+It was a state with a short half-life, and **nothing is in it any more**. Whoever taps a button
+reads that string, and "Unsupported operation type 'requirement.progress'" was a developer's
+sentence on a crew member's phone.
 
-So this document is the list of what has to become true for those messages to stop.
+What remains below is the list of screens still waiting on something, which is now §4 and the two
+non-backend items in §9.
 
 ---
 
@@ -57,11 +64,12 @@ member*, and the compliance answer stays the engine's (AUTH-1, §7.5).
 |---|---|---|
 | ~~`requirement.progress`~~ | `requirementId` | **Done** — see §1.1. |
 | ~~`requirement.help`~~ | `requirementId` | **Done** — see §1.1. |
-| `course.seat_request` | `requirementId`, `subjectRef` (course option id), `starts`, `finishes` | Register interest in a specific course date (see §3). |
-| `course.waitlist` | as above | Same, for a date with no seats. |
+| ~~`course.seat_request`~~ | `requirementId`, `subjectRef` (course option id) | **Done** — see §1.4. |
+| ~~`course.waitlist`~~ | as above | **Done** — see §1.4. |
 | `evidence.reading` | `submissionPublicId`, `requirementId`, `certificateNumber`, `issued`, `expires` | The fields as the crew member confirmed or corrected them, against a submission `evidence.submit` already registered. See §4. |
 | ~~`register.exemption_request`~~ | `requirementId`, `ccId`, `reason`, `note`, `attachedOpIds[]` | **Done** — see §5. |
 | ~~`attestation.sign_off`~~ | `assignmentId`, `declarations[]` | **Done** — see §6. |
+| ~~`team.nudge`~~ | `targetSam` (and `note`) | **Done** — see §7. |
 
 Every one is a business mutation and therefore audited with the authenticated actor (AUTH-3). The
 actor is a human — none of these is AI-proposed.
@@ -174,6 +182,35 @@ Still outstanding for these two:
   surfacing; this document previously said "surfaces on ADM-7 / the person page as *in progress*",
   and the person page is still the right second home for it.
 
+### 1.4 MOB-8's two — `course.seat_request` and `course.waitlist` — **done**
+
+Implemented 29 July 2026, and again with **no client change**: the payload the app was already
+sending (`requirementId` plus `subjectRef`) is the payload the server grew a reader for.
+
+**They are statements, not bookings**, and that was the decision they were waiting on. A crew member
+cannot commit a training budget or bind a provider, so asking for a seat is an *ask* — it lands in
+ADM-11 beside the other two, generic over kinds, with no second screen. Nothing holds a seat:
+`course_option.seats` is what the provider last said, nothing decrements it, and a request that
+promised a place would be this system asserting a reservation with a third party it has no contract
+with.
+
+Two things follow, and both are visible:
+
+* **They are separate kinds, not one with a flag.** Booking a seat and chasing a waitlist are
+  different jobs for the office, and ADM-11 says which it is before a coordinator opens anything.
+* **They earn no silence until the office answers.** `course_booked` suppresses the crew expiry
+  warning on the crew member's own word, because whether they have booked a course is a fact only
+  they know. A seat *request* suppresses nothing until a coordinator actions it: nothing is booked,
+  the certificate is still lapsing, and stopping the reminders on an unanswered ask would quietly
+  drop someone. The rule is `CrewStatementKind.suppression` — `NEVER` / `ON_WORD` / `ON_ACTION` —
+  stated once rather than left as an `if` in the scan's query.
+
+The statement stores both `subject_ref` (the catalogue key) and `subject_label` (**the server's**
+rendering of the date, in the display format). The label is denormalised for the same reason the
+attestation's signature line is composed server-side: a coordinator opening the request in three
+weeks needs to know which course was meant even after the option has been withdrawn, and what
+appears in the office's record should not be composed on the phone of the person asking.
+
 ---
 
 ## 2. Fields the sync payload should carry (§10.3)
@@ -226,21 +263,50 @@ cells ("6 requirements · 5 held, 1 renewing").
 
 ---
 
-## 3. A course catalogue — MOB-8
+## 3. A course catalogue — MOB-8 — **done**
 
-The screen lists **only dates that resolve the requirement before it lapses** — never a generic
-catalogue. The filtering is the server's; the client renders what it is given, in order.
+Implemented 29 July 2026. `course_option` (V10), a `CourseCatalogue` port with a database-backed
+adapter, `CourseOffers` for the filtering and `CourseOfferService` to gather what it needs.
 
-Per option: `id`, `starts`, `finishes` (calendar dates), `provider`, `location`, `durationLabel`,
-`seats`, `note`, `recommended`, `waitlistOnly`.
+**The open question was where this sits in the domain, and the answer is "ours, behind a seam".** A
+course catalogue is still not in the §4 model and may one day be a provider feed. It is a table
+today for two reasons, neither permanent: no provider integration has been identified, and writing
+one against a hypothetical API is the same mistake as writing a cloud stack before ADR 0005. What
+*is* permanent is the boundary — everything above reads `CourseCatalogue`, so a feed replaces one
+class. That boundary was worth getting right first because the interesting half of MOB-8 is ours
+whoever supplies the dates: an option is only worth showing if it beats the crew member's expiry and
+does not fall inside a swing they are aboard for, and both facts come from our roster.
 
-`note` is the sentence under the date — "Clear of your leave · 11 days before expiry" — and it is
-where the two facts that make an option choosable live: whether it collides with the person's leave
-and how much margin it leaves. Both need the person's roster, so both are the server's to compute.
+**Two exclusions, and the difference between them is the model.** At sea is *impossible*, so an
+option overlapping an assignment is dropped — offering it is offering a mistake. On leave is merely
+*unwelcome*, so it is kept and labelled: whether a course is worth a few days off is the crew
+member's call, and silently hiding the only date that beats an expiry would be a compliance system
+making a personal decision on somebody's behalf.
 
-Where this sits in the domain is an open question worth answering before building it: a course
-catalogue is not in the §4 model, and it may be a third-party provider feed rather than a CREWCOMP
-table.
+`note` is composed server-side — "Clear of your leave · 11 days before expiry" — and `recommended`
+marks at most one option, the soonest with a seat that is clear of leave. Nothing is recommended
+when every date is full or on leave: promoting the least-bad option would say the system had found
+something when it had not.
+
+**The offers ride in the sync payload, recomputed on every snapshot and delta like `standing`.** An
+offer is a derived answer rather than a row — it changes when the catalogue changes, when the roster
+changes, when a certificate is renewed and when a day passes, none of which move a cursor — so
+there is deliberately no cursor and no tombstone for one, and the whole set is replaced each time.
+Which requirements get offers is driven off the standing evaluation's attention cells, the same
+`needsAttention` grouping the app uses, so there can be no row with a "Book a course" button and no
+dates behind it.
+
+Two things worth knowing about what this cannot do:
+
+* **An empty list is a real and common answer.** For anybody rostered across a whole swing, an
+  `expiring` cell can never have an attendable date: a course finishing before the expiry finishes
+  before the swing ends, and they are at sea for all of it. That is not a gap in the feature — it is
+  precisely the squeeze MOB-10's exemption request exists for, and the empty state now says so.
+* **Maintenance is MCP-only, deliberately.** `CourseCatalogueService` is the validated, audited,
+  role-checked write path and `OperationsTools` exposes it (MCP-2). There is no ADM screen, because
+  a console screen is the most expensive thing to build against an answer that may still move. If
+  the catalogue settles as ours, that service is what a screen would call; if it becomes a feed, it
+  is what the importer calls.
 
 ---
 
@@ -366,26 +432,53 @@ The declaration set itself is §2.5.
 
 ---
 
-## 7. A team endpoint — MOB-11
+## 7. A team endpoint — MOB-11 — **done**
 
-`GET /api/v1/me/team`, returning per member: `sam`, `name`, `worstState` (a §5.1 cell state),
-`reason` (one line), `inHand` (something is already moving), `nudgedAt`.
+Implemented 29 July 2026. `GET /api/v1/me/team`, `TeamService`, and `team.nudge` on the sync queue.
 
-**The privacy rule is the shape of the payload, not the discretion of the screen.** A supervisor
-sees requirement status and one line of reason — never a document, never medical detail, never why
-a certificate lapsed. A device that received the detail and chose not to draw it would leak it to
-anyone who read the local database, which is precisely what SEC-12 encrypts against. The client's
-`TeamMember` has nowhere to put a document for exactly this reason; please keep the DTO the same
-shape.
+**Who supervises whom was the decision, and the answer needed no new structure.** A supervisor's
+team is *the people rostered onto a swing they are also rostered onto*, derived from assignments
+that already exist. Change the roster and the watch changes with it, which is the correct behaviour
+on a vessel where the team is the swing — and there is no org chart to drift out of step with it.
 
-Also needed: **who supervises whom**. Nothing in the payload says a person has a supervisory role.
-The tab is currently switched on by a `kDebugMode`-gated `--dart-define`
-(`CREWCOMP_DEV_SUPERVISOR`), which a release build cannot reach. This is the identity spike's to
-resolve properly, but the team scoping is the backend's either way — a supervisor's watch is a
-row-scoping question (AUTH-2) and must be enforced centrally, not by the endpoint.
+The role is `vessel_master`, which §3 already defines as restricted and read-only. It did not need
+inventing; what it needed was a **narrower scope than the one it has**. A Vessel Master reads their
+whole partnership, and a partnership is far more people than the crew on their deck — so the watch
+uses co-assignment instead, and `TeamService.supervisedCrew` is the single definition both the list
+and the nudge go through. That matters: a supervisor who could nudge anyone in their partnership
+would have a wider write than read, which is backwards.
 
-`team.nudge` sends a push and is logged. The person nudged should be able to see that they were and
-by whom; a nudge nobody can trace is a way to harass someone quietly.
+**The endpoint answers 403 for anybody who does not hold the role, and that 403 is the feature.**
+The app asks on every sync and stores which answer it got, which is what replaced the
+`kDebugMode`-gated `CREWCOMP_DEV_SUPERVISOR` flag — a compile-time guess a release build could
+never reach, about a fact that belongs to §3's role model. The Team tab now appears because the
+server said so.
+
+The privacy rule held: `TeamMemberDto` is `sam`, `name`, `worstState`, `reason`, `inHand`,
+`nudgedAt` and nothing else, and an IT asserts that field set exactly. `reason` names a requirement
+code and a state — "PS-04 not confirmed", "MS-02 expires 16 Aug 2026" — never a document, never a
+medical detail, never why something lapsed.
+
+Three smaller things, each of which cost a decision:
+
+* **A missing swing and an empty watch are different answers.** `ccId` null means the supervisor is
+  rostered nowhere; an empty `members` with a swing means they are alone on it. The app renders them
+  as two different empty states, because an empty list a supervisor reads as *everyone is fine* is
+  the worst thing this tab could do.
+* **`inHand` is wider than the expiry suppression.** Asking for help is not a reason to stop the
+  expiry reminders, but it is very much a reason not to nudge someone again.
+* **A nudge is traceable and there is no setting that changes that.** The person nudged gets a
+  §9 notification naming who sent it and carrying their note, keyed per sender, swing and day so a
+  stuck finger — or a replayed outbox entry — is still one nudge. It is audited whether or not there
+  was an account to deliver to, with `delivered` recording which: that a supervisor chased a named
+  crew member is the traceability, and it must not wait on the identity spike. Push (MOB-3) would be
+  a second channel for the same record, not a prerequisite.
+
+**One thing this fixed on the way past.** `AccessPolicy` gave a Vessel Master `DataScope.Partnerships`
+with no room for their own person, so a crew member who was promoted would have found their own app
+quietly stopping — every person-scoped read the crew app makes passes a person id and no
+partnership, which that scope denies. `Partnerships` now carries `ownPersonId`, and an IT pins that a
+supervising crew member can still sync.
 
 ---
 
@@ -405,6 +498,11 @@ is right today. That function is a date-format substitution and cannot alter any
 shaped like a calendar date, but it is still a client rewriting server prose. Compose in the
 display format at the source and it becomes a no-op that can be deleted.
 
+**Every string added since follows the rule at the source**: MOB-11's `reason` ("MS-02 expires
+16 Aug 2026"), the crew statement's `subject_label` ("20–21 Aug 2026 · …") and MOB-9's
+`signedAtDisplay`. The three of them are also the reason this is worth finishing rather than living
+with — two conventions in one notification list is worse than either.
+
 The same applies to the admin console's notification centre, which shows the same strings.
 
 ---
@@ -420,22 +518,27 @@ Listed here so the whole picture is in one place.
   the operating system's sheet; the client draws the in-app half of it (Files / Photos / Camera at
   the same geometry) rather than a picture of the OS's.
 * **Push delivery (MOB-3).** Still no APNs/FCM sender. The in-app list remains the source of truth
-  and `notification_delivery` is ready for per-channel records. `team.nudge` needs this to be worth
-  anything.
+  and `notification_delivery` is ready for per-channel records. `team.nudge` shipped without it
+  deliberately — a nudge that appears in the crew member's notification list is a real nudge, and
+  waiting for a delivery channel to build the record would have been the wrong way round.
 * **The camera.** MOB-4's capture branch has never run — a simulator has no camera.
-* **`admin-web`:** a crew-raised exemption and an attestation both want somewhere to land in the
-  console. The register (ADM-4) probably absorbs the first; the second may want a column on the
-  planner rather than a screen of its own. Everything else crew-originated now has ADM-11 (§1.2).
+* **`admin-web`:** ~~a crew-raised exemption~~ now badges *from the app* on ADM-4's list and CSV,
+  from `register_record.crew_op_id`. It enters the **same** §6.4 workflow with the same statuses and
+  deliberately has no triage state in front of it — a second definition of "open" would be a second
+  queue to forget, and the Compliance Lead already has the reason, the crew member's own words and
+  a resolved list of what they had already tried. An attestation still has nowhere to land; it may
+  want a column on the planner rather than a screen of its own.
 
 ---
 
 ## What the client will need to change when this lands
 
-Small, and deliberately concentrated:
+Two stubs left, down from four:
 
-* `mobile/lib/src/ui/app_state.dart` — `credits`, `courseOptionsFor`, `readingFor` and `team` are
-  four stubs returning nothing. They are methods on `AppState` rather than constants inside the
-  screens precisely so that landing the backend work is a change in one file.
+* `mobile/lib/src/ui/app_state.dart` — `credits` and `readingFor` still return nothing.
+  `courseOptionsFor` and `team` now read replicas the sync fills. They are methods on `AppState`
+  rather than constants inside the screens precisely so that landing the backend work is a change
+  in one file, which is what the last two turned out to be.
 * `mobile/lib/src/domain/urgency.dart` — `expiryLeadDaysDefault` becomes a payload field.
 * `mobile/lib/src/ui/screens.dart` — `HomeView._headline` and `readinessFrom` are deleted in favour
   of the payload's own.
@@ -444,6 +547,8 @@ Small, and deliberately concentrated:
 * `mobile/lib/src/api/schema.g.dart` regenerates from the OpenAPI schema (DEV-2); nothing is
   hand-written.
 
-The seven operations need no client change at all. They are already being sent — which the two that
-landed demonstrated: `requirement.progress` and `requirement.help` went from rejected to applied
-with nothing touched in `mobile/lib` but the generated schema file.
+**None of the seven operations needed a client change**, which is the thing worth remembering from
+this handoff. All seven went from rejected to applied with nothing touched in `mobile/lib` but the
+generated schema file and, for `team.nudge`, one field name on a payload the screen was already
+building. Writing the client against the contract it wanted rather than the one that existed is what
+made that true.

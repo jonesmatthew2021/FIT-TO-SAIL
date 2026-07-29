@@ -67,7 +67,7 @@ and adding one is a decision to revisit with a reason, not a default.
 npm install
 npm run dev          # Vite on :5173, proxying /api to :8080
 npm run build        # tsc --noEmit && vite build
-npm test             # vitest
+npm test             # vitest — 69 tests
 npm run generate:api # regenerate src/api/schema.d.ts from the backend's OpenAPI schema
 npm run verify:api   # fail if the committed types are stale — this is the CI check
 ```
@@ -277,12 +277,32 @@ it, because working these modules is working a queue — read one, act on it, mo
 the selection in the URL is what lets a §9 notification point at the document it is about; ADM-9's
 route existed and did nothing until this pass.
 
+**ADM-11 is generic over kinds, and that is why MOB-8 needed no screen.** Four now land in it —
+`course_booked`, `help_requested`, `seat_requested`, `waitlisted` — and a seat request arrived with
+nothing to build but two labels and a second line under one cell. A kind this build has never heard
+of renders as its wire value rather than as something reassuring, because both revisions are live
+during an expand/contract deploy. Seat and waitlist are kept apart deliberately: booking a seat and
+chasing a waitlist are different jobs, and a coordinator triaging their morning should be able to
+tell them apart before opening anything.
+
+**A course request shows the date, in the server's words.** `subjectLabel` is rendered server-side
+when the request is made and stored beside the catalogue key, so it still reads correctly after the
+option has been withdrawn — and it is not the device's summary text, for the same reason MOB-9's
+signature line is composed server-side.
+
+**ADM-4 badges a crew-raised record, and gives it no triage state.** `raisedByCrew` (from
+`register_record.crew_op_id`) shows as *from the app* beside the `late` chip. It is provenance, not
+a state: the record enters the same §6.4 workflow with the same statuses, because a triage step
+would be a second definition of "open" and a second queue to forget. What it changes is how the row
+reads — "the crew member noticed this" and "a coordinator raised it on their behalf" are different
+facts, and only one means somebody in the office has already looked.
+
 **ADM-11 carries no compliance state, and that is the whole design.** A crew statement is not a
 compliance answer (AUTH-1): saying a course is booked does not close a gap, and a cell-state column
 on this queue would read as though it had. The person's actual standing is one click away on their
 page. Two smaller rules follow the same line — every label is **reported speech** ("Says a course is
 booked", never "Course booked"), and the positive action is `Confirm` / `Arranged` rather than
-`Resolve`, because nothing here resolves anything the engine evaluates.
+`Resolve` (and `Booked` for the two course kinds), because nothing here resolves anything the engine evaluates.
 
 **ADM-11's Dismiss states its consequence before the click, not after.** Dismissing a `course_booked`
 request resumes the expiry reminders that statement had switched off on the crew member's phone —

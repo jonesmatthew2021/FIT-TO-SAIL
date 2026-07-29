@@ -21,7 +21,6 @@ class AppState extends ChangeNotifier {
     required this.store,
     required this.engine,
     EvidenceCapture? capture,
-    this.supervisor = false,
   }) : capture = capture ?? PlatformEvidenceCapture();
 
   final LocalStore store;
@@ -30,11 +29,15 @@ class AppState extends ChangeNotifier {
   /// Whether this person supervises a watch, which swaps MOB-11 Team into the tab bar in place
   /// of Certifications.
   ///
-  /// A role, and roles are the identity spike's. Nothing in the sync payload says who supervises
-  /// whom, so today this is set only from a debug-mode `--dart-define` and is `false` in any
-  /// release build — the same compile-time pattern as the development sign-in shim. When ADR
-  /// 0003 lands it comes from the session, and when the team endpoint lands it comes with data.
-  final bool supervisor;
+  /// **The server's answer, not a build flag.** `GET /api/v1/me/team` returns 403 to anyone who
+  /// does not hold the supervisory role, and the sync stores which it got. That replaces the
+  /// `kDebugMode` `--dart-define` this used to be — a compile-time guess a release build could
+  /// never reach and no deployment could ever change, where the fact belongs to §3's role model.
+  ///
+  /// Persisted, so a supervisor opening the app in a dead spot still has the tab. False before the
+  /// first sync, which is the right default: a tab that is missing appears, where one that is
+  /// wrongly present shows an empty watch that reads as *everyone is fine*.
+  bool get supervisor => _syncState?.supervisor ?? false;
 
   /// MOB-4's camera and file pickers, behind an interface so the widget tests never touch a
   /// platform channel.
@@ -44,6 +47,8 @@ class AppState extends ChangeNotifier {
   String? _lastError;
   LocalSyncState? _syncState;
   LocalPerson? _person;
+  List<LocalCourseOption> _courseOptions = const [];
+  List<TeamMember> _team = const [];
 
   bool get syncing => _syncing;
   String? get lastError => _lastError;
@@ -65,6 +70,23 @@ class AppState extends ChangeNotifier {
   Future<void> load() async {
     _syncState = await engine.currentState();
     _person = await store.select(store.people).getSingleOrNull();
+    _courseOptions = await (store.select(store.courseOptions)
+          ..orderBy([(t) => OrderingTerm(expression: t.starts)]))
+        .get();
+    _team = (await (store.select(store.teamMembers)
+              ..orderBy([(t) => OrderingTerm(expression: t.name)]))
+            .get())
+        .map(
+          (row) => TeamMember(
+            sam: row.sam,
+            name: row.name,
+            worstState: row.worstState,
+            reason: row.reason,
+            inHand: row.inHand,
+            nudgedAt: row.nudgedAt,
+          ),
+        )
+        .toList(growable: false);
     notifyListeners();
   }
 
@@ -137,16 +159,51 @@ class AppState extends ChangeNotifier {
   /// draws no tiles rather than drawing a number nobody computed.
   Credits? get credits => null;
 
-  /// MOB-8's course dates that beat an expiry. Empty until there is a course catalogue.
-  List<CourseOption> courseOptionsFor(int requirementId) => const [];
+  /// MOB-8's course dates that beat an expiry.
+  ///
+  /// Read from the replica the sync payload fills, and **already filtered** — the server dropped
+  /// the dates that finish too late or fall inside a swing this person is rostered onto, and wrote
+  /// the line under each one. Nothing here re-judges any of that: the same habit as a cell state
+  /// (AUTH-1), for the same reason, since both need a roster the device does not hold.
+  ///
+  /// Synchronous because [_courseOptions] is refreshed on every sync and held in memory. An empty
+  /// list is a real answer and the screen already renders it: no dates that would work is very
+  /// often the truth, and it is exactly the case MOB-10's exemption request exists for.
+  List<CourseOption> courseOptionsFor(int requirementId) => _courseOptions
+      .where((option) => option.requirementId == requirementId)
+      .map(
+        (option) => CourseOption(
+          id: option.id,
+          starts: option.starts,
+          finishes: option.finishes,
+          provider: option.provider,
+          location: option.location,
+          durationLabel: option.durationLabel,
+          seats: option.seats,
+          note: option.note,
+          recommended: option.recommended,
+          waitlistOnly: option.waitlistOnly,
+        ),
+      )
+      .toList(growable: false);
 
   /// MOB-7's parse result. Null with no LLM provider configured (§14.5), which is exactly what
   /// the pipeline reports today: nothing extracted, and a human to type the fields (LLM-2).
   ExtractedReading? readingFor(String submissionPublicId) => null;
 
-  /// MOB-11's watch. Empty until there is a team endpoint — and it must stay a status-only
-  /// endpoint: no documents, no medical detail, no expiry reasons.
-  List<TeamMember> get team => const [];
+  /// MOB-11's watch — the crew on this supervisor's swing.
+  ///
+  /// Status only, and that is the endpoint's shape rather than this screen's restraint: there is
+  /// nowhere in [TeamMember] to put a document or a medical detail, so there is nothing for a
+  /// device to leak (SEC-12, AUTH-2).
+  ///
+  /// Empty means "everyone is fine"; [teamCcId] being null means "you are not on a swing". The
+  /// Team screen must draw those differently — an empty list a supervisor reads as *all clear*
+  /// when the truth is *not loaded* is the worst thing this tab could do.
+  List<TeamMember> get team => _team;
+
+  /// The swing the watch is over, or null when the supervisor is rostered nowhere.
+  String? get teamCcId => _syncState?.teamCcId;
 
   /// Evidence submission (the spec's MOB-4): capture a document and queue it for the §8 pipeline.
   ///

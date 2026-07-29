@@ -58,6 +58,28 @@ class CrewStatement : AuditedEntity() {
     var kindValue: String = CrewStatementKind.COURSE_BOOKED.wire
 
     /**
+     * MOB-8: the course option this is about, as the catalogue adapter names it.
+     *
+     * Opaque here, and deliberately so — it is a key into something that may not be a table in
+     * this database for long (see `CourseCatalogue`). Null for the two kinds that name nothing
+     * beyond the requirement.
+     */
+    @Column(name = "subject_ref")
+    var subjectRef: String? = null
+
+    /**
+     * The same option as a sentence, rendered by the **server** when the statement was recorded.
+     *
+     * Denormalised on purpose. A coordinator working this queue in three weeks needs to know which
+     * course was asked for even if the option has since been withdrawn, and a dangling
+     * [subjectRef] tells them nothing. It is the server's rendering rather than the device's
+     * summary for the same reason the attestation's signature line is: the office's record of what
+     * a crew member asked for should not be composed on the crew member's phone.
+     */
+    @Column(name = "subject_label")
+    var subjectLabel: String? = null
+
+    /**
      * The expiry this statement was about, as the holding stood when it was made. Null when there
      * was no expiring holding — a statement about a gap suppresses nothing, because a gap raises
      * no expiry warning to suppress.
@@ -133,7 +155,26 @@ enum class CrewStatementStatus(val wire: String) {
 }
 
 /**
- * The two answers the crew app can post today.
+ * When a statement stops the expiry scan chasing the crew member about the expiry it names.
+ *
+ * Suppression is the only consequence a client-originated statement is trusted enough to cause, so
+ * what earns it is worth stating rather than leaving as an `if` in a query. Three answers, and the
+ * middle one is the whole design:
+ *
+ *  * [NEVER] — the statement is a message, and a message changes nothing. Asking for help is not
+ *    having the certificate.
+ *  * [ON_WORD] — the crew member's own assertion is enough, **until the office contradicts it**.
+ *    "I have booked the course" is a fact only they know, so the system believes them; dismissing
+ *    the request in ADM-11 puts the chasing back. That safety valve is why a dismissal exists.
+ *  * [ON_ACTION] — only the office's answer counts. A seat *request* is not a seat: nothing is
+ *    booked, and a crew member who asked and was never answered should still be chased, because
+ *    their certificate is still lapsing. When a coordinator actions it they have booked the seat,
+ *    and at that point it is as good as [ON_WORD]'s claim and better evidenced.
+ */
+enum class Suppression { NEVER, ON_WORD, ON_ACTION }
+
+/**
+ * The four answers the crew app can post today.
  *
  * **Two names each, and they are not interchangeable.** [wire] is the domain's word, and it is what
  * the console and the database store. [operation] is the sync-queue operation the device posted to
@@ -149,9 +190,13 @@ enum class CrewStatementStatus(val wire: String) {
  * Both are a compatibility surface. Renaming either changes what a device that has been offline for
  * a fortnight can say, or what it can understand when it is told.
  */
-enum class CrewStatementKind(val wire: String, val operation: String) {
+enum class CrewStatementKind(
+    val wire: String,
+    val operation: String,
+    val suppression: Suppression,
+) {
     /** MOB-5: the crew member has a course booked. Suppresses expiry chasing for that expiry. */
-    COURSE_BOOKED("course_booked", "requirement.progress"),
+    COURSE_BOOKED("course_booked", "requirement.progress", Suppression.ON_WORD),
 
     /**
      * MOB-5 / MOB-0: the crew member wants help arranging it.
@@ -162,12 +207,42 @@ enum class CrewStatementKind(val wire: String, val operation: String) {
      * evaporates: a request nobody can find is a request nobody can act on, which would make the
      * button a placebo.
      */
-    HELP_REQUESTED("help_requested", "requirement.help");
+    HELP_REQUESTED("help_requested", "requirement.help", Suppression.NEVER),
+
+    /**
+     * MOB-8: a seat on one specific course date, named by [CrewStatement.subjectRef].
+     *
+     * An *ask*, and the office's answer is what makes it real. Nothing here holds the seat: this
+     * system has no contract with the provider and must not behave as though it did, so the
+     * catalogue's seat count is what the provider last said and this row is what the crew member
+     * would like. A coordinator books it and actions the request.
+     */
+    SEAT_REQUESTED("seat_requested", "course.seat_request", Suppression.ON_ACTION),
+
+    /**
+     * MOB-8: the same ask against a date with no seats left.
+     *
+     * A separate kind rather than a flag, because the office's job is different — a waitlist has to
+     * be *chased* with the provider, where a seat request is booked once. The queue says which one
+     * it is, so a coordinator can tell a "no" that is final from one that may still turn.
+     */
+    WAITLISTED("waitlisted", "course.waitlist", Suppression.ON_ACTION);
 
     companion object {
         fun fromWire(wire: String): CrewStatementKind =
             entries.firstOrNull { it.wire == wire }
                 ?: throw IllegalArgumentException("Unknown crew statement kind: $wire")
+
+        /** Kinds whose suppression the crew member's word alone earns. */
+        val SUPPRESS_ON_WORD: List<String> =
+            entries.filter { it.suppression == Suppression.ON_WORD }.map { it.wire }
+
+        /** Kinds that suppress only once the office has actioned them. */
+        val SUPPRESS_ON_ACTION: List<String> =
+            entries.filter { it.suppression == Suppression.ON_ACTION }.map { it.wire }
+
+        /** The kinds MOB-8 raises — the ones that carry a course option. */
+        val COURSE_KINDS: Set<CrewStatementKind> = setOf(SEAT_REQUESTED, WAITLISTED)
     }
 }
 
@@ -186,35 +261,65 @@ class CrewStatementRepository(
     fun byOpId(opId: String): CrewStatement? = find("opId", opId).firstResult()
 
     /**
-     * Every **standing** `course_booked` statement, as `person → requirement → the expiry it was
-     * about`. The expiry scan skips a crew warning for anything in this set.
+     * Every **standing** statement that has earned its silence, as `person → requirement → the
+     * expiry it was about`. The expiry scan skips a crew warning for anything in this set.
      *
-     * Two filters, and both are the point:
+     * Three filters, and each is the point:
      *
      *  * `about_expiry is not null` — the expiry is part of the question rather than a detail of the
      *    answer. A statement silences the warning about *that* date; renew the certificate and the
      *    date moves, nothing matches, and the chasing resumes on its own (§9's "the key includes the
      *    value, not just the subject").
-     *  * **`dismissed` is excluded.** A coordinator who answers "we have no record of that booking"
-     *    puts the warning back. Without this the queue could only ever agree with the crew member,
-     *    and a mis-tap would go unchased until the certificate lapsed.
+     *  * **[Suppression.ON_WORD] excludes `dismissed`.** A coordinator who answers "we have no
+     *    record of that booking" puts the warning back. Without this the queue could only ever
+     *    agree with the crew member, and a mis-tap would go unchased until the certificate lapsed.
+     *  * **[Suppression.ON_ACTION] requires `actioned`.** A seat *request* is not a seat. Someone
+     *    who asked and was never answered is still lapsing and should still be chased; once a
+     *    coordinator has booked it and said so, they should not be.
      *
      * One query for the whole scan. The per-row alternative is a query per alert, on a job that
      * already walks every expiring holding in the fleet.
      */
-    fun courseBookedIndexUnscoped(): Set<Triple<Long, Long, LocalDate>> =
+    fun suppressedExpiriesUnscoped(): Set<Triple<Long, Long, LocalDate>> =
         getEntityManager()
             .createQuery(
                 "select s.person.id, s.requirement.id, s.aboutExpiry from CrewStatement s " +
-                    "where s.kindValue = :kind and s.aboutExpiry is not null " +
-                    "and s.statusValue <> :dismissed",
+                    "where s.aboutExpiry is not null and (" +
+                    "  (s.kindValue in :onWord and s.statusValue <> :dismissed)" +
+                    "  or (s.kindValue in :onAction and s.statusValue = :actioned)" +
+                    ")",
                 Array<Any>::class.java,
             )
-            .setParameter("kind", CrewStatementKind.COURSE_BOOKED.wire)
+            .setParameter("onWord", CrewStatementKind.SUPPRESS_ON_WORD)
+            .setParameter("onAction", CrewStatementKind.SUPPRESS_ON_ACTION)
             .setParameter("dismissed", CrewStatementStatus.DISMISSED.wire)
+            .setParameter("actioned", CrewStatementStatus.ACTIONED.wire)
             .resultList
             .map { Triple((it[0] as Number).toLong(), (it[1] as Number).toLong(), it[2] as LocalDate) }
             .toSet()
+
+    /**
+     * Whether anything the crew member said about this requirement is still standing — MOB-11's
+     * `inHand`, and the reason a supervisor's watch does not chase somebody who has already acted.
+     *
+     * Deliberately wider than [suppressedExpiriesUnscoped]: *asking for help* is not a reason to
+     * stop the expiry reminders, but it is very much a reason not to nudge the person again.
+     * Unscoped and taking a set of people, because the caller has already established which crew
+     * it may see and one query beats one per member.
+     */
+    fun openOrActionedByPersonUnscoped(personIds: Collection<Long>): Set<Long> {
+        if (personIds.isEmpty()) return emptySet()
+        return getEntityManager()
+            .createQuery(
+                "select distinct s.person.id from CrewStatement s " +
+                    "where s.person.id in :personIds and s.statusValue <> :dismissed",
+                Long::class.javaObjectType,
+            )
+            .setParameter("personIds", personIds)
+            .setParameter("dismissed", CrewStatementStatus.DISMISSED.wire)
+            .resultList
+            .toSet()
+    }
 
     /**
      * One crew member's own statements, for their §10.3 snapshot.

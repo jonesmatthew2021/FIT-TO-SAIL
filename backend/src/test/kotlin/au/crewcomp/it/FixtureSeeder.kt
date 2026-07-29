@@ -1,5 +1,6 @@
 package au.crewcomp.it
 
+import au.crewcomp.courses.CourseOptionEntity
 import au.crewcomp.engine.HoldingStatus
 import au.crewcomp.engine.PersonStatus
 import au.crewcomp.engine.QuotaScope
@@ -93,6 +94,8 @@ class FixtureSeeder(private val em: EntityManager) {
             "delete from ConditionalRuleMember",
             "delete from ConditionalRule",
             "delete from MatrixTierPolicy",
+            // Before Requirement, which it references. MOB-8's catalogue.
+            "delete from CourseOptionEntity",
             "delete from Person",
             "delete from CrewChange",
             "delete from MatrixVersion",
@@ -118,6 +121,72 @@ class FixtureSeeder(private val em: EntityManager) {
         em.createQuery(
             "delete from QualificationHolding h where h.person.id = :p and h.requirement.id = :r",
         ).setParameter("p", personId).setParameter("r", requirementId).executeUpdate()
+
+    /**
+     * Gives a seeded person a crew account, for the tests that need a notification to have
+     * somewhere to land.
+     *
+     * Not folded into [seed] on purpose. §9's fan-out counts accounts, so an extra one changes
+     * what several unrelated tests observe — a fixture that quietly grew a recipient would make
+     * those tests wrong in a way that reads as a scan bug.
+     */
+    @Transactional
+    fun giveAccount(personId: Long, vararg roles: Role): Long {
+        val person = em.find(Person::class.java, personId)
+        val now = Instant.now()
+        val account = UserAccount().apply {
+            this.person = person
+            kind = UserAccountKind.LOCAL_TEST
+            displayName = person.name
+            (roles.toList().ifEmpty { listOf(Role.CREW_MEMBER) }).forEach {
+                grantRole(it, "test-seeder", now)
+            }
+            stampCreated("test-seeder", now)
+        }
+        em.persist(account)
+        em.flush()
+        return account.requiredId
+    }
+
+    /** Moves a holding's expiry, for the tests that need a cell to read `expiring`. */
+    @Transactional
+    fun setHoldingExpiry(personId: Long, requirementId: Long, expiry: String): Int =
+        em.createQuery(
+            "update QualificationHolding h set h.statusValue = 'held_expiry', " +
+                "h.expiryDate = :expiry where h.person.id = :p and h.requirement.id = :r",
+        )
+            .setParameter("expiry", LocalDate.parse(expiry))
+            .setParameter("p", personId)
+            .setParameter("r", requirementId)
+            .executeUpdate()
+
+    /** One MOB-8 course date. Returns its business ref, which is what a device sends back. */
+    @Transactional
+    fun seedCourseOption(
+        ref: String,
+        requirementId: Long,
+        starts: LocalDate,
+        finishes: LocalDate = starts.plusDays(1),
+        seats: Int = 5,
+        providerName: String = "Fremantle Marine Training",
+        where: String = "Fremantle",
+    ): String {
+        em.persist(
+            CourseOptionEntity().apply {
+                optionRef = ref
+                requirement = em.find(Requirement::class.java, requirementId)
+                this.starts = starts
+                this.finishes = finishes
+                provider = providerName
+                location = where
+                durationLabel = "2 days"
+                this.seats = seats
+                stampCreated("test-seeder", Instant.now())
+            },
+        )
+        em.flush()
+        return ref
+    }
 
     @Transactional
     fun seed(): Seed {

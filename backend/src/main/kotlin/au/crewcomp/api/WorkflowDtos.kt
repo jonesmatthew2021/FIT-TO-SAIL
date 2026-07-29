@@ -89,6 +89,23 @@ data class RegisterRecordDto(
     val approvalTo: LocalDate?,
     val raisedDate: LocalDate,
     val lateSubmissionAcknowledged: Boolean,
+    /**
+     * True when this record was raised from a crew member's phone (MOB-10) rather than by a
+     * coordinator.
+     *
+     * Provenance, not a state: it enters the **same** §6.4 workflow with the same statuses, and
+     * there is deliberately no triage step in front of it. A second definition of "open" would be a
+     * second queue to forget, and the Compliance Lead already has what they need — the reason, the
+     * crew member's own words, and a resolved list of what they had already tried, all on the note.
+     *
+     * What it changes is how the row *reads*. "Raised by Bruno Oyelaran from the app" and "raised
+     * by a coordinator on his behalf" are different facts about who noticed the problem, and only
+     * one of them means somebody in the office has already looked at it.
+     *
+     * Derived from `register_record.crew_op_id` rather than exposing the id, which is a device's
+     * queue-entry key and of no use to anybody reading the register.
+     */
+    val raisedByCrew: Boolean,
 )
 
 /** The detail view: the row plus the three things only it shows. */
@@ -173,6 +190,7 @@ fun RegisterRecord.toDto() = RegisterRecordDto(
     approvalTo = approvalTo,
     raisedDate = raisedDate,
     lateSubmissionAcknowledged = lateSubmissionAcknowledged,
+    raisedByCrew = crewOpId != null,
 )
 
 fun RegisterRecord.toDetailDto() = RegisterRecordDetailDto(

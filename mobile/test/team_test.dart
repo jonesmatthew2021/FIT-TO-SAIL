@@ -11,6 +11,7 @@ void main() {
     id: 0,
     cursor: 100,
     referenceCursor: 50,
+    supervisor: true,
     serverToday: '2026-07-26',
     lastSyncedAt: DateTime.now().toUtc(),
     standingCcId: 'CC24',
@@ -48,13 +49,21 @@ void main() {
     TeamMember(sam: 'SAM104', name: 'Chidi Alvarez', worstState: 'ok'),
   ];
 
-  testWidgets('says it has no watch rather than implying the watch is clear', (tester) async {
+  testWidgets('says there is no swing rather than implying the watch is clear', (tester) async {
     // The distinction matters more here than anywhere: an empty list a supervisor reads as
-    // "everyone is fine" is worse than no screen at all.
+    // "everyone is fine" is worse than no screen at all. No `ccId` means the server has no swing
+    // for them, which is a different silence from a swing they are alone on.
     await pump(tester, TeamView(members: const [], sync: syncState()));
 
-    expect(find.text('No watch to show'), findsOneWidget);
-    expect(find.textContaining('does not yet send a supervisor'), findsOneWidget);
+    expect(find.text('No swing under way'), findsOneWidget);
+    expect(find.textContaining('once you are rostered onto a swing'), findsOneWidget);
+  });
+
+  testWidgets('being alone on a swing is a different message from having no swing', (tester) async {
+    await pump(tester, TeamView(members: const [], ccId: 'CC24', sync: syncState()));
+
+    expect(find.text('Nobody else on CC24'), findsOneWidget);
+    expect(find.text('No swing under way'), findsNothing);
   });
 
   testWidgets('splits the watch into what needs something and what is clear', (tester) async {

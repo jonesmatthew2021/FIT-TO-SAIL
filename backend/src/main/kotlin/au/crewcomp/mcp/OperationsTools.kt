@@ -1,5 +1,6 @@
 package au.crewcomp.mcp
 
+import au.crewcomp.courses.CourseCatalogueService
 import au.crewcomp.evidence.EvidencePipeline
 import au.crewcomp.evidence.EvidenceReviewService
 import au.crewcomp.platform.config.ConfigKey
@@ -10,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.quarkiverse.mcp.server.Tool
 import io.quarkiverse.mcp.server.ToolArg
 import jakarta.enterprise.context.ApplicationScoped
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -30,6 +32,7 @@ class OperationsTools(
     private val config: ConfigService,
     private val jobHealth: JobHealth,
     private val matrix: MatrixService,
+    private val courses: CourseCatalogueService,
     private val pipeline: EvidencePipeline,
     private val evidenceReview: EvidenceReviewService,
     private val guard: McpGuard,
@@ -247,5 +250,77 @@ class OperationsTools(
                 "reviewReason" to document.reviewReason,
             ),
         )
+    }
+
+    // -----------------------------------------------------------------------
+    // Course catalogue (MOB-8)
+    // -----------------------------------------------------------------------
+    //
+    // The catalogue's only maintenance surface, and deliberately so: whether these dates are ours
+    // to hold at all is the open question `CourseCatalogue` keeps open, and a console screen is
+    // the most expensive thing to build against an answer that may move. An agent here calls the
+    // same validated, audited, role-checked service an ADM screen would (MCP-2).
+
+    @Tool(
+        description = "List every course date in the MOB-8 catalogue, including withdrawn ones. " +
+            "This is the maintenance view; what a crew member is offered is filtered against their " +
+            "own roster and expiry and travels in the sync payload.",
+    )
+    fun listCourseOptions(): String = guard.read {
+        json.writeValueAsString(
+            courses.list().map {
+                mapOf(
+                    "ref" to it.ref,
+                    "requirementId" to it.requirementId,
+                    "starts" to it.starts.toString(),
+                    "finishes" to it.finishes.toString(),
+                    "provider" to it.provider,
+                    "location" to it.location,
+                    "durationLabel" to it.durationLabel,
+                    "seats" to it.seats,
+                    "active" to it.active,
+                )
+            },
+        )
+    }
+
+    @Tool(
+        description = "Create or replace one course date, keyed on its ref. Upsert rather than " +
+            "create-then-edit because the realistic write is a re-import with a new seat count. " +
+            "Seats are what the provider last said — nothing here reserves a place.",
+    )
+    fun setCourseOption(
+        @ToolArg(description = "Business key for the option, e.g. SS-2026-01") ref: String,
+        @ToolArg(description = "Requirement code the course resolves, e.g. MS-02") requirementCode: String,
+        @ToolArg(description = "First day, YYYY-MM-DD") starts: String,
+        @ToolArg(description = "Last day, YYYY-MM-DD") finishes: String,
+        @ToolArg(description = "Training provider") provider: String,
+        @ToolArg(description = "Where it runs") location: String,
+        @ToolArg(description = "The provider's own phrasing, e.g. '2 days'") durationLabel: String?,
+        @ToolArg(description = "Seats left; 0 means waitlist-only") seats: Int,
+    ): String = guard.write {
+        val option = courses.upsert(
+            optionRef = ref,
+            requirementCode = requirementCode,
+            starts = LocalDate.parse(starts),
+            finishes = LocalDate.parse(finishes),
+            provider = provider,
+            location = location,
+            durationLabel = durationLabel,
+            seats = seats,
+        )
+        json.writeValueAsString(mapOf("ref" to option.ref, "label" to option.label, "seats" to option.seats))
+    }
+
+    @Tool(
+        description = "Take a course date off the offer list. Deactivates rather than deletes: a " +
+            "crew member's seat request points at it, and a coordinator reading that request needs " +
+            "the row to still resolve.",
+    )
+    fun withdrawCourseOption(
+        @ToolArg(description = "The option's ref") ref: String,
+    ): String = guard.write {
+        val option = courses.withdraw(ref)
+        json.writeValueAsString(mapOf("ref" to option.ref, "active" to option.active))
     }
 }

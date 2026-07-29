@@ -31,7 +31,10 @@ class AccessPolicy(private val actorContext: ActorContext) {
         if (actor.roles.any { it in Role.UNRESTRICTED_READERS }) return DataScope.All
 
         if (actor.hasRole(Role.VESSEL_MASTER) && actor.partnershipIds.isNotEmpty()) {
-            return DataScope.Partnerships(actor.partnershipIds)
+            // Their own person record travels with the scope — see [DataScope.Partnerships].
+            // A Vessel Master is a crew member who supervises, so the same account holds both
+            // roles and both readings have to be true at once.
+            return DataScope.Partnerships(actor.partnershipIds, actor.personId)
         }
         if (actor.hasRole(Role.CREW_MEMBER) && actor.personId != null) {
             return DataScope.OwnPersonOnly(actor.personId)
@@ -57,8 +60,8 @@ class AccessPolicy(private val actorContext: ActorContext) {
         when (val scope = scope()) {
             is DataScope.All -> true
             is DataScope.OwnPersonOnly -> scope.personId == personId
-            is DataScope.Partnerships -> personPartnershipId != null &&
-                personPartnershipId in scope.partnershipIds
+            is DataScope.Partnerships -> personId == scope.ownPersonId ||
+                (personPartnershipId != null && personPartnershipId in scope.partnershipIds)
             is DataScope.None -> false
         }
 

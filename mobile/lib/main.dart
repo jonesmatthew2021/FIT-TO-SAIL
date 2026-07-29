@@ -48,17 +48,20 @@ Future<void> main() async {
         ? const DevIdentity(
             personId: int.fromEnvironment('CREWCOMP_DEV_PERSON', defaultValue: 2),
             label: 'Dev Crew',
+            // MOB-11 locally: claim the supervisory role and a partnership scope, then let the
+            // server decide whether there is a watch. The tab is not switched on here.
+            supervisor: bool.fromEnvironment('CREWCOMP_DEV_SUPERVISOR'),
+            partnershipIds: [int.fromEnvironment('CREWCOMP_DEV_PARTNERSHIP', defaultValue: 1)],
           )
         : null,
   );
 
+  // MOB-11's tab is no longer a build flag: `GET /api/v1/me/team` answers 403 for anybody who
+  // does not hold the supervisory role, and the sync records which answer it got. A role belongs
+  // to §3's model rather than to a `--dart-define` a release build could never reach.
   final state = AppState(
     store: store,
     engine: SyncEngine(api: api, store: store),
-    // MOB-11's tab. A supervisory role is the identity spike's to establish and nothing in the
-    // sync payload carries one, so this is a debug-only switch for driving the screen — and
-    // `kDebugMode` being a compile-time constant means a release build cannot reach it at all.
-    supervisor: kDebugMode && const bool.fromEnvironment('CREWCOMP_DEV_SUPERVISOR'),
   );
   await state.load();
 

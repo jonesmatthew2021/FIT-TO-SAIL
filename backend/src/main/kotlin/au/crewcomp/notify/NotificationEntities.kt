@@ -111,7 +111,21 @@ enum class NotificationKind(val wire: String, val audience: NotificationAudience
     // crew: the person who tapped already knows what they said, and their own copy of it is the
     // queue entry on their device.
     CREW_PROGRESS_REPORTED("crew_progress_reported", NotificationAudience.BACK_OFFICE),
-    CREW_HELP_REQUESTED("crew_help_requested", NotificationAudience.BACK_OFFICE);
+    CREW_HELP_REQUESTED("crew_help_requested", NotificationAudience.BACK_OFFICE),
+
+    /** MOB-8: a seat request or a waitlist entry. One kind, because one coordinator works both. */
+    CREW_COURSE_REQUESTED("crew_course_requested", NotificationAudience.BACK_OFFICE),
+
+    /**
+     * MOB-11: a supervisor has nudged a member of their watch.
+     *
+     * Crew-facing, and that is the whole point of it existing. The nudge itself is one row in
+     * ADM-11's world — a supervisor saying "please deal with this" — and a nudge the recipient
+     * cannot see, or cannot see the origin of, is a way to harass someone quietly. So the person
+     * nudged gets a notification naming who sent it, and there is no configuration that turns
+     * that off.
+     */
+    CREW_NUDGED("crew_nudged", NotificationAudience.CREW);
 
     companion object {
         fun fromWire(wire: String): NotificationKind =

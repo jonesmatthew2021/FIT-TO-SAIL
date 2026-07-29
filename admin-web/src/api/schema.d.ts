@@ -2201,6 +2201,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/team": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The crew on this supervisor's current or next swing, status only */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TeamDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications": {
         parameters: {
             query?: never;
@@ -4380,6 +4430,21 @@ export interface components {
             updatedAt: components["schemas"]["Instant"] | null;
             updatedBy: string | null;
         };
+        CourseOfferDto: {
+            id: string;
+            /** Format: int64 */
+            requirementId: number;
+            starts: components["schemas"]["LocalDate"];
+            finishes: components["schemas"]["LocalDate"];
+            provider: string;
+            location: string;
+            durationLabel: string;
+            /** Format: int32 */
+            seats: number;
+            note: string;
+            recommended: boolean;
+            waitlistOnly: boolean;
+        };
         CreateIdentityProviderRequest: {
             provider: string;
             issuer: string;
@@ -4439,6 +4504,8 @@ export interface components {
             code: string;
             title: string;
             aboutExpiry: components["schemas"]["LocalDate"] | null;
+            subjectLabel: string | null;
+            subjectRef: string | null;
             raisedAt: components["schemas"]["Instant"];
             decisionNote: string | null;
             decidedAt: components["schemas"]["Instant"] | null;
@@ -4823,6 +4890,7 @@ export interface components {
             approvalTo: components["schemas"]["LocalDate"] | null;
             raisedDate: components["schemas"]["LocalDate"];
             lateSubmissionAcknowledged: boolean;
+            raisedByCrew: boolean;
         };
         RegisterTrailEntryDto: {
             /** Format: int32 */
@@ -4994,6 +5062,7 @@ export interface components {
             submissions: components["schemas"]["EvidenceSubmissionDto"][];
             crewStatements: components["schemas"]["CrewStatementSyncDto"][];
             attestations: components["schemas"]["AttestationSyncDto"][];
+            courseOptions: components["schemas"]["CourseOfferDto"][];
             tombstones: components["schemas"]["SyncTombstoneDto"][];
             standing: components["schemas"]["SyncStandingDto"] | null;
         };
@@ -5006,6 +5075,7 @@ export interface components {
             submission?: components["schemas"]["EvidenceSubmitDto"] | null;
             /** Format: int64 */
             requirementId?: number | null;
+            subjectRef?: string | null;
             reason?: string | null;
             note?: string | null;
             ccId?: string | null;
@@ -5013,6 +5083,7 @@ export interface components {
             /** Format: int64 */
             assignmentId?: number | null;
             declarations?: string[] | null;
+            targetSam?: string | null;
         };
         SyncOperationResultDto: {
             opId: string;
@@ -5054,6 +5125,7 @@ export interface components {
             submissions: components["schemas"]["EvidenceSubmissionDto"][];
             crewStatements: components["schemas"]["CrewStatementSyncDto"][];
             attestations: components["schemas"]["AttestationSyncDto"][];
+            courseOptions: components["schemas"]["CourseOfferDto"][];
             reference: components["schemas"]["SyncReferenceDto"];
             standing: components["schemas"]["SyncStandingDto"] | null;
         };
@@ -5071,6 +5143,21 @@ export interface components {
             entityId: number;
             /** Format: int64 */
             seq: number;
+        };
+        TeamDto: {
+            ccId: string | null;
+            partnershipAbbrev: string | null;
+            from: components["schemas"]["LocalDate"] | null;
+            to: components["schemas"]["LocalDate"] | null;
+            members: components["schemas"]["TeamMemberDto"][];
+        };
+        TeamMemberDto: {
+            sam: string;
+            name: string;
+            worstState: string;
+            reason: string | null;
+            inHand: boolean;
+            nudgedAt: components["schemas"]["Instant"] | null;
         };
         TransitionRegisterRecordRequest: {
             status: string;

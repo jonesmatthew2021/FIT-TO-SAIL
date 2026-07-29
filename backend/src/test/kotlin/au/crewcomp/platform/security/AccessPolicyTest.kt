@@ -67,6 +67,18 @@ class AccessPolicyTest {
         }
 
         @Test
+        fun `a vessel master who is also crew carries their own person id in the scope`() {
+            // MOB-11's supervisor is a crew member who supervises, so one account holds both
+            // roles. Without their own person id on the scope every person-scoped read the crew
+            // app makes — which passes a person and no partnership — would deny, and being
+            // promoted would silently stop the app you use working.
+            val (policy, _) = policyFor(
+                actor(Role.VESSEL_MASTER, Role.CREW_MEMBER, personId = 42, partnerships = setOf(1)),
+            )
+            assertThat(policy.scope()).isEqualTo(DataScope.Partnerships(setOf(1), 42))
+        }
+
+        @Test
         fun `holding both a back-office role and crew member gives the wider scope`() {
             val (policy, _) = policyFor(actor(Role.CREW_MEMBER, Role.DATA_STEWARD, personId = 42))
             assertThat(policy.scope()).isEqualTo(DataScope.All)
@@ -146,6 +158,28 @@ class AccessPolicyTest {
             val clause = ScopeGuard(policy).clause("h.person.id", partnershipPath = null)
 
             assertThat(clause).isEqualTo(ScopeClause.DENY_ALL)
+        }
+
+        @Test
+        fun `a supervising crew member's clause reaches their own rows as well as their partnerships`() {
+            val (policy, _) = policyFor(
+                actor(Role.VESSEL_MASTER, Role.CREW_MEMBER, personId = 42, partnerships = setOf(1)),
+            )
+            val guard = ScopeGuard(policy)
+
+            val both = guard.clause("h.person.id", "h.partnership.id")
+            assertThat(both.hql)
+                .isEqualTo("(h.partnership.id in (:scopePartnershipIds) or h.person.id = :scopeOwnPersonId)")
+
+            // The case that matters: an entity with no partnership path — a notification, a crew
+            // statement — falls back to their own rows rather than denying all.
+            val ownOnly = guard.clause("h.person.id")
+            assertThat(ownOnly.hql).isEqualTo("h.person.id = :scopeOwnPersonId")
+            assertThat(ownOnly.params).containsEntry("scopeOwnPersonId", 42L)
+
+            guard.assertVisible(42)
+            assertThatThrownBy { guard.assertVisible(43) }
+                .isInstanceOf(AccessDeniedException::class.java)
         }
 
         @Test
