@@ -35,10 +35,11 @@ backend: two chunks, digest accepted, and §8 reporting `Extracted 1: 0 auto-acc
 fields. **The camera itself is still unproven**: a simulator has none, so only the library and file
 paths have actually run (see "What is unverified" #4).
 
-**iOS builds and runs; Android has never been built.** Xcode 26.6 / iOS 26.5 SDK is installed
-here, so `flutter build ios` and a simulator run are verified (see below for exactly what that
-proved). There is still no Android SDK, so `flutter build apk` is the remaining unrun lane — which
-matters, because ADR 0002 mandates feature parity and nothing enforces it yet. See "What is
+**Both platforms build; only iOS has been run.** Xcode 26.6 / iOS 26.5 SDK is installed here, so
+`flutter build ios` and a simulator run are verified (see below for exactly what that proved). The
+Android SDK, the NDK revision the build pins and a Pixel 7 AVD are installed **as of 29 July**, and
+`flutter build apk --debug` succeeds — see "What the Android build proved". **The APK has never been
+launched**, so ADR 0002's parity mandate is now met at the build level and nowhere else. See "What is
 unverified" before trusting anything else about the app on a phone.
 
 ## Stack (decided — ADR 0002, amended by ADR 0009)
@@ -90,7 +91,25 @@ dart run tool/generate_api.dart           # regenerate lib/src/api/schema.g.dart
 dart run tool/generate_api.dart --check   # fail if committed types are stale — the CI check
 CREWCOMP_OPENAPI=/path/to/openapi.json dart run tool/generate_api.dart --check   # read the schema elsewhere
 dart run build_runner build               # regenerate drift's local_store.g.dart
+
+flutter build ios --debug --no-codesign   # iOS
+flutter build apk --debug                 # Android — ~30s warm, a few minutes cold
 ```
+
+The Android SDK is at `~/Library/Android/sdk`, deliberately **not** Homebrew's
+`/opt/homebrew/share/android-commandlinetools`: Android Studio expects the former, and two SDK roots
+drift. `flutter config --android-sdk` is what points Flutter at it. The NDK must be installed
+explicitly — AGP will not fetch it (see "What the Android build proved"):
+
+```bash
+~/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager --install "ndk;28.2.13676358"
+~/Library/Android/sdk/emulator/emulator -list-avds        # crewcomp_api36, never booted
+```
+
+**Use the `sdkmanager` inside the SDK root, not Homebrew's.** Homebrew's updates `cmdline-tools`
+mid-run and re-execs itself, which drops the stdin a piped licence prompt was being answered on; it
+then hangs indefinitely with no output rather than failing. Accept licences as their own step
+(`sdkmanager --licenses`) instead of piping `yes` into an install.
 
 `flutter` here is `/opt/homebrew/share/flutter/bin` (Homebrew cask). Note that `dart` on the
 PATH may be the standalone Homebrew Dart, a different version from Flutter's bundled one — put
@@ -281,6 +300,17 @@ thing DEV-2 exists to prevent. It does mean an admin-side DTO change makes this 
 - **The iOS system log is loud.** A booting simulator emits hundreds of `Failed to index parameter
   type …` ActionKit lines into the `flutter run` console. They are Shortcuts indexing, unrelated
   to this app; filter them out before reading a build log or watching for errors.
+- **AGP 9 and this plugin set are mutually exclusive, and `android.builtInKotlin` is a trap either
+  way.** `flutter create` generated AGP 9.0.1 plus `android.builtInKotlin=false` — its own documented
+  escape hatch — and that combination cannot build. With the flag *off*, `file_picker` 11.0.2 sees
+  AGP ≥ 9, skips applying KGP expecting built-in Kotlin, and never checks whether it is actually
+  enabled: its five Kotlin sources including `FilePickerPlugin` are simply not compiled, and the
+  failure surfaces as `cannot find symbol` in generated Java, naming a plugin class rather than the
+  configuration. With the flag *on*, `flutter_plugin_android_lifecycle` 2.0.35 (transitive via
+  `image_picker`) dies instead, AGP 9 rejecting the KGP applied around it. `settings.gradle.kts` pins
+  AGP **8.13.1** and the app module applies `org.jetbrains.kotlin.android` explicitly. Revisit only
+  when both plugins ship real AGP 9 support — and note the app module itself is agnostic, so the pin
+  is about the ecosystem, not about this code.
 
 ## What the iOS run proved (26 July 2026, Xcode 26.6, iPhone 17 Pro simulator)
 
@@ -352,6 +382,25 @@ thing this run could **not** prove: `mobile-start.sh` reinstalls by default, so 
 gone before v5 existed. The three `if (from < N)` steps follow the pattern the previous three were
 verified with, and a device carrying a v4 store is the case to check on the next real install.
 
+## What the Android build proved (29 July 2026, AGP 8.13.1, no device)
+
+The first `flutter build apk` this repository has ever run. It is a **build**, not a run — the
+section above is what a *run* looks like, and Android has not had one.
+
+- **`sqlite3mc` cross-compiles for Android.** The APK carries `lib/arm64-v8a/libsqlite3mc.so`,
+  `lib/armeabi-v7a/…` and `lib/x86_64/…`, ~2 MB each. This was the biggest unknown: the encrypted
+  store is compiled from source by the `sqlite3` package's build hook through `native_toolchain_c`,
+  which needs the NDK's clang, and nothing had ever exercised that path off macOS. CI now asserts all
+  three ABIs, because a missing one fails at run time on that architecture only.
+- **The pinned NDK is what makes it work.** `ndkVersion = flutter.ndkVersion` resolves to an exact
+  revision (28.2.13676358 on Flutter 3.44.8). AGP auto-downloads build-tools and CMake when they are
+  missing but **not** the NDK, so it has to be installed deliberately — locally and in CI.
+- **AGP 9 cannot build this app**, which is the trap below and the reason for `settings.gradle.kts`'s
+  version pin. Found by building; invisible to `flutter analyze` and to all 145 tests.
+- **The toolchain here:** SDK at `~/Library/Android/sdk` (shared with Android Studio rather than
+  Homebrew's own cask root), platform android-36, build-tools 36.0.0, and Studio's bundled JBR 21 as
+  the JDK — `flutter doctor -v` names the one it picked, which is not necessarily the one on `PATH`.
+
 ## What the payload does not carry yet, and what the screens do about it
 
 The design handoff describes a finished product. Eight of its twelve screens are built against
@@ -386,10 +435,14 @@ Each of these is one stub in `app_state.dart`, so landing the backend work is a 
 
 Listed plainly because the test count above could otherwise imply more than it should.
 
-1. **No Android build has run** and no physical iPhone has run this. There is no Android SDK on
-   this machine, so `android/` is still untouched `flutter create` output — a real risk given ADR
-   0002 mandates feature parity. On iOS, everything above was a *simulator*; a physical device
-   additionally needs code signing, and the Keychain behaves differently under a real
+1. **The Android app has never been executed**, and no physical device of either kind has run this.
+   The APK builds and contains the right native libraries, which proves the toolchain and the
+   `sqlite3mc` cross-compile — and nothing about behaviour. Unproven on Android specifically: that
+   the store opens at all, that `flutter_secure_storage` reaches the Keystore (the iOS equivalent was
+   proven only *by consequence* of the store opening, and that consequence has not happened here),
+   `path_provider`'s directories, the pickers, and every screen. An emulator is installed
+   (`crewcomp_api36`) and has not been booted. On iOS, everything above was a *simulator*; a physical
+   device additionally needs code signing, and the Keychain behaves differently under a real
    `first_unlock` accessibility class and a locked screen.
 2. **Nothing verifies the crew's data is wiped on logout** (SEC-12). There is no logout, because
    there is no login (#6).

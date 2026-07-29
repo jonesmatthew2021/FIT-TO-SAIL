@@ -233,10 +233,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 21, not 17, because that is the JDK the build has actually been run on — Android Studio's
+      # bundled JBR is what `flutter build apk` picks up locally. AGP 8.13 and Gradle 9.1 both
+      # support it, and matching removes a difference that could only ever show up here.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - uses: subosito/flutter-action@v2
         with:
@@ -246,14 +249,45 @@ jobs:
       - run: flutter pub get
         working-directory: mobile
 
-      # MOB-0 makes iOS/Android feature parity a hard requirement, and this repository has never
-      # built the Android half — there is no Android SDK on the development machine. A debug APK is
-      # the cheapest artefact that proves the Android toolchain, the Gradle configuration and every
-      # plugin's Android implementation actually resolve. `--debug` because signing a release build
-      # needs a keystore, which is the mobile spike's.
+      # `app/build.gradle.kts` sets `ndkVersion = flutter.ndkVersion`, an exact revision, and the
+      # runner's preinstalled NDK is a different one. AGP does not auto-download the NDK the way it
+      # does build-tools and CMake, so without this the build fails — and it fails specifically on
+      # `libsqlite3mc.so`, the encrypted local store (SEC-12), which is the only native code in the
+      # app and the one thing an Android build most needs to prove.
+      #
+      # The version is read out of the Flutter SDK rather than hardcoded, so a Flutter upgrade moves
+      # it here too. If that grep ever stops matching, `set -o pipefail` fails the lane loudly rather
+      # than installing nothing and leaving AGP to report a confusing mismatch.
+      - name: Install the NDK the build pins
+        run: |
+          set -euo pipefail
+          ext="$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")/packages/flutter_tools/gradle/src/main/kotlin/FlutterExtension.kt"
+          ndk="$(grep -oE 'ndkVersion: String = "[0-9.]+"' "$ext" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+          test -n "$ndk"
+          echo "Flutter pins NDK $ndk"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ndk" > /dev/null
+          echo "$ANDROID_HOME/ndk/$ndk installed"
+
+      # MOB-0 makes iOS/Android feature parity a hard requirement. A debug APK is the cheapest
+      # artefact that proves the Android toolchain, the Gradle configuration and every plugin's
+      # Android implementation actually resolve. `--debug` because signing a release build needs a
+      # keystore, which is the mobile spike's.
       - name: Build a debug APK
         run: flutter build apk --debug
         working-directory: mobile
+
+      # The build can succeed with the encrypted store's native library missing for an ABI — the
+      # Dart side would then fail at run time on that architecture only, which no lane here would
+      # see. Assert all three, because "it compiled" is not the property SEC-12 needs.
+      - name: Assert the encrypted store's native library is present for every ABI
+        run: |
+          set -euo pipefail
+          apk=mobile/build/app/outputs/flutter-apk/app-debug.apk
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            unzip -l "$apk" | grep -q "lib/$abi/libsqlite3mc.so" \
+              || { echo "::error::libsqlite3mc.so missing for $abi — the local store would not be encrypted there"; exit 1; }
+            echo "libsqlite3mc.so present for $abi"
+          done
 
       - uses: actions/upload-artifact@v4
         with:

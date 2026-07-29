@@ -19,7 +19,7 @@ exception of the two that are the whole reason CI exists.
 | `backend-native` | **not reproducible locally** — no GraalVM | See below. |
 | `admin-web` | `cd admin-web && npm run verify:api && npm run build && npm test` | `verify:api` needs `backend/target/openapi/openapi.json`; build the backend first. |
 | `mobile` | `cd mobile && dart run tool/generate_api.dart --check && flutter analyze && flutter test` | Use Flutter's bundled `dart`, not a standalone one. |
-| `mobile-android` | **not reproducible locally** — no Android SDK | See below. |
+| `mobile-android` | `cd mobile && flutter build apk --debug` | Reproducible as of 29 July 2026 — the SDK and the pinned NDK are installed. See below. |
 | `mobile-ios` | `cd mobile && flutter build ios --no-codesign --debug` | Needs Xcode. |
 
 Read-only commands the triage agent may run:
@@ -70,12 +70,23 @@ expressions at build time.
   `@RegisterForReflection` or a `reflect-config.json` entry, and re-run. This is a code change and
   belongs in a PR.
 
-**4. `mobile-android` fails and `mobile` passed.** This is the job that exists precisely because
-nobody can run it locally — there is no Android SDK on the development machine, so ADR 0002's
-feature-parity mandate (MOB-0) has no other enforcement anywhere.
+**4. `mobile-android` fails and `mobile` passed.** This job carries ADR 0002's feature-parity
+mandate (MOB-0), which nothing else enforces: `flutter analyze` and all 145 tests pass on a tree
+whose Android build is broken, because neither compiles a plugin's Android sources.
+
+It **is** now reproducible locally (`flutter build apk --debug`), so the first move is to reproduce
+rather than to read logs — but only for the app's own code. Two failure modes are specific to CI and
+will not reproduce: a **missing NDK** (the lane derives the revision from the Flutter SDK and installs
+it; AGP fetches build-tools and CMake automatically but never the NDK) and the **`libsqlite3mc.so`
+per-ABI assertion**, which exists because a build can succeed with the encrypted store's native
+library absent for one architecture — that would fail at run time on that architecture only.
 
 - **Do not treat a red Android lane as flakiness and re-run it.** A plugin without an Android
   implementation, or a Gradle/AGP/NDK mismatch, fails deterministically and will keep failing.
+- **A plugin's AGP support is a real failure mode here, not a hypothetical one.** `settings.gradle.kts`
+  pins AGP 8.13.1 because two plugins in this dependency set cannot both build under AGP 9; a
+  Dependabot bump to either is the change most likely to turn this lane red. `mobile/CLAUDE.md`
+  §Traps has the detail.
 - Remediation (`HUMAN`): read the Gradle output for the offending plugin or configuration. If the
   cause is a dependency added for iOS with no Android support, that is a parity exception and ADR 0002
   requires it to be approved explicitly rather than absorbed.

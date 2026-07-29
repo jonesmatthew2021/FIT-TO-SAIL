@@ -15,7 +15,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 |---|---|---|
 | `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + ADM-11 + every crew-app write path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync, MOB-8's course catalogue and MOB-11's supervisor watch |
 | `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules plus ADM-11, on the Nocturne dark design system** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, crew requests, notifications centre, evidence queue, administration |
-| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **all twelve of the design handoff's screens, on the Nocturne dark design system** — the four shipped ones restyled, eight new ones built; over an encrypted store, sync, outbox and resumable evidence upload. **iOS builds and runs on a simulator**, Android never built (no SDK) |
+| `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **all twelve of the design handoff's screens, on the Nocturne dark design system** — the four shipped ones restyled, eight new ones built; over an encrypted store, sync, outbox and resumable evidence upload. **iOS builds and runs on a simulator; Android builds** (SDK + pinned NDK installed, APK carries `libsqlite3mc.so` for all three ABIs) but has never been launched |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
 | `scripts/` | `dev-start.sh` / `dev-stop.sh` — the local development stack; `mobile-start.sh` — the crew app on an iOS simulator | works; see below |
@@ -186,13 +186,18 @@ What exists end to end, verified over real HTTP against a seeded database and dr
 
 The largest functional gaps, in the order they bite:
 
-1. **Android has never been built, and no physical device has run either app.** iOS is real — Xcode
-   26.6 is installed, `flutter build ios` succeeds, and the app runs on a simulator against the live
-   backend with a genuinely encrypted Keychain-keyed store and a working offline mode
-   (`mobile/CLAUDE.md` §"What the iOS run proved"). There is still no Android SDK, which is a parity
-   risk ADR 0002 explicitly cares about. Still unproven anywhere: the camera (a simulator has
-   none, so evidence submission's library and file paths have run and its capture branch has not),
-   biometric binding, background upload surviving a kill, and code signing.
+1. **No physical device has run either app, and neither has an Android emulator.** Both platforms
+   now *build*: iOS on Xcode 26.6, and **Android as of 29 July** — the SDK, the pinned NDK and an
+   AVD are installed here, and `flutter build apk --debug` produces an APK carrying
+   `libsqlite3mc.so` for all three ABIs, so SEC-12's encrypted store cross-compiles. That closes
+   the parity gap ADR 0002 cares about at the *build* level only. The iOS app has additionally been
+   run on a simulator against the live backend with a genuinely encrypted Keychain-keyed store and
+   a working offline mode (`mobile/CLAUDE.md` §"What the iOS run proved"); **the Android APK has
+   never been launched** — the AVD has not been booted, so nothing about the app's Android runtime
+   is proven: not the Keystore-backed key, not the store actually opening, not a single screen.
+   Still unproven on either platform: the camera (a simulator has none, so evidence submission's
+   library and file paths have run and its capture branch has not), biometric binding, background
+   upload surviving a kill, and code signing.
 2. **No login** anywhere, and it now blocks more than it did. `GET /api/v1/session` is the stable
    half of the ADR 0003 contract; the code flow, token store and opaque cookie are the identity
    spike's. Until it lands, back-office users have no real accounts — so §9's per-role fan-out has
@@ -225,12 +230,18 @@ The largest functional gaps, in the order they bite:
 Next steps, in order (per `docs/research/00-recommendations.md` §"Recommended spike sequence"):
 1. Pipeline bootstrap — **the verification half is built and the deploy half cannot be.**
    `.github/workflows/` now carries every lane the three components' CLAUDE.md files tell a developer
-   to run, plus the three nobody can run locally: the **Android build** (no SDK here, so CI is the
-   only thing that will ever enforce ADR 0002's parity mandate), the **native image** (no GraalVM),
-   and the **generated-types checks** against a schema artefact the backend job publishes — checking
+   to run, plus two nobody can run locally: the **native image** (no GraalVM) and the
+   **generated-types checks** against a schema artefact the backend job publishes — checking
    against a schema the client job built itself could never catch a stale committed file. Also DEV-3's
    two AI review passes (advisory correctness on every PR; a path-filtered blocking security pass),
    Gitleaks, Semgrep and grouped Dependabot.
+
+   **The Android lane is no longer one of the unrunnable ones**, and running it locally is what found
+   its two bugs: it installed no NDK (AGP auto-downloads build-tools and CMake but not the NDK, so
+   the lane would have failed on the encrypted store's `libsqlite3mc.so`), and it pinned a JDK the
+   build has never been run on. It now derives the NDK revision from the Flutter SDK rather than
+   hardcoding it, and asserts `libsqlite3mc.so` is present for all three ABIs — a build can succeed
+   with that library missing for one architecture, and nothing else in CI would notice.
 
    **None of it has been executed** — there is no way to run a GitHub Actions workflow from here. The
    YAML parses, every command in it was run by hand first, and every pattern in the security pass's
