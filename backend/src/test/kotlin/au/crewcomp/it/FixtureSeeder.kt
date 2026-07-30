@@ -100,6 +100,11 @@ class FixtureSeeder(private val em: EntityManager) {
             "delete from CrewChange",
             "delete from MatrixVersion",
             "delete from PositionSlot",
+            // The extracted-dataset loader (ExtractedSeedIT) is the only writer of these three;
+            // they sit before their parents for the same bulk-delete reason as everything else.
+            "delete from RequirementAlias",
+            "delete from PositionTier",
+            "delete from Vessel",
             "delete from Requirement",
             "delete from CrewPosition",
             "delete from Partnership",

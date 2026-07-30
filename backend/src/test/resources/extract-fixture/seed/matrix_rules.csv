@@ -1,0 +1,17 @@
+version,slot_ref,position,requirement_code,level
+archive,1,Master,QL-01,M
+archive,1,Master,MS-01,M
+archive,3,Chief Officer,QL-02,M
+archive,4,Chief Officer,QL-03,M
+archive,3,Chief Officer,MS-01,M
+archive,4,Chief Officer,MS-01,M
+archive,11,GPH,PT-03,M7
+archive,11,GPH,MS-01,M
+matrix-29.06.2026,1,Master,QL-01,M
+matrix-29.06.2026,1,Master,MS-01,M
+matrix-29.06.2026,3,Chief Officer,QL-02,M
+matrix-29.06.2026,4,Chief Officer,QL-03,M
+matrix-29.06.2026,3,Chief Officer,MS-01,M
+matrix-29.06.2026,4,Chief Officer,MS-01,M
+matrix-29.06.2026,11,GPH,PT-03,M7
+matrix-29.06.2026,11,GPH,MS-01,M

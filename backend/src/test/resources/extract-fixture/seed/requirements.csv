@@ -1,0 +1,21 @@
+code,category,title,status
+QL-01,Qualification,Certificate of Competency — Master,active
+QL-02,Qualification,Certificate of Competency — Chief Mate,active
+QL-03,Qualification,Master <100m NC,active
+QL-08,Qualification,Master <24m NC,active
+QL-09,Qualification,Marine Engine Driver Grade 2 NC,active
+QL-10,Qualification,Integrated Rating Able Seafarer,active
+QL-12,Qualification,Certificate of Safety Training,active
+QL-13,Qualification,ECDIS,active
+QL-14,Qualification,GMDSS,active
+QL-16,Qualification,Fast Rescue Craft,active
+QL-19,Qualification,Adv Resuscitation and Oxygen Therapy,active
+QL-20,Qualification,Use hygienic practices for food safety,active
+VS-04,Vessel Specific,Helm Crew,active
+PS-02,Project Specific,Mooring Operations Awareness,active
+MS-01,Master Specific,Seafarer Medical,active
+MS-06,Master Specific,Passing in the LNG Swing Basin,active
+HR-02,High Risk Work,HRWL — Vehicle Loading Crane,active
+PT-02,Permit to Work,Enter and Work in Confined Spaces,active
+PT-03,Permit to Work,Work Safely at Heights,active
+(UNASSIGNED),Qualification?,Advanced Fire Fighting,needs_code

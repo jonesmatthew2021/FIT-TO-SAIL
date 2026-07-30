@@ -1,0 +1,7 @@
+slot_ref,position,shift,note
+1,Master,Shift 1,
+3,Chief Officer,Shift 1,
+4,Chief Officer,Shift 2,
+11,GPH,Shift 1,
+15,Assistant Engineer,Shift 1,Position 15 can be Assistant Engineer or GPH
+15,GPH,Shift 1,

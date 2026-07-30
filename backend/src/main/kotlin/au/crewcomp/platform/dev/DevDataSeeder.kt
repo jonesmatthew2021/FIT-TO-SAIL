@@ -44,52 +44,122 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.event.Observes
 import jakarta.persistence.EntityManager
 import jakarta.transaction.Transactional
+import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.jboss.logging.Logger
+import java.nio.file.Path
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Optional
 import java.util.UUID
 
 /**
  * A development fixture, so `quarkus dev` and the admin SPA have something to render.
  *
- * **This is not the §11 migration.** The real load comes from the POC's validated
- * `seed` CSV extract, is re-runnable, produces ExceptionItems for every fix-up class, and is
- * acceptance-tested by diffing the regenerated CC24/CC25 views against the POC's rendering. None
- * of that is here. What is here is a small synthetic dataset shaped to exercise the screens: a
- * cell in every interesting state, a quota that is short on one shift, a mid-swing handover, and
- * a person whose holding expires inside the swing.
+ * Two datasets, chosen by `crewcomp.dev-seed.dataset` and mutually exclusive per database
+ * (their requirement catalogues differ and must never mix — §11):
  *
- * The names are invented. Nothing in this file may ever reach an environment holding real crew
- * data, so it is guarded three ways: the bean is removed at build time unless
- * `crewcomp.dev-seed.enabled` is true (dev only), start-up fails if it is somehow enabled under
- * `prod`, and it does nothing at all unless the database is completely empty.
+ *  - **`synthetic`** (default) — the invented dataset in [seed] below, shaped to exercise the
+ *    screens: a cell in every interesting state, a quota short on one shift, a mid-swing
+ *    handover, a holding that expires inside the swing.
+ *  - **`extracted`** — the POC's validated workbook extracts, loaded by [ExtractedSeedLoader]
+ *    from `crewcomp.dev-seed.extract-root` (a directory **outside this repository** — the
+ *    extracts are real crew data and are never committed here). For demonstrations to people
+ *    who know the real data.
+ *
+ * Switching datasets means restarting the stack: the seed only ever runs against an empty
+ * database, and `dev-stop.sh` lets Ryuk reap the database container, so the next start
+ * re-migrates and re-seeds with whatever is configured.
+ *
+ * **Neither dataset is the §11 migration.** The real load is re-runnable against a populated
+ * database and acceptance-tested by diffing the regenerated CC24/CC25 views against the POC's
+ * rendering; the extracted loader is its first cut, not its completion.
+ *
+ * Nothing in this class may ever reach an environment holding real production data, so it is
+ * guarded three ways: the bean is removed at build time unless `crewcomp.dev-seed.enabled` is
+ * true (dev only), start-up fails if it is somehow enabled under `prod`, and it does nothing at
+ * all unless the database is completely empty.
  */
 @ApplicationScoped
 @IfBuildProperty(name = "crewcomp.dev-seed.enabled", stringValue = "true")
 class DevDataSeeder(
     private val em: EntityManager,
     private val clock: BusinessClock,
+    @ConfigProperty(name = "crewcomp.dev-seed.dataset", defaultValue = DATASET_SYNTHETIC)
+    private val dataset: String,
+    @ConfigProperty(name = "crewcomp.dev-seed.extract-root")
+    private val extractRoot: Optional<String>,
 ) {
     private val log = Logger.getLogger(DevDataSeeder::class.java)
+
+    companion object {
+        const val DATASET_SYNTHETIC = "synthetic"
+        const val DATASET_EXTRACTED = "extracted"
+        private const val SYNTHETIC_MATRIX_LABEL = "dev-2026.1"
+    }
 
     @Transactional
     fun onStart(@Observes event: StartupEvent) {
         if (ConfigUtils.getProfiles().contains("prod")) {
             throw IllegalStateException(
                 "crewcomp.dev-seed.enabled is true under the production profile. The development " +
-                    "seed writes invented people and must never run against real data.",
+                    "seed writes development fixtures and must never run against real data.",
+            )
+        }
+        if (dataset != DATASET_SYNTHETIC && dataset != DATASET_EXTRACTED) {
+            throw IllegalStateException(
+                "crewcomp.dev-seed.dataset must be '$DATASET_SYNTHETIC' or '$DATASET_EXTRACTED', not '$dataset'.",
             )
         }
 
         val existing = em.createQuery("select count(p) from Person p", java.lang.Long::class.java)
             .singleResult
         if (existing.toLong() > 0) {
-            log.infof("Development seed skipped: %d people already present", existing.toLong())
+            val present = presentDataset()
+            log.infof(
+                "Development seed skipped: %d people already present (dataset: %s)",
+                existing.toLong(), present ?: "unrecognised",
+            )
+            if (present != null && present != dataset) {
+                log.warnf(
+                    "The database holds the '%s' dataset but '%s' is configured. The two never mix; " +
+                        "restart the stack (dev-stop.sh then dev-start.sh) to re-seed with '%s'.",
+                    present, dataset, dataset,
+                )
+            }
             return
         }
 
-        seed()
-        log.warn("Development seed applied: invented crew, vessels and holdings. Not real data.")
+        when (dataset) {
+            DATASET_EXTRACTED -> {
+                val root = extractRoot.map(String::trim).filter(String::isNotEmpty).orElseThrow {
+                    IllegalStateException(
+                        "crewcomp.dev-seed.dataset=extracted needs crewcomp.dev-seed.extract-root " +
+                            "pointing at the POC extract directory (seed/*.csv beside exceptions.csv). " +
+                            "It is deliberately unset by default: the extracts are real crew data and " +
+                            "live outside this repository.",
+                    )
+                }
+                ExtractedSeedLoader(em, clock, Path.of(root)).load()
+                log.warn(
+                    "Extracted seed applied: REAL crew names, Sam numbers and certification data " +
+                        "from $root. Do not expose this environment beyond the demonstration.",
+                )
+            }
+            else -> {
+                seed()
+                log.warn("Development seed applied: invented crew, vessels and holdings. Not real data.")
+            }
+        }
+    }
+
+    /** Which dataset a non-empty database holds, recognised by its published matrix label. */
+    private fun presentDataset(): String? {
+        val labels = em.createQuery("select m.label from MatrixVersion m", String::class.java).resultList
+        return when {
+            labels.contains(SYNTHETIC_MATRIX_LABEL) -> DATASET_SYNTHETIC
+            labels.contains(ExtractedSeedLoader.PUBLISHED_MATRIX_LABEL) -> DATASET_EXTRACTED
+            else -> null
+        }
     }
 
     private fun seed() {

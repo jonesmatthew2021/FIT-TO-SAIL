@@ -19,7 +19,10 @@ What is left is not a module but the four spikes: the platform decision, identit
 mobile hardware. Two things in this component are honest placeholders rather than gaps, and both are
 waiting on a decision rather than on work: **no LLM provider** is selected (§14.5), so extraction
 returns nothing and every document goes to a human — which is LLM-2's launch posture, not a
-degradation; and **no §11 migration**, so `DevDataSeeder` is still a synthetic fixture.
+degradation; and **no §11 migration** — though its first cut now exists as `ExtractedSeedLoader`,
+which loads the POC's workbook extracts as the dev stack's second dataset (see "Local
+development"). What §11 still owes is re-runnability against a populated database and the
+CC24/CC25 acceptance diff.
 
 ## Stack (decided)
 
@@ -197,10 +200,13 @@ these.
 4. **No push delivery** (APNs/FCM, MOB-3). The in-app record is the source of truth and the
    `notification_delivery` table is ready for per-channel records; the unified sender is the mobile
    spike's. Email is in the same position.
-5. **Seed/migration loading** (§11, from the POC's seed CSVs) is not written. The acceptance
-   test is a CC24/CC25 diff against the POC rendering, including the known UNI CC24 shortfall —
-   which `SwingEvaluatorTest` already encodes as a synthetic scenario. `DevDataSeeder` is a
-   development fixture, not a substitute for this.
+5. **Seed/migration loading** (§11) is half-built. `ExtractedSeedLoader` ports every POC fix-up
+   rule (`build_real_seed.py`) and loads the extracts into the real schema, with each anomaly an
+   ADM-7 `ExceptionItem` — that part is done, tested against a fictional fixture in
+   `ExtractedSeedIT`, and usable via the dataset switch below. Still owed to §11 proper:
+   re-runnability against a populated database (today it only seeds an empty one) and the
+   acceptance test — a CC24/CC25 diff against the POC rendering, including the known UNI CC24
+   shortfall, which `SwingEvaluatorTest` encodes only as a synthetic scenario.
 6. **No quota- or conditional-rule editor.** ADM-3 edits requirement-rule *cells*; the quota and
    conditional rules behind a footnote are read-only on screen. That is deliberate rather than
    unfinished: a footnote's meaning is a `quota_rule` row and its appearance is a level in the
@@ -274,7 +280,26 @@ rather than disabled in it:
   `SecurityIdentity` attribute, which `ActorResolutionFilter` honours. It asks for no password on
   purpose: a shim with a fake credential can be mistaken for authentication, one that plainly
   trusts a header cannot. Replaced by the BFF session in the identity spike (ADR 0003).
-- **`DevDataSeeder`** — invented crew, vessels, a published matrix and two swings, shaped so that
+- **`DevDataSeeder`** — now a two-dataset switch (`crewcomp.dev-seed.dataset`):
+
+  - **`synthetic`** (default) — invented crew, vessels, a published matrix and two swings, shaped
+    so every roll-up state appears on one screen (details below). Safe for any audience.
+  - **`extracted`** — the POC's workbook extracts, loaded by `ExtractedSeedLoader` from
+    `crewcomp.dev-seed.extract-root` (the POC checkout, `~/shipping` by convention — **real crew
+    data, never committed here**). For demonstrations to the people who know the data: 5
+    partnerships, the real 55-code catalogue, both matrix template versions with the M8 CoC
+    one-of set, 1,155 holdings, the CC18–CC25 rosters, all 267 register rows normalised into
+    Appendix A's vocabulary, and every fix-up flagged on ADM-7's worklist. Crew accounts are
+    created per active person (SEC-1b `local_test`, no email) and Masters get a
+    partnership-scoped `vessel_master`, so the crew app and §9 scans work against it. No course
+    catalogue, no evidence documents: nothing fictional is mixed into the real set.
+
+  The two catalogues must never mix (§11), and the empty-database guard enforces it: switching
+  datasets means `dev-stop.sh` (Ryuk reaps the database) then
+  `dev-start.sh --dataset extracted|synthetic`. A mismatch between the configured dataset and
+  what a non-empty database holds is detected by matrix label and logged, not "fixed".
+
+  The synthetic dataset is shaped so that
   every roll-up state appears on one screen: `ok`, `expiring`, `gap`, `unknown`, `quota_only`,
   `recommended`, an open slot, a mid-swing handover, and an M9 quota short on shift 2. It also seeds
   **one back-office account per role**, because §9's fan-out addresses a row to each account holding

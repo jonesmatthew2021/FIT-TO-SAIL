@@ -3,9 +3,15 @@
 # Start the local development stack: Quarkus dev mode on :8080 and the admin-web Vite
 # server on :5173, which proxies /api to it.
 #
-#   ./scripts/dev-start.sh             both
-#   ./scripts/dev-start.sh backend     just the backend
-#   ./scripts/dev-start.sh web         just the SPA
+#   ./scripts/dev-start.sh                        both
+#   ./scripts/dev-start.sh backend                just the backend
+#   ./scripts/dev-start.sh web                    just the SPA
+#   ./scripts/dev-start.sh --dataset extracted    seed the POC's workbook extracts (REAL crew
+#                                                 data, read from ~/shipping by default —
+#                                                 override with --extract-root PATH)
+#
+# The dataset only takes effect against an empty database: run ./scripts/dev-stop.sh first so
+# the database container is reaped, or the previous dataset is still what you will see.
 #
 # Both run in the background; logs land in .dev/. Stop them with ./scripts/dev-stop.sh —
 # in particular stop the backend before `./mvnw verify`, because dev mode and a Maven build
@@ -17,12 +23,34 @@ set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dev-common.sh"
 
-what="${1:-all}"
-case "$what" in
-  all|backend|web) ;;
-  -h|--help) sed -n '2,14p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
-  *) die "Unknown target '$what'. Use: all | backend | web" ;;
+what="all"
+dataset="${CREWCOMP_DEV_SEED_DATASET:-synthetic}"
+extract_root="${CREWCOMP_DEV_SEED_EXTRACT_ROOT:-$HOME/shipping}"
+while (( $# )); do
+  case "$1" in
+    all|backend|web) what="$1" ;;
+    --dataset) dataset="${2:?--dataset needs a value: synthetic | extracted}"; shift ;;
+    --extract-root) extract_root="${2:?--extract-root needs a directory}"; shift ;;
+    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "Unknown argument '$1'. Use: all | backend | web [--dataset synthetic|extracted] [--extract-root PATH]" ;;
+  esac
+  shift
+done
+
+case "$dataset" in
+  synthetic|extracted) ;;
+  *) die "Unknown dataset '$dataset'. Use: synthetic | extracted" ;;
 esac
+
+# MicroProfile maps these onto crewcomp.dev-seed.dataset / .extract-root. The extracts are real
+# crew data living outside the repository; the backend refuses `extracted` without a root.
+export CREWCOMP_DEV_SEED_DATASET="$dataset"
+if [[ "$dataset" == extracted ]]; then
+  [[ -f "$extract_root/exceptions.csv" && -d "$extract_root/seed" ]] ||
+    die "--dataset extracted: '$extract_root' does not look like the POC extract directory
+(expected seed/*.csv beside exceptions.csv). Point --extract-root at the POC checkout."
+  export CREWCOMP_DEV_SEED_EXTRACT_ROOT="$extract_root"
+fi
 
 mkdir -p "$run_dir"
 
@@ -167,4 +195,9 @@ say "${dim}Logs:  tail -f .dev/*.log${off}"
 say "${dim}Stop:  ./scripts/dev-stop.sh${off}"
 say ""
 say "${yellow}Development mode:${off} the auth shim authenticates any request and grants all four"
-say "roles by default; the seeded crew, vessels and holdings are invented, not real data."
+if [[ "$dataset" == extracted ]]; then
+  say "roles by default. ${yellow}Dataset: EXTRACTED — real crew names, Sam numbers and expiry data"
+  say "from $extract_root. Do not expose or screen-share this environment beyond its audience.${off}"
+else
+  say "roles by default; the seeded crew, vessels and holdings are invented, not real data."
+fi

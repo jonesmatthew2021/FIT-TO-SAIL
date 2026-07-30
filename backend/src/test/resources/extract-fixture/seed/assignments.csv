@@ -1,0 +1,4 @@
+cc_id,partnership,slot_ref,sam_no,name,from_date,to_date,comment,sam_note,source_sheet
+CC24,Testline Marine Pty Ltd,1,a11111A,"TESTER, Alice",2026-07-01,2026-07-28,,,CC24
+CC24,Testline Marine Pty Ltd,3,b22222B,"BARNES, Bob",2026-07-01,2026-07-28,,sheet had Sam # x99999X,CC24
+CC24,Testline Marine Pty Ltd,11,d44444D,"DIAZ, Dan",2026-07-01,2026-07-14,handover out,,CC24

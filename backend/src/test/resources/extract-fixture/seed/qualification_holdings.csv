@@ -1,0 +1,9 @@
+sam_no,requirement_code,status,expiry_date
+a11111A,QL-01,held_perpetual,
+a11111A,MS-01,held_expiry,2027-01-15
+b22222B,QL-02,held_perpetual,
+b22222B,MS-01,held_expiry,2026-07-15
+c33333C,QL-08,held_perpetual,
+c33333C,MS-01,unknown,
+c33333C,PT-03,not_held,
+c33333C,(UNCODED:Advanced Fire Fighting),held_perpetual,

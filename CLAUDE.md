@@ -7,7 +7,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 - **Spec (normative):** `docs/spec/crewcomp-production-spec.md` — V2 draft. §5 (engine semantics) and §4 (domain model) are normative; Appendix A enumerations are canonical. The V1 POC (separate repo, `app/`) is the behavioural reference for the engine.
 - **Decisions:** `docs/decisions/` — ADRs. 0001 backend (Kotlin+Quarkus), 0002 mobile (Flutter — its encrypted-store mechanism is **amended by 0009**), 0003 identity (direct OIDC federation), 0004 pipeline (GitHub Actions), 0005 platform (**deferred**: AWS vs GCP, spike decides), 0006 persistence (Hibernate+Panache), 0007 audit ordering & hash chain, 0008 admin web stack & development auth shim, 0009 mobile sync contract, encrypted local store & resumable upload.
 - **Research:** `docs/research/` — the §14 technology research (July 2026, web-verified) behind the ADRs. `00-recommendations.md` is the synthesis.
-- **Handoffs:** `docs/handoff/` — work one component owes another, written when the two get out of step. `mobile-crew-app-backend.md` is the server side of the crew app's eight new screens.
+- **Handoffs:** `docs/handoff/` — work one component owes another, written when the two get out of step. `mobile-crew-app-backend.md` is the server side of the crew app's eight new screens. `mobile-encrypted-store-for-a-new-app.md` is the outward one: the encrypted-store layer — cipher pin, key handling, start-up guard, the host-runnable encryption assertion, the Android native-library build and its CI check — written verbatim so a second Flutter project can start from working code rather than rediscovering that plain SQLite ignores `pragma key` silently.
 
 ## Layout
 
@@ -29,7 +29,18 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 ./scripts/dev-start.sh backend      # or one at a time
 ./scripts/dev-stop.sh               # both
 ./scripts/dev-stop.sh backend       # before `./mvnw verify` — dev mode fights it over target/
+
+./scripts/dev-start.sh --dataset extracted   # seed the POC's workbook extracts instead of the
+                                             # synthetic fixture — REAL crew data, read from
+                                             # ~/shipping (--extract-root overrides). Stop first:
+                                             # a dataset only takes effect on a fresh database.
 ```
+
+Two dev datasets exist (`crewcomp.dev-seed.dataset`): **synthetic** (default — invented crew,
+safe for any audience, including test cases) and **extracted** (the POC's validated workbook
+extracts, for demonstrations to the people who know the data). The extracts are real personal
+data: they live outside this repository and are never committed to it. The two catalogues never
+mix — switching is stop, then start with the other flag.
 
 Needs a container runtime (Colima or Docker Desktop) for the PostgreSQL that Dev Services
 starts. The scripts point Testcontainers at Colima's socket, generate and reuse a compliant
@@ -211,9 +222,12 @@ The largest functional gaps, in the order they bite:
 4. **No push or email delivery** (MOB-3). The in-app record is the source of truth and
    `notification_delivery` is ready for per-channel records; the unified APNs/FCM sender is the
    mobile spike's.
-5. **No §11 migration.** `DevDataSeeder` is a synthetic development fixture, not the validated CSV
-   load with its 35 ExceptionItems and CC24/CC25 acceptance diff. ADM-7's worklist is built and
-   seeded with three invented items; the real 35 arrive with that load.
+5. **§11 migration is half-built.** `ExtractedSeedLoader` (30 July) ports every POC fix-up rule
+   and loads the real extracts as the dev stack's `extracted` dataset — the known UNI CC24
+   shortfall (M7, 0/1 GPH on Shift 1) reproduces through the real engine, and ADM-7's worklist
+   carries the full extract anomaly set rather than three invented items. Still owed:
+   re-runnability against a populated database, and the CC24/CC25 acceptance diff as a committed
+   test rather than a spot check.
 6. **No E2E test in the repository.** Every back-office screen has been driven in a real Chromium
    against a live backend, and every crew screen on an iOS simulator against the same — which is
    how five rendering bugs have been found so far — but making either a committed lane is the
