@@ -782,6 +782,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/assistant/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the read-only assistant a question
+         * @description Answers cite the records they came from; the assistant never writes. 503 while no model is configured (§14.5).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AssistantAskDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AssistantAnswerDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/crew-requests": {
         parameters: {
             query?: never;
@@ -4392,6 +4456,19 @@ export interface components {
             from: components["schemas"]["LocalDate"];
             to: components["schemas"]["LocalDate"];
             evaluation: components["schemas"]["PersonEvaluationDto"];
+        };
+        AssistantAnswerDto: {
+            text: string;
+            sources: components["schemas"]["AssistantSourceDto"][];
+        };
+        AssistantAskDto: {
+            question: string;
+            screen?: string | null;
+            recordId?: string | null;
+        };
+        AssistantSourceDto: {
+            label: string;
+            deepLink?: string | null;
         };
         AttestationSyncDto: {
             /** Format: int64 */

@@ -4,6 +4,7 @@ import { useNotificationSummary } from '../api/queries'
 import { writeDevIdentity } from '../api/client'
 import { formatDate } from '../domain/dates'
 import { roleLabel } from '../domain/enums'
+import { AssistantPanel, AssistantTrigger, useAssistantPanel } from './AssistantPanel'
 
 /**
  * The application shell — a 52px header and a 236px navigation rail.
@@ -51,9 +52,10 @@ const SHOW_SCREEN_CODES = true
 
 export function Layout(): React.ReactNode {
   const session = useSession()
+  const assistant = useAssistantPanel()
 
   return (
-    <div className="shell">
+    <div className="shell" style={{ '--assistant-push': assistant.pushWidth } as React.CSSProperties}>
       <header className="shell__header">
         <div className="shell__brand">
           Crewcomp
@@ -75,6 +77,7 @@ export function Layout(): React.ReactNode {
           <span className="shell__divider" aria-hidden="true" />
           <span className="shell__roles">{session.roles.map(roleLabel).join(' · ')}</span>
           <span className="shell__actor">{session.label}</span>
+          <AssistantTrigger state={assistant} />
           {import.meta.env.DEV && (
             <button
               type="button"
@@ -102,6 +105,8 @@ export function Layout(): React.ReactNode {
           <Outlet />
         </main>
       </div>
+
+      <AssistantPanel state={assistant} />
     </div>
   )
 }

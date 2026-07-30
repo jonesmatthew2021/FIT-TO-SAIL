@@ -118,6 +118,7 @@ the working loop is dev mode for iteration, a full `verify` before committing.
 | `au.crewcomp.evidence` | §8 all five stages. `EvidenceService` is ingest and the MOB-5a chunk upload; `EvidencePipeline`/`ExtractionStages` are extract/match/decide; `EvidenceReviewService` is ADM-9's queue |
 | `au.crewcomp.notify` | §9 notifications. The in-app record is the source of truth; push and email are channels for it. `NotificationScans` is the three scheduled scans |
 | `au.crewcomp.api` | JAX-RS resources, DTOs, exception mappers |
+| `au.crewcomp.assistant` | §17.1's first surface: the admin shell's read-only assistant. `AssistantService` states the contract (read-only, role-scoped, citations mandatory, audited) and refuses with 503 until a §14.5 provider is chosen — the same posture as `UnconfiguredLlmClient` |
 | `au.crewcomp.platform.dev` | Development-only fixtures, removed from a production build |
 | `au.crewcomp.mcp` | §13.1 MCP tools, token authentication, environment gating |
 | `au.crewcomp.platform` | `security/` (actor, roles, `AccessPolicy`, `ScopeGuard`), `audit/`, `time/`, `adapters/`, `persistence/`, `config/` (ADM-10's `app_config` store), `jobs/` (the scheduler and its health view) |

@@ -14,7 +14,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 | Path | Contents | Status |
 |---|---|---|
 | `backend/` | Kotlin + Quarkus monolith: API, compliance engine, workflow, sync, jobs, embedded MCP server | **P1 spine + all ten §6 modules + ADM-11 + every crew-app write path** — engine + tests, §4 schema, security/audit, compliance service, REST API, matrix versioning, register workflow, catalogue and exception write paths, §8 evidence pipeline, §9 notifications and scans, ADM-10 configuration/jobs/users, MCP, §10.3 sync, MOB-8's course catalogue and MOB-11's supervisor watch |
-| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules plus ADM-11, on the Nocturne dark design system** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, crew requests, notifications centre, evidence queue, administration |
+| `admin-web/` | React + TypeScript admin SPA (types generated from backend OpenAPI) | **all 10 §6 modules plus ADM-11, on the Nocturne dark design system** — shell, session, dashboard, swing planner, matrix, register, people & holdings, requirements catalogue, exceptions worklist, crew requests, notifications centre, evidence queue, administration — plus the shell's **AI assistant panel** (push/overlay, ⌘K), whose server half answers 503 until §14.5's provider is chosen |
 | `mobile/` | Flutter app (iOS + Android, feature parity mandated) | **all twelve of the design handoff's screens, on the Nocturne dark design system** — the four shipped ones restyled, eight new ones built; over an encrypted store, sync, outbox and resumable evidence upload. **iOS and Android both build and run on simulators** — Android as of 29 July, with an encrypted Keystore-keyed store and a working offline cold start; no physical device yet |
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
@@ -218,7 +218,9 @@ The largest functional gaps, in the order they bite:
 3. **No LLM provider (§14.5).** The pipeline is complete around a `LlmClient` that returns nothing.
    Choosing a provider is an adapter implementation plus a prompt; the privacy assessment (O-9,
    LLM-4) is the actual gate. Until then ADM-9's queue works with empty extractions and a Data
-   Steward types the fields, which is exactly LLM-2's launch posture.
+   Steward types the fields, which is exactly LLM-2's launch posture — and the admin shell's
+   assistant panel (30 July) sits behind the same gate: the panel is complete, and
+   `POST /assistant/ask` answers an honest 503 until a provider and its retrieval layer exist.
 4. **No push or email delivery** (MOB-3). The in-app record is the source of truth and
    `notification_delivery` is ready for per-channel records; the unified APNs/FCM sender is the
    mobile spike's.

@@ -16,6 +16,9 @@ import type { components } from './schema'
 type Schemas = components['schemas']
 
 export type Session = Schemas['SessionDto']
+export type AssistantAsk = Schemas['AssistantAskDto']
+export type AssistantAnswer = Schemas['AssistantAnswerDto']
+export type AssistantSource = Schemas['AssistantSourceDto']
 export type Partnership = Schemas['PartnershipDto']
 export type CrewChange = Schemas['CrewChangeDto']
 export type Requirement = Schemas['RequirementDto']
@@ -220,6 +223,10 @@ function query(params: Record<string, string | number | undefined>): string {
 
 export const api = {
   session: (): Promise<Session> => request('/api/v1/session'),
+
+  /** The shell's assistant panel. 503 `assistant_unconfigured` until a §14.5 provider exists. */
+  assistantAsk: (body: AssistantAsk): Promise<AssistantAnswer> =>
+    request('/api/v1/assistant/ask', { method: 'POST', body: JSON.stringify(body) }),
 
   partnerships: (): Promise<Partnership[]> => request('/api/v1/partnerships'),
 

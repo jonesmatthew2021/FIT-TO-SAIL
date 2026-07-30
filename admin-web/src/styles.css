@@ -2576,3 +2576,372 @@ select.input option {
     color: var(--tone-critical-text);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   The assistant panel — shell chrome, not a screen (~/Temp/ai-handoff.md).
+
+   Geometry: `position: fixed` where the handoff says `absolute` over the shell. The handoff's
+   shell fills the viewport and scrolls internally; ours scrolls the page, and an absolute panel
+   would scroll away with it — fixed delivers the stated intent ("over the whole shell, header
+   included") against this app's scroll model.
+
+   Push mode moves the layout with `--assistant-push` on `.shell` (set from Layout); overlay
+   floats on `--shadow-lg` over a scrim and moves nothing. Both use the same curve, and the
+   closed transform is 101% so the border and shadow cannot bleed in from the edge.
+   ═════════════════════════════════════════════════════════════════════════════════════════ */
+
+.shell {
+  position: relative;
+  padding-right: var(--assistant-push, 0px);
+  transition: padding-right 0.34s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.assistant {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-neutral-800);
+  transform: translateX(101%);
+  transition: transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.assistant--open {
+  transform: none;
+}
+
+/* Push mode carries no shadow: an edge is enough when nothing is covered. */
+.assistant--overlay {
+  box-shadow: var(--shadow-lg);
+}
+
+.assistant-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: rgba(10, 11, 18, 0.42);
+}
+
+.assistant__resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+  cursor: col-resize;
+}
+
+/* ── Trigger (header, immediately before Switch role) ──────────────────────────────────── */
+
+.assistant-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  font-family: var(--font-heading);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-accent);
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.assistant-trigger:hover {
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+}
+
+.assistant-trigger__hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-neutral-500);
+}
+
+/* The header is already tight at narrow widths (follow-up 12), so the trigger sheds weight
+   rather than adding to the overflow: the shortcut hint goes first, then the label — the dot,
+   the aria-label and ⌘K itself remain. */
+@media (max-width: 1100px) {
+  .assistant-trigger__hint {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  .assistant-trigger__label {
+    display: none;
+  }
+
+  .assistant-trigger {
+    padding: 5px 8px;
+  }
+}
+
+.assistant__dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent);
+}
+
+.assistant__dot--bright {
+  box-shadow: 0 0 7px var(--color-accent);
+}
+
+/* ── Panel header ───────────────────────────────────────────────────────────────────────── */
+
+.assistant__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  height: var(--shell-header-h);
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--color-neutral-900);
+}
+
+.assistant__title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 14.5px;
+  font-weight: var(--font-heading-weight);
+  letter-spacing: -0.01em;
+}
+
+.assistant__modes {
+  display: inline-flex;
+  gap: 0;
+  margin-left: auto;
+  padding: 2px;
+  background: color-mix(in srgb, var(--color-text) 5%, transparent);
+  border-radius: var(--radius-md);
+}
+
+.assistant__mode {
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--color-neutral-500);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.assistant__mode--on {
+  color: var(--color-accent-100);
+  background: var(--color-accent-900);
+}
+
+.assistant__close {
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-neutral-400);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.assistant__close:hover {
+  color: var(--color-neutral-200);
+}
+
+/* ── Context bar ────────────────────────────────────────────────────────────────────────── */
+
+.assistant__context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--color-neutral-900);
+}
+
+.assistant__overline {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600);
+}
+
+.assistant__scope {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--color-neutral-600);
+}
+
+/* ── Message list (the only part that scrolls) ──────────────────────────────────────────── */
+
+.assistant__messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 16px;
+}
+
+.assistant__turn {
+  display: flex;
+  gap: 9px;
+}
+
+.assistant__turn > .assistant__dot {
+  margin-top: 7px;
+}
+
+.assistant__prose {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-neutral-200);
+  text-wrap: pretty;
+}
+
+.assistant__user {
+  align-self: flex-end;
+  max-width: 86%;
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-accent-100);
+  background: var(--color-accent-900);
+  border: 1px solid var(--color-accent-800);
+  border-radius: 10px 10px 3px 10px;
+  white-space: pre-wrap;
+}
+
+.assistant__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.assistant__source {
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--color-neutral-400);
+  text-decoration: none;
+  border: 1px solid var(--color-neutral-800);
+  border-radius: 5px;
+}
+
+a.assistant__source:hover {
+  border-color: var(--color-accent-700);
+  color: var(--color-accent-200);
+}
+
+.assistant__pending {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--color-neutral-600);
+}
+
+/* The error turn is the ErrorPanel's clothes: the server's message verbatim, plus Try again. */
+.assistant__error {
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--tone-critical-text);
+  background: var(--tone-critical-fill);
+  box-shadow: 0 0 0 1px var(--tone-critical-line);
+  border-radius: var(--radius-md);
+}
+
+.assistant__error p {
+  margin: 0 0 6px;
+}
+
+.assistant__jump {
+  position: absolute;
+  right: 16px;
+  bottom: 108px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--color-accent-200);
+  background: var(--color-surface);
+  border: 1px solid var(--color-accent-700);
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Suggested prompts (opening state only) ─────────────────────────────────────────────── */
+
+.assistant__prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: none;
+  padding: 0 16px 12px;
+}
+
+.assistant__prompt {
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--color-neutral-300);
+  background: transparent;
+  border: 1px solid var(--color-neutral-800);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.assistant__prompt:hover {
+  border-color: var(--color-accent-700);
+  color: var(--color-accent-200);
+}
+
+/* ── Composer ───────────────────────────────────────────────────────────────────────────── */
+
+.assistant__composer {
+  flex: none;
+  padding: 12px 16px 14px;
+  border-top: 1px solid var(--color-neutral-900);
+}
+
+.assistant__composer-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.assistant__input {
+  min-height: 38px;
+  font-size: 13px;
+  resize: none;
+}
+
+.assistant__send {
+  flex: none;
+  height: 38px;
+  padding: 0 13px;
+  font-size: 12.5px;
+}
+
+.assistant__legal {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--color-neutral-600);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell,
+  .assistant {
+    transition-duration: 0s;
+  }
+}

@@ -120,8 +120,36 @@ npm run dev                                                           # :5173
 |---|---|
 | `src/api/` | `schema.d.ts` (generated), `client.ts` (typed fetch + dev identity), `queries.ts` (React Query hooks and cache policy), `session.tsx` (session context, role helpers) |
 | `src/domain/` | `dates.ts` calendar-date arithmetic, `enums.ts` Appendix A presentation, `csv.ts` RFC 4180 export |
-| `src/components/` | `Layout` (with the unread badge), `DataTable`, `Ruler`, `StateChip`, `SwingSelector`, `Spinner`, `ErrorPanel` |
+| `src/components/` | `Layout` (with the unread badge), `AssistantPanel` (the shell's AI panel — see below), `DataTable`, `Ruler`, `StateChip`, `SwingSelector`, `Spinner`, `ErrorPanel` |
 | `src/screens/` | `Dashboard` (ADM-1), `SwingPlanner` (ADM-2), `Matrix` (ADM-3), `Register`/`RegisterDetail`/`RegisterNew` (ADM-4), `People`/`PersonDetail` (ADM-5), `Requirements` (ADM-6), `Exceptions` (ADM-7), `CrewRequests` (ADM-11), `Notifications` (ADM-8), `Evidence` (ADM-9), `Administration` (ADM-10), `SignIn`, `NotBuilt` |
+
+## The assistant panel (`components/AssistantPanel.tsx`)
+
+Shell chrome, not a screen — one instance in `Layout`, above the outlet, kept mounted so the
+conversation survives navigation. Built to the AI-panel handoff (the `Ask AI` trigger before
+Switch role, ⌘K/Ctrl-K, push/overlay modes, 400px resizable 320–560, the route-following context
+chip, source-chip citations). Four things worth knowing before touching it:
+
+- **The backend is honest, not absent.** `POST /api/v1/assistant/ask` exists, is `@Authenticated`,
+  refuses bare crew actors, and answers **503 `assistant_unconfigured`** until a §14.5 provider is
+  chosen — rendered here as an ErrorPanel-styled turn carrying the server's message verbatim, with
+  Try again. Do not replace that with a canned client-side reply; the handoff's worked exchange is
+  explicitly placeholder copy, and deviation 1's standard applies (`AssistantService` is the
+  server half's contract).
+- **`position: fixed`, where the handoff says `absolute`.** The handoff's shell fills the viewport
+  and scrolls internally; ours scrolls the page, so an absolute panel would scroll away with it.
+  Fixed delivers the stated intent ("over the whole shell, header included").
+- **Overlay is forced at ≤1100px** (`matchMedia`, the stylesheet's own narrow breakpoint), because
+  push mode below that squeezes content columns past their min-width floors — and the E2E
+  width-sweep rule applies *with the panel open in push mode*: 0px overflow at 1600/1280/1100 was
+  measured on 31 July.
+- **⌘K and Esc both defer to a native `<dialog>`.** The dialog owns the top layer; a panel opened
+  behind one would render underneath it and read as broken.
+
+Screen-specific suggested prompts live in `PROMPTS`; the dashboard's three are the handoff's copy
+verbatim, the rest are authored in the same voice and are fair game to reword. Source-chip deep
+links go through the same single-slash rule as ADM-8's (`internalLink`), because a stored string
+rendered into an `href` is an open redirect.
 
 ## Development sign-in
 
@@ -392,7 +420,9 @@ it is why `RegisterNew` reads its initial state from `useSearchParams` rather th
    found. Making that a committed lane is the pipeline bootstrap's, and the first two cases it should
    carry are already known: **no screen may scroll the page horizontally** at 1600 / 1280 / 1100 / 980
    / 900 / 760 / 420px, and every ruler bar must cover its own end date.
-12. **The shell scrolls horizontally at 980px and 420px** — 16px and 132px respectively, identically
+12. **The shell scrolls horizontally at 980px and 420px** — 20px and 136px respectively (was 16
+    and 132 before the assistant trigger; the trigger sheds its hint at ≤1100px and its label at
+    ≤980px to stay within 4px of the old numbers), identically
     on every screen, so it is the shell rather than any one of them. `shell__header` and
     `shell__body` are the overflowing boxes; at 420px the widest child is `shell__session`, the
     **dev-only** role picker and its "Switch role" button, which a production bundle does not
