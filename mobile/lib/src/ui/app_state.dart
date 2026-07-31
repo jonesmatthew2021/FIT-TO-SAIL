@@ -388,20 +388,20 @@ class EvidenceSubmitResult {
   bool get queued => publicId != null;
 }
 
-/// MOB-0's ring, counted from the server's own answers.
+/// MOB-0's ring, when the payload predates the server's own count.
 ///
-/// This summarises evaluations; it does not produce one. Every cell arrived with a state the
-/// engine decided (§5.2), and all that happens here is a partition on the same `needsAttention`
-/// grouping the certifications list has always used — which is why the ring and the list can
-/// never disagree about how many things are outstanding.
-///
-/// `na` cells are excluded from both halves. A requirement that does not apply to this person is
-/// not something they are ready for; counting it would inflate the ring with rows the screen
-/// never shows.
+/// The engine's numbers travel in the sync payload (`standing.readiness`) and win wherever they
+/// exist; this mirror covers only the window between an app upgrade and its first sync. It
+/// deliberately counts the same way the server does (`StandingSummary`): `na` is in neither
+/// half, and `pending` is **not** ready — an unanswered request is not a granted one, which is
+/// the distinction the first version of this function lost (issue #12).
 Readiness readinessFrom(List<CertificationRow> rows) {
+  const ready = {'ok', 'exempt', 'quota_only', 'recommended'};
   final applicable = rows.where((row) => row.cell.state != 'na').toList(growable: false);
-  final outstanding = applicable.where((row) => needsAttention(row.cell.state)).length;
-  return Readiness(ready: applicable.length - outstanding, total: applicable.length);
+  return Readiness(
+    ready: applicable.where((row) => ready.contains(row.cell.state)).length,
+    total: applicable.length,
+  );
 }
 
 /// Merges the two halves of the one-tap record into what a screen actually renders.

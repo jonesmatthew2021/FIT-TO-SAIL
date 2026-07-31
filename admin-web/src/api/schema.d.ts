@@ -5178,6 +5178,12 @@ export interface components {
             cursor: number;
             results: components["schemas"]["SyncOperationResultDto"][];
         };
+        SyncReadinessDto: {
+            /** Format: int32 */
+            ready: number;
+            /** Format: int32 */
+            total: number;
+        };
         SyncReferenceDto: {
             /** Format: int64 */
             cursor: number;
@@ -5214,6 +5220,8 @@ export interface components {
             to: components["schemas"]["LocalDate"];
             current: boolean;
             evaluation: components["schemas"]["PersonEvaluationDto"];
+            headline: string;
+            readiness: components["schemas"]["SyncReadinessDto"];
         };
         SyncTombstoneDto: {
             entityType: string;

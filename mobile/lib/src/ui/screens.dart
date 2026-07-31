@@ -499,7 +499,11 @@ class HomeView extends StatelessWidget {
     final sync = this.sync;
     final today = this.today;
     final swingTo = sync?.standingTo;
-    final readiness = readinessFrom(rows);
+    // The engine's own count wherever the payload carries it; the device's mirror only for the
+    // one sync-less window after an app upgrade (issue #12).
+    final readiness = sync?.standingReady != null && sync?.standingTotal != null
+        ? Readiness(ready: sync!.standingReady!, total: sync.standingTotal!)
+        : readinessFrom(rows);
 
     // Worst first, and within a state by how close the deadline is — the same order §5.4 puts a
     // gap report in, refined by the one thing the device is allowed to count.
@@ -553,11 +557,7 @@ class HomeView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _headline(
-                          sync?.standingRollUp,
-                          readiness,
-                          hasSwing: sync?.standingCcId != null,
-                        ),
+                        _headline(sync),
                         style: NoctType.cardTitle.copyWith(height: 1.25),
                       ),
                       const SizedBox(height: 6),
@@ -637,22 +637,15 @@ class HomeView extends StatelessWidget {
 
   static String _count(int items) => items == 1 ? '1 thing' : '$items things';
 
-  /// The one sentence at the top of the screen.
+  /// The one sentence at the top of the screen — the **server's**, rendered as received.
   ///
-  /// Taken from the server's roll-up, never composed from the cells: the roll-up is the §5.2
-  /// answer to "can this person sail this swing", and re-deriving it here would be exactly the
-  /// AUTH-1 violation the whole architecture is arranged to prevent.
-  static String _headline(String? rollUp, Readiness readiness, {required bool hasSwing}) {
-    if (!hasSwing) return 'No swing to check against.';
-    return switch (rollUp) {
-      'ok' => 'You can sail this swing.',
-      'expiring' => 'You can sail this swing.',
-      'pending' || 'exempt' => 'You can sail this swing.',
-      'unknown' || 'review' => 'Almost — two things to confirm.',
-      'gap' => 'Something is missing for this swing.',
-      null => 'Nothing evaluated yet.',
-      _ => 'Something needs your attention.',
-    };
+  /// The device used to map it from the roll-up itself, and that mapping was where the app told
+  /// its one lie: `pending` and `expiring` both read "You can sail this swing." (issue #12).
+  /// A compliance sentence is the engine's to phrase; the only lines composed here are the two
+  /// non-verdicts — no swing to check, and a replica that predates the field.
+  static String _headline(LocalSyncState? sync) {
+    if (sync?.standingCcId == null) return 'No swing to check against.';
+    return sync?.standingHeadline ?? 'Sync to update your standing.';
   }
 
   static String _subhead(
@@ -662,9 +655,17 @@ class HomeView extends StatelessWidget {
     required Readiness readiness,
   }) {
     if (asks.isEmpty) {
-      return readiness.total == 0
-          ? 'Nothing is required of you against this swing yet.'
-          : 'Everything asked of you is accepted and current.';
+      if (readiness.total == 0) return 'Nothing is required of you against this swing yet.';
+      // Not everything settled is *granted*: a pending exemption leaves the ask list empty while
+      // the office still holds the decision, and saying "accepted and current" over that was the
+      // before/after contradiction the review called out (issue #12).
+      final waiting = readiness.total - readiness.ready - asks.length;
+      if (waiting > 0) {
+        return waiting == 1
+            ? 'One request is with the office. Everything else is accepted and current.'
+            : '$waiting requests are with the office. Everything else is accepted and current.';
+      }
+      return 'Everything asked of you is accepted and current.';
     }
 
     final lapsing = asks

@@ -7367,6 +7367,39 @@ class $SyncStatesTable extends SyncStates
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _standingHeadlineMeta = const VerificationMeta(
+    'standingHeadline',
+  );
+  @override
+  late final GeneratedColumn<String> standingHeadline = GeneratedColumn<String>(
+    'standing_headline',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _standingReadyMeta = const VerificationMeta(
+    'standingReady',
+  );
+  @override
+  late final GeneratedColumn<int> standingReady = GeneratedColumn<int>(
+    'standing_ready',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _standingTotalMeta = const VerificationMeta(
+    'standingTotal',
+  );
+  @override
+  late final GeneratedColumn<int> standingTotal = GeneratedColumn<int>(
+    'standing_total',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _supervisorMeta = const VerificationMeta(
     'supervisor',
   );
@@ -7406,6 +7439,9 @@ class $SyncStatesTable extends SyncStates
     standingTo,
     standingCurrent,
     standingRollUp,
+    standingHeadline,
+    standingReady,
+    standingTotal,
     supervisor,
     teamCcId,
   ];
@@ -7508,6 +7544,33 @@ class $SyncStatesTable extends SyncStates
         ),
       );
     }
+    if (data.containsKey('standing_headline')) {
+      context.handle(
+        _standingHeadlineMeta,
+        standingHeadline.isAcceptableOrUnknown(
+          data['standing_headline']!,
+          _standingHeadlineMeta,
+        ),
+      );
+    }
+    if (data.containsKey('standing_ready')) {
+      context.handle(
+        _standingReadyMeta,
+        standingReady.isAcceptableOrUnknown(
+          data['standing_ready']!,
+          _standingReadyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('standing_total')) {
+      context.handle(
+        _standingTotalMeta,
+        standingTotal.isAcceptableOrUnknown(
+          data['standing_total']!,
+          _standingTotalMeta,
+        ),
+      );
+    }
     if (data.containsKey('supervisor')) {
       context.handle(
         _supervisorMeta,
@@ -7573,6 +7636,18 @@ class $SyncStatesTable extends SyncStates
         DriftSqlType.string,
         data['${effectivePrefix}standing_roll_up'],
       ),
+      standingHeadline: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}standing_headline'],
+      ),
+      standingReady: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}standing_ready'],
+      ),
+      standingTotal: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}standing_total'],
+      ),
       supervisor: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}supervisor'],
@@ -7607,6 +7682,14 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
   final bool? standingCurrent;
   final String? standingRollUp;
 
+  /// MOB-0's one sentence, composed by the server (issue #12). Null until the first sync against
+  /// a backend that sends it — the screen shows a neutral "sync to update" line, never a verdict.
+  final String? standingHeadline;
+
+  /// MOB-0's ring, counted by the engine — which states count as ready is its judgement.
+  final int? standingReady;
+  final int? standingTotal;
+
   /// Whether the **server** says this person supervises a watch (MOB-11).
   ///
   /// Persisted rather than held in memory so that the Team tab is there on a cold start in a dead
@@ -7636,6 +7719,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     this.standingTo,
     this.standingCurrent,
     this.standingRollUp,
+    this.standingHeadline,
+    this.standingReady,
+    this.standingTotal,
     required this.supervisor,
     this.teamCcId,
   });
@@ -7668,6 +7754,15 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     }
     if (!nullToAbsent || standingRollUp != null) {
       map['standing_roll_up'] = Variable<String>(standingRollUp);
+    }
+    if (!nullToAbsent || standingHeadline != null) {
+      map['standing_headline'] = Variable<String>(standingHeadline);
+    }
+    if (!nullToAbsent || standingReady != null) {
+      map['standing_ready'] = Variable<int>(standingReady);
+    }
+    if (!nullToAbsent || standingTotal != null) {
+      map['standing_total'] = Variable<int>(standingTotal);
     }
     map['supervisor'] = Variable<bool>(supervisor);
     if (!nullToAbsent || teamCcId != null) {
@@ -7705,6 +7800,15 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
       standingRollUp: standingRollUp == null && nullToAbsent
           ? const Value.absent()
           : Value(standingRollUp),
+      standingHeadline: standingHeadline == null && nullToAbsent
+          ? const Value.absent()
+          : Value(standingHeadline),
+      standingReady: standingReady == null && nullToAbsent
+          ? const Value.absent()
+          : Value(standingReady),
+      standingTotal: standingTotal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(standingTotal),
       supervisor: Value(supervisor),
       teamCcId: teamCcId == null && nullToAbsent
           ? const Value.absent()
@@ -7731,6 +7835,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
       standingTo: serializer.fromJson<String?>(json['standingTo']),
       standingCurrent: serializer.fromJson<bool?>(json['standingCurrent']),
       standingRollUp: serializer.fromJson<String?>(json['standingRollUp']),
+      standingHeadline: serializer.fromJson<String?>(json['standingHeadline']),
+      standingReady: serializer.fromJson<int?>(json['standingReady']),
+      standingTotal: serializer.fromJson<int?>(json['standingTotal']),
       supervisor: serializer.fromJson<bool>(json['supervisor']),
       teamCcId: serializer.fromJson<String?>(json['teamCcId']),
     );
@@ -7750,6 +7857,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
       'standingTo': serializer.toJson<String?>(standingTo),
       'standingCurrent': serializer.toJson<bool?>(standingCurrent),
       'standingRollUp': serializer.toJson<String?>(standingRollUp),
+      'standingHeadline': serializer.toJson<String?>(standingHeadline),
+      'standingReady': serializer.toJson<int?>(standingReady),
+      'standingTotal': serializer.toJson<int?>(standingTotal),
       'supervisor': serializer.toJson<bool>(supervisor),
       'teamCcId': serializer.toJson<String?>(teamCcId),
     };
@@ -7767,6 +7877,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     Value<String?> standingTo = const Value.absent(),
     Value<bool?> standingCurrent = const Value.absent(),
     Value<String?> standingRollUp = const Value.absent(),
+    Value<String?> standingHeadline = const Value.absent(),
+    Value<int?> standingReady = const Value.absent(),
+    Value<int?> standingTotal = const Value.absent(),
     bool? supervisor,
     Value<String?> teamCcId = const Value.absent(),
   }) => LocalSyncState(
@@ -7787,6 +7900,15 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     standingRollUp: standingRollUp.present
         ? standingRollUp.value
         : this.standingRollUp,
+    standingHeadline: standingHeadline.present
+        ? standingHeadline.value
+        : this.standingHeadline,
+    standingReady: standingReady.present
+        ? standingReady.value
+        : this.standingReady,
+    standingTotal: standingTotal.present
+        ? standingTotal.value
+        : this.standingTotal,
     supervisor: supervisor ?? this.supervisor,
     teamCcId: teamCcId.present ? teamCcId.value : this.teamCcId,
   );
@@ -7821,6 +7943,15 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
       standingRollUp: data.standingRollUp.present
           ? data.standingRollUp.value
           : this.standingRollUp,
+      standingHeadline: data.standingHeadline.present
+          ? data.standingHeadline.value
+          : this.standingHeadline,
+      standingReady: data.standingReady.present
+          ? data.standingReady.value
+          : this.standingReady,
+      standingTotal: data.standingTotal.present
+          ? data.standingTotal.value
+          : this.standingTotal,
       supervisor: data.supervisor.present
           ? data.supervisor.value
           : this.supervisor,
@@ -7842,6 +7973,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
           ..write('standingTo: $standingTo, ')
           ..write('standingCurrent: $standingCurrent, ')
           ..write('standingRollUp: $standingRollUp, ')
+          ..write('standingHeadline: $standingHeadline, ')
+          ..write('standingReady: $standingReady, ')
+          ..write('standingTotal: $standingTotal, ')
           ..write('supervisor: $supervisor, ')
           ..write('teamCcId: $teamCcId')
           ..write(')'))
@@ -7861,6 +7995,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
     standingTo,
     standingCurrent,
     standingRollUp,
+    standingHeadline,
+    standingReady,
+    standingTotal,
     supervisor,
     teamCcId,
   );
@@ -7879,6 +8016,9 @@ class LocalSyncState extends DataClass implements Insertable<LocalSyncState> {
           other.standingTo == this.standingTo &&
           other.standingCurrent == this.standingCurrent &&
           other.standingRollUp == this.standingRollUp &&
+          other.standingHeadline == this.standingHeadline &&
+          other.standingReady == this.standingReady &&
+          other.standingTotal == this.standingTotal &&
           other.supervisor == this.supervisor &&
           other.teamCcId == this.teamCcId);
 }
@@ -7895,6 +8035,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
   final Value<String?> standingTo;
   final Value<bool?> standingCurrent;
   final Value<String?> standingRollUp;
+  final Value<String?> standingHeadline;
+  final Value<int?> standingReady;
+  final Value<int?> standingTotal;
   final Value<bool> supervisor;
   final Value<String?> teamCcId;
   const SyncStatesCompanion({
@@ -7909,6 +8052,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     this.standingTo = const Value.absent(),
     this.standingCurrent = const Value.absent(),
     this.standingRollUp = const Value.absent(),
+    this.standingHeadline = const Value.absent(),
+    this.standingReady = const Value.absent(),
+    this.standingTotal = const Value.absent(),
     this.supervisor = const Value.absent(),
     this.teamCcId = const Value.absent(),
   });
@@ -7924,6 +8070,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     this.standingTo = const Value.absent(),
     this.standingCurrent = const Value.absent(),
     this.standingRollUp = const Value.absent(),
+    this.standingHeadline = const Value.absent(),
+    this.standingReady = const Value.absent(),
+    this.standingTotal = const Value.absent(),
     this.supervisor = const Value.absent(),
     this.teamCcId = const Value.absent(),
   });
@@ -7939,6 +8088,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     Expression<String>? standingTo,
     Expression<bool>? standingCurrent,
     Expression<String>? standingRollUp,
+    Expression<String>? standingHeadline,
+    Expression<int>? standingReady,
+    Expression<int>? standingTotal,
     Expression<bool>? supervisor,
     Expression<String>? teamCcId,
   }) {
@@ -7955,6 +8107,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
       if (standingTo != null) 'standing_to': standingTo,
       if (standingCurrent != null) 'standing_current': standingCurrent,
       if (standingRollUp != null) 'standing_roll_up': standingRollUp,
+      if (standingHeadline != null) 'standing_headline': standingHeadline,
+      if (standingReady != null) 'standing_ready': standingReady,
+      if (standingTotal != null) 'standing_total': standingTotal,
       if (supervisor != null) 'supervisor': supervisor,
       if (teamCcId != null) 'team_cc_id': teamCcId,
     });
@@ -7972,6 +8127,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     Value<String?>? standingTo,
     Value<bool?>? standingCurrent,
     Value<String?>? standingRollUp,
+    Value<String?>? standingHeadline,
+    Value<int?>? standingReady,
+    Value<int?>? standingTotal,
     Value<bool>? supervisor,
     Value<String?>? teamCcId,
   }) {
@@ -7987,6 +8145,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
       standingTo: standingTo ?? this.standingTo,
       standingCurrent: standingCurrent ?? this.standingCurrent,
       standingRollUp: standingRollUp ?? this.standingRollUp,
+      standingHeadline: standingHeadline ?? this.standingHeadline,
+      standingReady: standingReady ?? this.standingReady,
+      standingTotal: standingTotal ?? this.standingTotal,
       supervisor: supervisor ?? this.supervisor,
       teamCcId: teamCcId ?? this.teamCcId,
     );
@@ -8028,6 +8189,15 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
     if (standingRollUp.present) {
       map['standing_roll_up'] = Variable<String>(standingRollUp.value);
     }
+    if (standingHeadline.present) {
+      map['standing_headline'] = Variable<String>(standingHeadline.value);
+    }
+    if (standingReady.present) {
+      map['standing_ready'] = Variable<int>(standingReady.value);
+    }
+    if (standingTotal.present) {
+      map['standing_total'] = Variable<int>(standingTotal.value);
+    }
     if (supervisor.present) {
       map['supervisor'] = Variable<bool>(supervisor.value);
     }
@@ -8051,6 +8221,9 @@ class SyncStatesCompanion extends UpdateCompanion<LocalSyncState> {
           ..write('standingTo: $standingTo, ')
           ..write('standingCurrent: $standingCurrent, ')
           ..write('standingRollUp: $standingRollUp, ')
+          ..write('standingHeadline: $standingHeadline, ')
+          ..write('standingReady: $standingReady, ')
+          ..write('standingTotal: $standingTotal, ')
           ..write('supervisor: $supervisor, ')
           ..write('teamCcId: $teamCcId')
           ..write(')'))
@@ -11808,6 +11981,9 @@ typedef $$SyncStatesTableCreateCompanionBuilder =
       Value<String?> standingTo,
       Value<bool?> standingCurrent,
       Value<String?> standingRollUp,
+      Value<String?> standingHeadline,
+      Value<int?> standingReady,
+      Value<int?> standingTotal,
       Value<bool> supervisor,
       Value<String?> teamCcId,
     });
@@ -11824,6 +12000,9 @@ typedef $$SyncStatesTableUpdateCompanionBuilder =
       Value<String?> standingTo,
       Value<bool?> standingCurrent,
       Value<String?> standingRollUp,
+      Value<String?> standingHeadline,
+      Value<int?> standingReady,
+      Value<int?> standingTotal,
       Value<bool> supervisor,
       Value<String?> teamCcId,
     });
@@ -11889,6 +12068,21 @@ class $$SyncStatesTableFilterComposer
 
   ColumnFilters<String> get standingRollUp => $composableBuilder(
     column: $table.standingRollUp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get standingHeadline => $composableBuilder(
+    column: $table.standingHeadline,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get standingReady => $composableBuilder(
+    column: $table.standingReady,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get standingTotal => $composableBuilder(
+    column: $table.standingTotal,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11967,6 +12161,21 @@ class $$SyncStatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get standingHeadline => $composableBuilder(
+    column: $table.standingHeadline,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get standingReady => $composableBuilder(
+    column: $table.standingReady,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get standingTotal => $composableBuilder(
+    column: $table.standingTotal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get supervisor => $composableBuilder(
     column: $table.supervisor,
     builder: (column) => ColumnOrderings(column),
@@ -12038,6 +12247,21 @@ class $$SyncStatesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get standingHeadline => $composableBuilder(
+    column: $table.standingHeadline,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get standingReady => $composableBuilder(
+    column: $table.standingReady,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get standingTotal => $composableBuilder(
+    column: $table.standingTotal,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get supervisor => $composableBuilder(
     column: $table.supervisor,
     builder: (column) => column,
@@ -12089,6 +12313,9 @@ class $$SyncStatesTableTableManager
                 Value<String?> standingTo = const Value.absent(),
                 Value<bool?> standingCurrent = const Value.absent(),
                 Value<String?> standingRollUp = const Value.absent(),
+                Value<String?> standingHeadline = const Value.absent(),
+                Value<int?> standingReady = const Value.absent(),
+                Value<int?> standingTotal = const Value.absent(),
                 Value<bool> supervisor = const Value.absent(),
                 Value<String?> teamCcId = const Value.absent(),
               }) => SyncStatesCompanion(
@@ -12103,6 +12330,9 @@ class $$SyncStatesTableTableManager
                 standingTo: standingTo,
                 standingCurrent: standingCurrent,
                 standingRollUp: standingRollUp,
+                standingHeadline: standingHeadline,
+                standingReady: standingReady,
+                standingTotal: standingTotal,
                 supervisor: supervisor,
                 teamCcId: teamCcId,
               ),
@@ -12119,6 +12349,9 @@ class $$SyncStatesTableTableManager
                 Value<String?> standingTo = const Value.absent(),
                 Value<bool?> standingCurrent = const Value.absent(),
                 Value<String?> standingRollUp = const Value.absent(),
+                Value<String?> standingHeadline = const Value.absent(),
+                Value<int?> standingReady = const Value.absent(),
+                Value<int?> standingTotal = const Value.absent(),
                 Value<bool> supervisor = const Value.absent(),
                 Value<String?> teamCcId = const Value.absent(),
               }) => SyncStatesCompanion.insert(
@@ -12133,6 +12366,9 @@ class $$SyncStatesTableTableManager
                 standingTo: standingTo,
                 standingCurrent: standingCurrent,
                 standingRollUp: standingRollUp,
+                standingHeadline: standingHeadline,
+                standingReady: standingReady,
+                standingTotal: standingTotal,
                 supervisor: supervisor,
                 teamCcId: teamCcId,
               ),

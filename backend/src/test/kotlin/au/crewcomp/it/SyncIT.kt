@@ -127,6 +127,11 @@ class SyncIT {
                 .body("standing.ccId", equalTo("CC24"))
                 .body("standing.evaluation.rollUp", notNullValue())
                 .body("standing.evaluation.cells.size()", greaterThan(0))
+                // MOB-0's sentence and ring come down the wire too — the last two places the
+                // device used to phrase a compliance answer itself (31 Jul review, issue #12).
+                .body("standing.headline", notNullValue())
+                .body("standing.readiness.total", greaterThan(0))
+                .body("standing.readiness.ready", notNullValue())
         }
 
         @Test

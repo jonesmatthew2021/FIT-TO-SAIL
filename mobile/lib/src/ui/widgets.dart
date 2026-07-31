@@ -723,7 +723,9 @@ class ReadinessRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fraction = total <= 0 ? 1.0 : (ready / total).clamp(0.0, 1.0);
+    // 0/0 draws empty, not full: "nothing was asked" must not render as "everything is done"
+    // (issue #12) — an all-clear sweep beside a "no swing" headline reads as a verdict.
+    final fraction = total <= 0 ? 0.0 : (ready / total).clamp(0.0, 1.0);
     final inner = size * (70 / 88);
 
     return Semantics(

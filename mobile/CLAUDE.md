@@ -469,8 +469,8 @@ Each of these is one stub in `app_state.dart`, so landing the backend work is a 
 | The design asks for | Today | The screen does |
 |---|---|---|
 | MOB-0's credit tiles — "14 months · never sailed short" | needs history the device is never sent | draws no tiles at all; the rest of Home is unaffected |
-| MOB-0's readiness ring | derived on the device from the server's own cells | counts them with the same `needsAttention` grouping the list uses, so ring and list cannot disagree — but *which states count as ready* should be the engine's |
-| MOB-0's headline sentence | mapped from `standing.evaluation.rollUp` | a `switch` in `HomeView._headline`; it is a compliance sentence living in a client and should come down the wire |
+| MOB-0's readiness ring | **landed** — `standing.readiness`, counted by the engine (`pending` is not ready) | renders it as received; `readinessFrom` survives only as the same-counting mirror for the sync-less window after an upgrade |
+| MOB-0's headline sentence | **landed** — `standing.headline`, composed server-side and honest about `pending`/`expiring` | renders it verbatim; the device composes only "No swing to check against." and "Sync to update your standing." |
 | MOB-8's course dates | **landed** — filtered server-side against this person's roster and expiry | nothing is degraded. The empty state survives and now means something narrower: every date the catalogue holds either finishes too late or runs while they are at sea — which for anybody rostered across a whole swing is what an `expiring` cell always means, and is the case MOB-10 exists for |
 | MOB-7's extracted fields | no LLM provider (§14.5) | opens at its third confidence level with `Not read — add it` in every field, which **is** LLM-2's launch posture, not a degraded mode |
 | MOB-11's watch | **landed** — `/api/v1/me/team`, scoped to the crew co-assigned to the supervisor's swing | nothing is degraded. The tab appears because the endpoint answered 200 rather than 403, which is the server deciding the role; the two empty states are kept apart — "No swing under way" versus "Nobody else on CC24" |

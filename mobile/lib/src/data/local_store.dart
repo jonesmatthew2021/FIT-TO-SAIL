@@ -380,6 +380,14 @@ class SyncStates extends Table {
   BoolColumn get standingCurrent => boolean().nullable()();
   TextColumn get standingRollUp => text().nullable()();
 
+  /// MOB-0's one sentence, composed by the server (issue #12). Null until the first sync against
+  /// a backend that sends it — the screen shows a neutral "sync to update" line, never a verdict.
+  TextColumn get standingHeadline => text().nullable()();
+
+  /// MOB-0's ring, counted by the engine — which states count as ready is its judgement.
+  IntColumn get standingReady => integer().nullable()();
+  IntColumn get standingTotal => integer().nullable()();
+
   /// Whether the **server** says this person supervises a watch (MOB-11).
   ///
   /// Persisted rather than held in memory so that the Team tab is there on a cold start in a dead
@@ -426,10 +434,11 @@ class LocalStore extends _$LocalStore {
   LocalStore(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   /// v1 → v2 adds [CrewIntents]; v2 → v3 [CrewStatements]; v3 → v4 [Attestations]; v4 → v5
-  /// [CourseOptions], [TeamMembers] and the two supervisor columns on [SyncStates].
+  /// [CourseOptions], [TeamMembers] and the two supervisor columns on [SyncStates]; v5 → v6 the
+  /// server-composed standing headline and readiness on [SyncStates].
   ///
   /// Additive, and it has to be: an upgrade that dropped and re-created the database would take
   /// the outbox with it, and the outbox is the only copy of writes the server has never seen. A
@@ -456,6 +465,13 @@ class LocalStore extends _$LocalStore {
             // says otherwise, and that is the correct answer to give in the meantime.
             await m.addColumn(syncStates, syncStates.supervisor);
             await m.addColumn(syncStates, syncStates.teamCcId);
+          }
+          if (from < 6) {
+            // Nullable, so no backfill: an upgraded device simply has no server headline until
+            // its next sync, and the screen says "sync to update" rather than inventing one.
+            await m.addColumn(syncStates, syncStates.standingHeadline);
+            await m.addColumn(syncStates, syncStates.standingReady);
+            await m.addColumn(syncStates, syncStates.standingTotal);
           }
         },
       );

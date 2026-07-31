@@ -296,6 +296,70 @@ class AssignmentEvaluationDto {
       };
 }
 
+class AssistantAnswerDto {
+  final String text;
+  final List<AssistantSourceDto> sources;
+
+  const AssistantAnswerDto({
+    required this.text,
+    required this.sources,
+  });
+
+  factory AssistantAnswerDto.fromJson(Map<String, dynamic> json) => AssistantAnswerDto(
+        text: json['text'] as String,
+        sources: (json['sources'] as List<dynamic>).map((e) => AssistantSourceDto.fromJson(e as Map<String, dynamic>)).toList(growable: false),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'text': text,
+        'sources': sources.map((e) => e.toJson()).toList(growable: false),
+      };
+}
+
+class AssistantAskDto {
+  final String question;
+  final String? screen;
+  final String? recordId;
+
+  const AssistantAskDto({
+    required this.question,
+    this.screen,
+    this.recordId,
+  });
+
+  factory AssistantAskDto.fromJson(Map<String, dynamic> json) => AssistantAskDto(
+        question: json['question'] as String,
+        screen: json['screen'] == null ? null : json['screen'] as String,
+        recordId: json['recordId'] == null ? null : json['recordId'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'question': question,
+        'screen': screen,
+        'recordId': recordId,
+      };
+}
+
+class AssistantSourceDto {
+  final String label;
+  final String? deepLink;
+
+  const AssistantSourceDto({
+    required this.label,
+    this.deepLink,
+  });
+
+  factory AssistantSourceDto.fromJson(Map<String, dynamic> json) => AssistantSourceDto(
+        label: json['label'] as String,
+        deepLink: json['deepLink'] == null ? null : json['deepLink'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'deepLink': deepLink,
+      };
+}
+
 class AttestationSyncDto {
   final int id;
   final String opId;
@@ -2618,6 +2682,7 @@ class SuggestionDto {
   final int expiringCount;
   final bool crossPartnership;
   final bool clash;
+  final bool onLeave;
   final List<String> reasons;
 
   const SuggestionDto({
@@ -2630,6 +2695,7 @@ class SuggestionDto {
     required this.expiringCount,
     required this.crossPartnership,
     required this.clash,
+    required this.onLeave,
     required this.reasons,
   });
 
@@ -2643,6 +2709,7 @@ class SuggestionDto {
         expiringCount: json['expiringCount'] as int,
         crossPartnership: json['crossPartnership'] as bool,
         clash: json['clash'] as bool,
+        onLeave: json['onLeave'] as bool,
         reasons: (json['reasons'] as List<dynamic>).map((e) => (e as String)).toList(growable: false),
       );
 
@@ -2656,6 +2723,7 @@ class SuggestionDto {
         'expiringCount': expiringCount,
         'crossPartnership': crossPartnership,
         'clash': clash,
+        'onLeave': onLeave,
         'reasons': reasons,
       };
 }
@@ -2916,6 +2984,26 @@ class SyncQueueResultDto {
       };
 }
 
+class SyncReadinessDto {
+  final int ready;
+  final int total;
+
+  const SyncReadinessDto({
+    required this.ready,
+    required this.total,
+  });
+
+  factory SyncReadinessDto.fromJson(Map<String, dynamic> json) => SyncReadinessDto(
+        ready: json['ready'] as int,
+        total: json['total'] as int,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'ready': ready,
+        'total': total,
+      };
+}
+
 class SyncReferenceDto {
   final int cursor;
   final int? matrixVersionId;
@@ -3031,6 +3119,8 @@ class SyncStandingDto {
   final String to;
   final bool current;
   final PersonEvaluationDto evaluation;
+  final String headline;
+  final SyncReadinessDto readiness;
 
   const SyncStandingDto({
     required this.ccId,
@@ -3039,6 +3129,8 @@ class SyncStandingDto {
     required this.to,
     required this.current,
     required this.evaluation,
+    required this.headline,
+    required this.readiness,
   });
 
   factory SyncStandingDto.fromJson(Map<String, dynamic> json) => SyncStandingDto(
@@ -3048,6 +3140,8 @@ class SyncStandingDto {
         to: json['to'] as String,
         current: json['current'] as bool,
         evaluation: PersonEvaluationDto.fromJson(json['evaluation'] as Map<String, dynamic>),
+        headline: json['headline'] as String,
+        readiness: SyncReadinessDto.fromJson(json['readiness'] as Map<String, dynamic>),
       );
 
   Map<String, dynamic> toJson() => {
@@ -3057,6 +3151,8 @@ class SyncStandingDto {
         'to': to,
         'current': current,
         'evaluation': evaluation.toJson(),
+        'headline': headline,
+        'readiness': readiness.toJson(),
       };
 }
 

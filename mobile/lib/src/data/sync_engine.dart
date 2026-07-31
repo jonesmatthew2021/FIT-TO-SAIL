@@ -383,6 +383,9 @@ class SyncEngine {
             standingTo: Value(standing?.to),
             standingCurrent: Value(standing?.current),
             standingRollUp: Value(standing?.evaluation.rollUp),
+            standingHeadline: Value(standing?.headline),
+            standingReady: Value(standing?.readiness.ready),
+            standingTotal: Value(standing?.readiness.total),
           ),
         );
   }

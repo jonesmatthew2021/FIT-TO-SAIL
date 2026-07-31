@@ -9,6 +9,7 @@ import au.crewcomp.api.SyncOperationDto
 import au.crewcomp.api.SyncOperationResultDto
 import au.crewcomp.api.SyncQueueRequest
 import au.crewcomp.api.SyncQueueResultDto
+import au.crewcomp.api.SyncReadinessDto
 import au.crewcomp.api.SyncReferenceDto
 import au.crewcomp.api.SyncSnapshotDto
 import au.crewcomp.api.SyncStandingDto
@@ -386,6 +387,7 @@ class SyncService(
             ccId = crewChange.ccId,
         )
 
+        val readiness = StandingSummary.readiness(evaluation)
         return SyncStandingDto(
             ccId = crewChange.ccId,
             partnershipAbbrev = crewChange.partnership.abbrev,
@@ -393,6 +395,8 @@ class SyncService(
             to = crewChange.toDate,
             current = !today.isBefore(crewChange.fromDate) && !today.isAfter(crewChange.toDate),
             evaluation = evaluation.toDto(),
+            headline = StandingSummary.headline(evaluation),
+            readiness = SyncReadinessDto(ready = readiness.ready, total = readiness.total),
         )
     }
 

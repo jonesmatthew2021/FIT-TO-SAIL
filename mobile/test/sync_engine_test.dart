@@ -112,6 +112,14 @@ void main() {
         'to': '2026-08-16',
         'current': true,
         'evaluation': {'personId': 7, 'rollUp': rollUp, 'cells': cells},
+        // Composed server-side (issue #12); the device stores and renders them as received.
+        'headline': rollUp == 'ok'
+            ? 'You can sail this swing.'
+            : 'A certificate lapses before this swing ends.',
+        'readiness': {
+          'ready': cells.where((c) => c['state'] == 'ok').length,
+          'total': cells.length,
+        },
       };
 
   Map<String, dynamic> cell(int requirementId, String state, {String? expiry}) => {

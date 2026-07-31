@@ -23,7 +23,14 @@ void main() {
     status: 'active',
   );
 
-  LocalSyncState syncState({String rollUp = 'expiring', String? ccId = 'CC24'}) => LocalSyncState(
+  LocalSyncState syncState({
+    String rollUp = 'expiring',
+    String? ccId = 'CC24',
+    // The server's sentence and count, as the sync payload delivers them (issue #12).
+    String headline = 'A certificate lapses before this swing ends.',
+    int ready = 5,
+    int total = 6,
+  }) => LocalSyncState(
     id: 0,
     cursor: 100,
     referenceCursor: 50,
@@ -36,6 +43,9 @@ void main() {
     standingTo: ccId == null ? null : '2026-08-17',
     standingCurrent: ccId == null ? null : true,
     standingRollUp: ccId == null ? null : rollUp,
+    standingHeadline: ccId == null ? null : headline,
+    standingReady: ccId == null ? null : ready,
+    standingTotal: ccId == null ? null : total,
   );
 
   CertificationRow row(int id, String state, String code, String title, {String? expiry}) =>
@@ -157,7 +167,7 @@ void main() {
   });
 
   group('MOB-0 home', () {
-    testWidgets('leads with the server\'s roll-up, never a re-derived verdict', (tester) async {
+    testWidgets('leads with the server\'s own sentence, never a re-derived verdict', (tester) async {
       await pump(
         tester,
         HomeView(
@@ -169,8 +179,11 @@ void main() {
         ),
       );
 
-      expect(find.text('You can sail this swing.'), findsOneWidget);
-      // The ring, counted from the same cells the list groups.
+      // The headline is the payload's, verbatim — with a certificate expiring, the device must
+      // not soften it into "You can sail this swing." (issue #12).
+      expect(find.text('A certificate lapses before this swing ends.'), findsOneWidget);
+      expect(find.text('You can sail this swing.'), findsNothing);
+      // The ring draws the server's count.
       expect(find.textContaining('5'), findsWidgets);
       expect(find.text('READY'), findsOneWidget);
     });
@@ -182,13 +195,73 @@ void main() {
           rows: [row(11, 'gap', 'MS-02', 'Sea Survival')],
           answers: const [],
           person: person,
-          sync: syncState(rollUp: 'gap'),
+          sync: syncState(
+            rollUp: 'gap',
+            headline: 'Something is missing for this swing.',
+            ready: 0,
+            total: 1,
+          ),
           today: '2026-07-26',
         ),
       );
 
       expect(find.text('Something is missing for this swing.'), findsOneWidget);
       expect(find.text('You can sail this swing.'), findsNothing);
+    });
+
+    testWidgets('a pending request is waiting, not granted', (tester) async {
+      // The review's worst case: send an exemption request, and the old Home said "You can sail
+      // this swing. Everything asked of you is accepted and current." while nothing was granted.
+      // `pending` is not in the ask list (someone is actioning it), so the honesty lives in the
+      // server's headline and the waiting line under it.
+      await pump(
+        tester,
+        HomeView(
+          rows: [row(11, 'pending', 'MS-02', 'Sea Survival'), row(12, 'ok', 'MS-01', 'Medical')],
+          answers: const [],
+          person: person,
+          sync: syncState(
+            rollUp: 'pending',
+            headline: 'A request is with the office — not yet granted.',
+            ready: 1,
+            total: 2,
+          ),
+          today: '2026-07-26',
+        ),
+      );
+
+      expect(find.text('A request is with the office — not yet granted.'), findsOneWidget);
+      expect(
+        find.text('One request is with the office. Everything else is accepted and current.'),
+        findsOneWidget,
+      );
+      expect(find.text('You can sail this swing.'), findsNothing);
+      expect(find.textContaining('accepted and current.'), findsOneWidget);
+    });
+
+    testWidgets('a replica that predates the field asks for a sync rather than phrasing a verdict',
+        (tester) async {
+      await pump(
+        tester,
+        HomeView(
+          rows: swing,
+          answers: const [],
+          person: person,
+          sync: LocalSyncState(
+            id: 0,
+            cursor: 100,
+            referenceCursor: 50,
+            supervisor: false,
+            serverToday: '2026-07-26',
+            lastSyncedAt: DateTime.now().toUtc(),
+            standingCcId: 'CC24',
+            standingRollUp: 'expiring',
+          ),
+          today: '2026-07-26',
+        ),
+      );
+
+      expect(find.text('Sync to update your standing.'), findsOneWidget);
     });
 
     testWidgets('names the one thing asked, as an ask rather than a noun', (tester) async {

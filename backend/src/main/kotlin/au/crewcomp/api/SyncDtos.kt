@@ -160,7 +160,17 @@ data class SyncStandingDto(
     /** True when this is the swing currently in progress rather than the next one. */
     val current: Boolean,
     val evaluation: PersonEvaluationDto,
+    /**
+     * MOB-0's one sentence, composed server-side ([au.crewcomp.sync.StandingSummary]) so no
+     * client phrases a compliance verdict. Count-accurate, and honest about `pending` — an
+     * unanswered request never reads as "you can sail".
+     */
+    val headline: String,
+    /** MOB-0's ring. Which states count as ready is the engine's judgement, not a device's. */
+    val readiness: SyncReadinessDto,
 )
+
+data class SyncReadinessDto(val ready: Int, val total: Int)
 
 data class NotificationDto(
     val id: Long,

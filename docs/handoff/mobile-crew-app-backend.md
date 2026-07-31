@@ -218,19 +218,19 @@ appears in the office's record should not be composed on the phone of the person
 All of these are read-only additions to `SyncSnapshotDto` / the delta. Each has a screen behind it
 that renders correctly without it today.
 
-### 2.1 `standing.readiness { ready, total }` — MOB-0's ring
+### 2.1 `standing.readiness { ready, total }` — MOB-0's ring — **done**
 
-The device currently counts this itself, by partitioning the server's own evaluated cells on the
-same `needsAttention` grouping the certifications list has always used, and excluding `na`. That is
-a summary of answers rather than a new one, so it does not break AUTH-1 — but *which states count
-as ready* is a compliance judgement and belongs with the engine. Sending it also lets the two
-numbers stop being derivable at all, which is the stronger position.
+Implemented 31 July 2026 (`StandingSummary`, issue #12). The engine's counting excludes `na` from
+both halves and — the part the device's derivation got wrong — counts `pending` as *not* ready: an
+unanswered request is not a granted one. The device keeps a mirror (`readinessFrom`) only for the
+sync-less window after an app upgrade, counting the same way.
 
-### 2.2 `standing.headline` — MOB-0's one sentence
+### 2.2 `standing.headline` — MOB-0's one sentence — **done**
 
-"You can sail this swing." is currently mapped from `standing.evaluation.rollUp` by a `switch` in
-`HomeView._headline`. It is a faithful mapping, but it is a compliance sentence living in a client.
-A server-supplied string removes the last place the app phrases a verdict.
+Implemented 31 July 2026 (`StandingSummary.headline`, issue #12). Count-accurate, keyed on the
+roll-up, and honest about `pending` and `expiring` — the two states the deleted client `switch`
+softened into "You can sail this swing." The device composes only the two non-verdicts: "No swing
+to check against." and the post-upgrade "Sync to update your standing."
 
 ### 2.3 `credits { streakLabel, streakCaption, secondaryLabel, secondaryCaption }` — MOB-0's tiles
 
