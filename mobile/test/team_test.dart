@@ -111,7 +111,9 @@ void main() {
             subjectRef: 'SAM101',
             summary: 'Nudged Ada Nakamura',
             payload: '{}',
-            queuedAt: DateTime.utc(2026, 7, 26),
+            // Wall-clock recent: the disarm window is a day, matching the server's per-day
+            // dedupe (#21) — not the 30-day intent retention it used to inherit.
+            queuedAt: DateTime.now().toUtc().subtract(const Duration(hours: 2)),
             state: 'queued',
           ),
         ],
@@ -120,6 +122,36 @@ void main() {
 
     expect(find.text('Nudged'), findsOneWidget);
     expect(find.text('Nudge'), findsNothing);
+  });
+
+  testWidgets('re-offers the nudge after a day, naming the last one', (tester) async {
+    // The server would deliver a second nudge after midnight; a button frozen for the 30-day
+    // intent retention told the supervisor otherwise (#21). The last nudge stays on the row —
+    // "no movement since you nudged 9 days ago" is the fact they act on.
+    final nineDaysAgo = DateTime.now().toUtc().subtract(const Duration(days: 9));
+    await pump(
+      tester,
+      TeamView(
+        members: [
+          for (final member in watch)
+            member.sam == 'SAM101'
+                ? TeamMember(
+                    sam: member.sam,
+                    name: member.name,
+                    worstState: member.worstState,
+                    reason: member.reason,
+                    inHand: member.inHand,
+                    nudgedAt: nineDaysAgo,
+                  )
+                : member,
+        ],
+        sync: syncState(),
+        onNudge: (_) {},
+      ),
+    );
+
+    expect(find.text('Nudge'), findsOneWidget);
+    expect(find.text('Nudged 9 days ago'), findsOneWidget);
   });
 
   testWidgets('states the privacy rule on the screen it applies to', (tester) async {

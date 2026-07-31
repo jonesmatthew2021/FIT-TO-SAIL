@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
@@ -484,6 +485,34 @@ class SyncEngine {
     return opId;
   }
 
+  /// Withdraws a submission the office has never accepted — MOB-7's re-take (#21).
+  ///
+  /// Returns false (and does nothing) once the registration has been sent: from then on the
+  /// record is the office's and a replacement is a new submission, not a deletion.
+  Future<bool> withdrawQueuedSubmission(String publicId) async {
+    final row = await (store.select(store.submissions)
+          ..where((t) => t.publicId.equals(publicId)))
+        .getSingleOrNull();
+    if (row == null || row.sendState == 'sent') return false;
+
+    final path = row.localPath;
+    await store.transaction(() async {
+      final opId = row.opId;
+      if (opId != null) {
+        await (store.delete(store.outbox)..where((t) => t.opId.equals(opId))).go();
+      }
+      await (store.delete(store.submissions)..where((t) => t.publicId.equals(publicId))).go();
+    });
+    if (path != null) {
+      try {
+        await File(path).delete();
+      } on FileSystemException {
+        // The row and queue entry are gone either way; a stray staged file is storage, not truth.
+      }
+    }
+    return true;
+  }
+
   /// Re-queues a submission whose registration the office refused or that exhausted its retries,
   /// under the original op id — the same idempotency rule as [retryIntent] (issue #13).
   Future<void> retrySubmission(String publicId) async {
@@ -635,7 +664,13 @@ class SyncEngine {
   /// Sends every due queue entry and reconciles the verdicts. Returns how many were applied.
   Future<int> flushOutbox() async {
     final due = await (store.select(store.outbox)
-          ..where((t) => t.nextAttemptAt.isSmallerOrEqualValue(now()) | t.nextAttemptAt.isNull())
+          // `nextAttemptAt` null means "due now" for a fresh entry — but an *exhausted* entry
+          // also carries null, and without the attempts guard it re-posted on every sync
+          // forever, its counter climbing past the ceiling that was supposed to stop it (#21).
+          // Exhausted entries wait for an explicit retry, which resets attempts to 0.
+          ..where((t) =>
+              (t.nextAttemptAt.isSmallerOrEqualValue(now()) | t.nextAttemptAt.isNull()) &
+              t.attempts.isSmallerThanValue(maxAttempts))
           ..orderBy([(t) => OrderingTerm(expression: t.queuedAt)])
           ..limit(100))
         .get();
@@ -775,6 +810,22 @@ class SyncEngine {
     if (last == null) return false;
     return now().difference(last) > offlineValidity;
   }
+
+  /// Days left of the SEC-12 window, or null when it is not close (> [offlineWarnFrom] away).
+  ///
+  /// The lock used to be a cliff (#21): nothing at day 20, nothing at day 29, then every record
+  /// gone at 30. A vessel two days from port deserves the countdown while there is still
+  /// something to do about it.
+  int? offlineDaysRemaining(LocalSyncState state) {
+    final last = state.lastSyncedAt;
+    if (last == null) return null;
+    final remaining = offlineValidity - now().difference(last);
+    if (remaining > offlineWarnFrom) return null;
+    return remaining.inDays < 0 ? 0 : remaining.inDays;
+  }
+
+  /// Warn for the last third of the window — from day 20 of 30.
+  static const offlineWarnFrom = Duration(days: 10);
 
   /// A fresh v4-shaped identifier: outbox idempotency keys, and the `publicId` a submission
   /// carries from the moment the device mints it (§7.6).

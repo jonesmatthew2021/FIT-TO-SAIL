@@ -346,8 +346,16 @@ void main() {
 
       await scrollTo(tester, find.textContaining("Couldn't send"));
       expect(find.textContaining("Couldn't send"), findsOneWidget);
-      expect(find.textContaining('Unsupported operation type'), findsOneWidget);
+      // The known developer string is translated for the crew member (#21); the failure still
+      // carries a cause, just not one that names an operation type.
+      expect(find.textContaining("can't take this kind of update yet"), findsOneWidget);
+      expect(find.textContaining('Unsupported operation type'), findsNothing);
 
+      await scrollTo(tester, find.text('Retry'));
+      // Past the pinned action bar: "visible" to dragUntilVisible can still be underneath it,
+      // where a tap hits the bar instead of the button.
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -160));
+      await tester.pump();
       await tester.tap(find.text('Retry'));
       await tester.pump();
 

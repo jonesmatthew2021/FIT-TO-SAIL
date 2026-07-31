@@ -18,6 +18,7 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import '../data/local_store.dart';
 import '../domain/calendar.dart';
 import '../domain/intents.dart';
+import 'action_screens.dart' show openAttestation;
 import '../domain/offers.dart';
 import '../domain/states.dart';
 import '../domain/urgency.dart';
@@ -316,6 +317,7 @@ class SyncLine extends StatelessWidget {
     required this.lastSyncedAt,
     required this.error,
     this.sessionExpired = false,
+    this.lockDays,
     this.onRetry,
     this.padding = const EdgeInsets.fromLTRB(Nocturne.gutter, 0, Nocturne.gutter, 12),
   });
@@ -327,6 +329,10 @@ class SyncLine extends StatelessWidget {
   /// The failure was a 401, which reconnecting cannot fix — named as its own state (issue #14)
   /// so it never reads as "no signal".
   final bool sessionExpired;
+
+  /// Days before the SEC-12 lock, once inside the warning window (#21). The lock used to be a
+  /// cliff — nothing at day 29, everything gone at 30.
+  final int? lockDays;
   final VoidCallback? onRetry;
   final EdgeInsetsGeometry padding;
 
@@ -357,12 +363,19 @@ class SyncLine extends StatelessWidget {
       message = 'Last synced ${ago(last)}';
     }
 
+    // The SEC-12 ramp (#21): once inside the warning window, every state carries the countdown.
+    final lockDays = this.lockDays;
+    final withLock = lockDays == null
+        ? message
+        : '$message · records lock in $lockDays day${lockDays == 1 ? '' : 's'} without a connection';
+    if (lockDays != null) colour = Nocturne.warningText;
+
     return Padding(
       padding: padding,
       child: Row(
         children: [
           Flexible(
-            child: Text(message, style: NoctType.meta.copyWith(color: colour)),
+            child: Text(withLock, style: NoctType.meta.copyWith(color: colour)),
           ),
           if (retry && onRetry != null) ...[
             Text(' · ', style: NoctType.meta.copyWith(color: colour)),
@@ -413,8 +426,10 @@ class _LockedScreen extends StatelessWidget {
               Text('Offline too long', style: NoctType.cardTitle),
               const SizedBox(height: 8),
               const Text(
+                // Honest about the way out (#21): there is no sign-in flow yet, and "sign in
+                // again" named a door that does not exist. A successful sync is what unlocks.
                 'This device has not reached CREWCOMP in over 30 days, so the cached copy of '
-                'your records has been locked. Connect to sign in again.',
+                'your records has been locked. Connect to the network and sync to unlock them.',
                 textAlign: TextAlign.center,
                 style: NoctType.cardBody,
               ),
@@ -453,9 +468,15 @@ class HomeScreen extends StatelessWidget {
           stream: state.watchIntents(),
           builder: (context, intentSnapshot) => StreamBuilder<List<LocalCrewStatement>>(
             stream: state.watchStatements(),
-            // Pull-to-refresh (issue #14): the certifications empty state has always instructed
-            // "Pull down to sync", and until now nothing anywhere implemented it.
-            builder: (context, statementSnapshot) => RefreshIndicator(
+            builder: (context, statementSnapshot) => StreamBuilder<List<LocalAssignment>>(
+              stream: state.watchAssignments(),
+              builder: (context, assignmentSnapshot) => StreamBuilder<List<LocalAttestation>>(
+                stream: state.watchAttestations(),
+                builder: (context, attestationSnapshot) => StreamBuilder<List<LocalSubmission>>(
+                  stream: state.watchSubmissions(),
+                  // Pull-to-refresh (issue #14): the certifications empty state has always
+                  // instructed "Pull down to sync", and until now nothing implemented it.
+                  builder: (context, submissionSnapshot) => RefreshIndicator(
               color: Nocturne.accent,
               backgroundColor: Nocturne.surface,
               onRefresh: state.sync,
@@ -465,6 +486,23 @@ class HomeScreen extends StatelessWidget {
                 intentSnapshot.data ?? const <LocalCrewIntent>[],
                 statementSnapshot.data ?? const <LocalCrewStatement>[],
               ),
+              pendingSubmissions: (submissionSnapshot.data ?? const <LocalSubmission>[])
+                  .where(submissionPendingSend)
+                  .length,
+              onOpenOutbox: () => openOutbox(context, state),
+              signOffDue: attestationDue(
+                assignments: assignmentSnapshot.data ?? const <LocalAssignment>[],
+                attestations: attestationSnapshot.data ?? const <LocalAttestation>[],
+                intents: intentSnapshot.data ?? const <LocalCrewIntent>[],
+                today: state.serverToday,
+                standingCcId: state.syncState?.standingCcId,
+              ),
+              onSignOff: (assignment) => openAttestation(
+                context,
+                state,
+                assignment: assignment,
+                rows: rowSnapshot.data ?? const <CertificationRow>[],
+              ),
               person: state.person,
               sync: state.syncState,
               credits: state.credits,
@@ -472,6 +510,7 @@ class HomeScreen extends StatelessWidget {
               syncing: state.syncing,
               error: state.lastError,
               sessionExpired: state.sessionExpired,
+              lockDays: state.offlineLockDays,
               onSync: state.syncing ? null : state.sync,
               onOpenRequirement: (row) => openRequirement(context, state, row.cell.requirementId),
               onSendCertificate: (row) => showSendCertificateSheet(
@@ -499,6 +538,11 @@ class HomeScreen extends StatelessWidget {
                 summary: 'Asked for help with ${row.title}',
                 requirementId: row.cell.requirementId,
               ),
+              onRetryIntent: state.retryAnswer,
+              onDiscardIntent: state.discardAnswer,
+              ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -520,11 +564,18 @@ class HomeView extends StatelessWidget {
     this.syncing = false,
     this.error,
     this.sessionExpired = false,
+    this.lockDays,
     this.onSync,
     this.onOpenRequirement,
     this.onSendCertificate,
     this.onCourseBooked,
     this.onAsk,
+    this.onRetryIntent,
+    this.onDiscardIntent,
+    this.signOffDue,
+    this.onSignOff,
+    this.pendingSubmissions = 0,
+    this.onOpenOutbox,
   });
 
   final List<CertificationRow>? rows;
@@ -536,6 +587,9 @@ class HomeView extends StatelessWidget {
   final bool syncing;
   final String? error;
   final bool sessionExpired;
+
+  /// Days before the SEC-12 lock, inside the warning window (#21).
+  final int? lockDays;
   final VoidCallback? onSync;
 
   /// How old a *successful* sync may be before Home starts saying so (issue #14).
@@ -544,6 +598,17 @@ class HomeView extends StatelessWidget {
   final void Function(CertificationRow row)? onSendCertificate;
   final void Function(CertificationRow row)? onCourseBooked;
   final void Function(CertificationRow row)? onAsk;
+  final void Function(String opId)? onRetryIntent;
+  final void Function(String opId)? onDiscardIntent;
+
+  /// MOB-9's prompt (#21): the sign-off due within three days of departure and not yet signed.
+  /// The declaration was Roster → swing → scroll away, for the one screen with legal weight.
+  final ({LocalAssignment assignment, int daysLeft})? signOffDue;
+  final void Function(LocalAssignment assignment)? onSignOff;
+
+  /// Documents still on this device — the submissions half of the outbox line (#21).
+  final int pendingSubmissions;
+  final VoidCallback? onOpenOutbox;
 
   @override
   Widget build(BuildContext context) {
@@ -591,6 +656,7 @@ class HomeView extends StatelessWidget {
         // but a headline confidently answered from hours-old data with no cue is worse.
         if (error != null ||
             sessionExpired ||
+            lockDays != null ||
             sync?.lastSyncedAt == null ||
             DateTime.now().toUtc().difference(sync!.lastSyncedAt!) > staleAfter)
           SyncLine(
@@ -598,8 +664,38 @@ class HomeView extends StatelessWidget {
             lastSyncedAt: sync?.lastSyncedAt,
             error: error,
             sessionExpired: sessionExpired,
+            lockDays: lockDays,
             onRetry: onSync,
             padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 0, Nocturne.gutter, 10),
+          ),
+
+        // The outbox line (#21): "what is still waiting to send", answered where the crew member
+        // already looks. Never shown at zero, like every other count in this app.
+        if (_waitingToSend > 0)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 0, Nocturne.gutter, 10),
+            child: Pressable(
+              onTap: onOpenOutbox,
+              borderRadius: BorderRadius.circular(Nocturne.radiusSm),
+              child: Row(
+                children: [
+                  const Icon(
+                    PhosphorIconsRegular.paperPlaneTilt,
+                    size: 14,
+                    color: Nocturne.neutral500,
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      _outboxLine(),
+                      style: NoctType.meta.copyWith(
+                        color: _failedToSend > 0 ? Nocturne.warningText : Nocturne.neutral500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
 
         Padding(
@@ -632,6 +728,47 @@ class HomeView extends StatelessWidget {
           ),
         ),
 
+        // The pre-sail sign-off, promoted to the screen the crew member actually opens (#21).
+        if (signOffDue != null) ...[
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Nocturne.gutter),
+            child: NCard(
+              leftMark: Nocturne.accent,
+              padding: const EdgeInsets.fromLTRB(13, 14, 15, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    signOffDue!.daysLeft == 0
+                        ? 'Pre-sail sign-off — you sail today'
+                        : 'Pre-sail sign-off — due in ${signOffDue!.daysLeft} '
+                            'day${signOffDue!.daysLeft == 1 ? '' : 's'}',
+                    style: NoctType.cardTitle,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${signOffDue!.assignment.partnershipAbbrev} ${signOffDue!.assignment.ccId} '
+                    'starts ${formatDate(signOffDue!.assignment.fromDate)}. Confirm your '
+                    'declarations before you sail.',
+                    style: NoctType.cardBody,
+                  ),
+                  const SizedBox(height: 12),
+                  NButton(
+                    label: 'Sign off for ${signOffDue!.assignment.ccId}',
+                    icon: PhosphorIconsRegular.signature,
+                    variant: NButtonVariant.primary,
+                    fontSize: 13,
+                    onPressed: onSignOff == null
+                        ? null
+                        : () => onSignOff!(signOffDue!.assignment),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+
         if (credits != null) ...[
           const SizedBox(height: 12),
           Padding(
@@ -663,6 +800,8 @@ class HomeView extends StatelessWidget {
                 onOpen: onOpenRequirement == null ? null : () => onOpenRequirement!(row),
                 onHaveIt: onSendCertificate == null ? null : () => onSendCertificate!(row),
                 onCourseBooked: onCourseBooked == null ? null : () => onCourseBooked!(row),
+                onRetryIntent: onRetryIntent,
+                onDiscardIntent: onDiscardIntent,
               ),
             ),
           ],
@@ -695,6 +834,21 @@ class HomeView extends StatelessWidget {
   }
 
   static String _count(int items) => items == 1 ? '1 thing' : '$items things';
+
+  int get _failedToSend => answers.where((answer) => answer.failed).length;
+
+  int get _waitingToSend =>
+      answers.where((answer) => answer.state == AnswerState.queued || answer.failed).length +
+      pendingSubmissions;
+
+  String _outboxLine() {
+    final waiting = _waitingToSend;
+    final failed = _failedToSend;
+    final base = waiting == 1 ? '1 update waiting to send' : '$waiting updates waiting to send';
+    return failed > 0
+        ? "$base · ${failed == 1 ? 'one' : '$failed'} couldn't send — review"
+        : base;
+  }
 
   /// The one sentence at the top of the screen — the **server's**, rendered as received.
   ///
@@ -874,6 +1028,8 @@ class _AskCard extends StatelessWidget {
     this.onOpen,
     this.onHaveIt,
     this.onCourseBooked,
+    this.onRetryIntent,
+    this.onDiscardIntent,
   });
 
   final CertificationRow row;
@@ -883,6 +1039,8 @@ class _AskCard extends StatelessWidget {
   final VoidCallback? onOpen;
   final VoidCallback? onHaveIt;
   final VoidCallback? onCourseBooked;
+  final void Function(String opId)? onRetryIntent;
+  final void Function(String opId)? onDiscardIntent;
 
   @override
   Widget build(BuildContext context) {
@@ -925,7 +1083,20 @@ class _AskCard extends StatelessWidget {
           Text(askTitle(row.cell.state, row.title), style: NoctType.cardTitle),
           const SizedBox(height: 3),
           Text(_body(), style: NoctType.cardBody),
-          if (booked != null) ...[const SizedBox(height: 8), AnswerLine(answer: booked)],
+          // Every answer on the row, not just the course-booked one — and a failed one gets its
+          // Retry here, on the screen the crew member actually lives on (#21).
+          for (final answer in answers) ...[
+            const SizedBox(height: 8),
+            AnswerLine(
+              answer: answer,
+              onRetry: answer.failed && onRetryIntent != null
+                  ? () => onRetryIntent!(answer.opId)
+                  : null,
+              onDismiss: answer.failed && onDiscardIntent != null
+                  ? () => onDiscardIntent!(answer.opId)
+                  : null,
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -1060,12 +1231,11 @@ class AnswerLine extends StatelessWidget {
                 '${answer.summary} · ${answerStateLabel(answer.state)}',
                 style: NoctType.listSecondary.copyWith(color: colour),
               ),
-              // Whoever's words they are. For a failure, the server's — "Unsupported operation
-              // type 'course.seat_request'" is not crew-facing prose, but hiding it would leave a
-              // failure with no cause at all, and it is exactly the string that names the backend
-              // work outstanding. For a decision, the coordinator's own note, written knowing the
-              // crew member reads it (ADM-11's form says so above the field).
-              if (answer.detail != null) Text(answer.detail!, style: NoctType.meta),
+              // Whoever's words they are — with the known developer strings translated
+              // (`crewFacingDetail`, #21). A coordinator's note passes through verbatim: it was
+              // written knowing the crew member reads it (ADM-11's form says so above the field).
+              if (answer.detail != null)
+                Text(crewFacingDetail(answer.detail!), style: NoctType.meta),
               if (failed && (onRetry != null || onDismiss != null))
                 Row(
                   children: [
@@ -1523,7 +1693,7 @@ class RosterView extends StatelessWidget {
                 // it read-only and offers no way to request or amend it. Plain meta rather than a
                 // tag, because "recorded" is not an actionable state and a tag would imply it is.
                 Text(
-                  record.status,
+                  leaveKindLabel(record.status),
                   style: NoctType.listSecondary.copyWith(color: Nocturne.neutral600),
                 ),
               ],
@@ -1541,6 +1711,143 @@ String leaveKindLabel(String kind) {
   final words = kind.replaceAll('_', ' ').trim();
   if (words.isEmpty) return kind;
   return words[0].toUpperCase() + words.substring(1);
+}
+
+// ---------------------------------------------------------------------------
+// The outbox — what is still waiting to send
+// ---------------------------------------------------------------------------
+
+void openOutbox(BuildContext context, AppState state) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => OutboxScreen(state: state)),
+  );
+}
+
+/// Whether a submission is still this device's problem — queued, refused, or mid-upload.
+bool submissionPendingSend(LocalSubmission submission) =>
+    submission.sendState != 'sent' ||
+    (submission.localPath != null && !submission.uploadComplete);
+
+/// Every queued and failed thing on the device, in one place (#21).
+///
+/// The data always existed — `Outbox.attempts`, `lastError`, `CrewIntents.state`, a submission's
+/// send state — and nothing answered "what is still waiting to send". On a vessel that question
+/// is the difference between "I told the office" and "I think I told the office".
+class OutboxScreen extends StatelessWidget {
+  const OutboxScreen({super.key, required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<LocalCrewIntent>>(
+      stream: state.watchIntents(),
+      builder: (context, intentSnapshot) => StreamBuilder<List<LocalCrewStatement>>(
+        stream: state.watchStatements(),
+        builder: (context, statementSnapshot) => StreamBuilder<List<LocalSubmission>>(
+          stream: state.watchSubmissions(),
+          builder: (context, submissionSnapshot) => OutboxView(
+            answers: answersFrom(
+              intentSnapshot.data ?? const <LocalCrewIntent>[],
+              statementSnapshot.data ?? const <LocalCrewStatement>[],
+            ).where((answer) => answer.state == AnswerState.queued || answer.failed).toList(),
+            submissions: (submissionSnapshot.data ?? const <LocalSubmission>[])
+                .where(submissionPendingSend)
+                .toList(),
+            syncing: state.syncing,
+            onSync: state.syncing ? null : state.sync,
+            onRetryIntent: state.retryAnswer,
+            onDiscardIntent: state.discardAnswer,
+            onRetrySubmission: state.retrySubmission,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class OutboxView extends StatelessWidget {
+  const OutboxView({
+    super.key,
+    required this.answers,
+    required this.submissions,
+    this.syncing = false,
+    this.onSync,
+    this.onRetryIntent,
+    this.onDiscardIntent,
+    this.onRetrySubmission,
+  });
+
+  /// Queued and failed answers only — a sent one is the office's, not this queue's.
+  final List<Answer> answers;
+  final List<LocalSubmission> submissions;
+  final bool syncing;
+  final VoidCallback? onSync;
+  final void Function(String opId)? onRetryIntent;
+  final void Function(String opId)? onDiscardIntent;
+  final void Function(String publicId)? onRetrySubmission;
+
+  @override
+  Widget build(BuildContext context) {
+    final empty = answers.isEmpty && submissions.isEmpty;
+
+    return Scaffold(
+      backgroundColor: Nocturne.bg,
+      appBar: const NocturneNavBar(title: 'Waiting to send'),
+      body: empty
+          ? const EmptyState(
+              icon: PhosphorIconsRegular.paperPlaneTilt,
+              title: 'Nothing waiting',
+              message: 'Everything you have done on this device has reached the office.',
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 16, Nocturne.gutter, 24),
+              children: [
+                Text(
+                  'These send by themselves when you have signal. A failed one waits for you.',
+                  style: NoctType.cardBody,
+                ),
+                if (answers.isNotEmpty) ...[
+                  const SectionLabel('Updates', padding: EdgeInsets.only(top: 18, bottom: 10)),
+                  for (final answer in answers)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: AnswerLine(
+                        answer: answer,
+                        onRetry: answer.failed && onRetryIntent != null
+                            ? () => onRetryIntent!(answer.opId)
+                            : null,
+                        onDismiss: answer.failed && onDiscardIntent != null
+                            ? () => onDiscardIntent!(answer.opId)
+                            : null,
+                      ),
+                    ),
+                ],
+                if (submissions.isNotEmpty) ...[
+                  const SectionLabel('Documents', padding: EdgeInsets.only(top: 14, bottom: 10)),
+                  for (final submission in submissions)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: SubmissionTile(
+                        submission: submission,
+                        onRetry: onRetrySubmission == null
+                            ? null
+                            : () => onRetrySubmission!(submission.publicId),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 14),
+                NButton(
+                  label: syncing ? 'Sending…' : 'Try to send now',
+                  icon: PhosphorIconsRegular.arrowsClockwise,
+                  variant: NButtonVariant.secondary,
+                  block: true,
+                  onPressed: onSync,
+                ),
+              ],
+            ),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1581,22 +1888,45 @@ class NotificationsScreen extends StatelessWidget {
 
   /// MOB-4's inline action. An alert that implies something to do takes the crew member to the
   /// place they do it, rather than to a list they then have to search.
+  ///
+  /// Marks the row read only when it actually navigates (#21): a tap that silently did nothing
+  /// *and* dismissed the row would eat the one pointer the crew member had. The view offers the
+  /// action only for links [crewLinkFollowable] accepts, so the dead branch here is belt only.
   void _act(BuildContext context, LocalNotification notification) {
-    state.markRead(notification.id);
-
     // The deep link is the server's own answer to "where does this go", and the only field
-    // besides the title a push payload is allowed to carry (SEC-13). Two crew-facing forms exist:
-    // `crewcomp://certifications` and `crewcomp://certifications/<requirementId>`. Anything else
-    // is a back-office link that reached the wrong recipient, and doing nothing is the right
-    // response to it.
+    // besides the title a push payload is allowed to carry (SEC-13). The crew-facing forms are
+    // `crewcomp://certifications[/<requirementId>]` and `crewcomp://roster/<crewChangeId>`.
+    // Anything else is a back-office link that reached the wrong recipient.
     final link = notification.deepLink ?? '';
     final match = RegExp(r'^crewcomp://certifications/(\d+)$').firstMatch(link);
     if (match != null) {
+      state.markRead(notification.id);
       openRequirement(context, state, int.parse(match.group(1)!));
     } else if (link == 'crewcomp://certifications') {
-      onOpenTab?.call(1);
+      state.markRead(notification.id);
+      if (state.supervisor) {
+        // Tab 1 is the supervisor's Team, not their certifications (#21) — their own records
+        // are a pushed screen for them, exactly as the shell's comment promises.
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => CertificationsScreen(state: state)),
+        );
+      } else {
+        onOpenTab?.call(1);
+      }
+    } else if (RegExp(r'^crewcomp://roster/\d+$').hasMatch(link)) {
+      state.markRead(notification.id);
+      onOpenTab?.call(2);
     }
   }
+}
+
+/// Whether [_CrewNotificationsState._act] can take the crew member somewhere for this link.
+/// Rows whose link fails this never offer an action — a button that marks the row read and goes
+/// nowhere is the dead end the review called out (#21).
+bool crewLinkFollowable(String? deepLink) {
+  final link = deepLink ?? '';
+  return RegExp(r'^crewcomp://certifications(/\d+)?$').hasMatch(link) ||
+      RegExp(r'^crewcomp://roster/\d+$').hasMatch(link);
 }
 
 class NotificationsView extends StatelessWidget {
@@ -1666,7 +1996,10 @@ class NotificationsView extends StatelessWidget {
             notification: notification,
             last: index == notifications.length - 1,
             onMarkRead: () => onMarkRead(notification.id),
-            onAct: onAct == null ? null : () => onAct!(notification),
+            // No action for a link the app cannot follow (#21) — the label would be a dead end.
+            onAct: onAct == null || !crewLinkFollowable(notification.deepLink)
+                ? null
+                : () => onAct!(notification),
           ),
       ],
     );

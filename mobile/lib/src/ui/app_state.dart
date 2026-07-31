@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../data/evidence_capture.dart';
 import '../data/local_store.dart';
 import '../data/sync_engine.dart';
+import '../domain/calendar.dart';
 import '../domain/intents.dart';
 import '../domain/offers.dart';
 import '../domain/states.dart';
@@ -71,6 +72,12 @@ class AppState extends ChangeNotifier {
   bool get locked {
     final state = _syncState;
     return state != null && engine.isOfflineExpired(state);
+  }
+
+  /// Days before the SEC-12 lock, once inside the warning window; null while it is far off.
+  int? get offlineLockDays {
+    final state = _syncState;
+    return state == null ? null : engine.offlineDaysRemaining(state);
   }
 
   Future<void> load() async {
@@ -279,7 +286,19 @@ class AppState extends ChangeNotifier {
       fileName: captured.path.split('/').last,
       size: captured.size,
       contentType: captured.contentType,
+      path: captured.path,
     );
+  }
+
+  /// Withdraws a submission whose bytes have not left the device — MOB-7's re-take (#21).
+  ///
+  /// Only while the registration is still queued: once the office has it, the record is theirs
+  /// and a replacement is a new submission. Deletes the outbox entry, the staged file and the
+  /// local row together, so nothing is left half-withdrawn.
+  Future<bool> withdrawSubmission(String publicId) async {
+    final withdrawn = await engine.withdrawQueuedSubmission(publicId);
+    notifyListeners();
+    return withdrawn;
   }
 
   // --- Queries the screens use. Streams, so an applied delta redraws by itself. ---
@@ -406,6 +425,7 @@ class EvidenceSubmitResult {
     this.fileName,
     this.size,
     this.contentType,
+    this.path,
   });
 
   final String? publicId;
@@ -413,6 +433,10 @@ class EvidenceSubmitResult {
   final String? fileName;
   final int? size;
   final String? contentType;
+
+  /// The staged copy on this device — what MOB-7 shows so legibility is judged *before* a
+  /// review cycle over a satellite link, not after (#21).
+  final String? path;
 
   bool get queued => publicId != null;
 }
@@ -477,6 +501,43 @@ List<Answer> answersFrom(
       if (!confirmed.contains(intent.opId)) answerFromIntent(intent),
   ];
 }
+
+/// MOB-9's prompt: the sign-off that is due and not yet signed, or null (#21).
+///
+/// The declaration was undiscoverable — bottom of Roster → swing → scroll — for the one screen
+/// with disciplinary weight. Due means the swing the standing was evaluated against starts
+/// within [attestationLeadDays] (the swing-detail screen's own "Due in N days" window); signed
+/// means the server's record exists or this device's own attempt still stands. A failed attempt
+/// is not a signature, so the prompt comes back.
+({LocalAssignment assignment, int daysLeft})? attestationDue({
+  required List<LocalAssignment> assignments,
+  required List<LocalAttestation> attestations,
+  required List<LocalCrewIntent> intents,
+  required String? today,
+  required String? standingCcId,
+}) {
+  if (today == null || standingCcId == null) return null;
+  final assignment =
+      assignments.where((candidate) => candidate.ccId == standingCcId).firstOrNull;
+  if (assignment == null) return null;
+
+  final daysLeft = daysBetween(today, assignment.fromDate);
+  if (daysLeft < 0 || daysLeft > attestationLeadDays) return null;
+
+  final signed = attestations.any((record) => record.ccId == assignment.ccId) ||
+      intents.any(
+        (intent) =>
+            intent.kind == IntentKind.attestation &&
+            intent.subjectRef == assignment.ccId &&
+            intent.state != 'failed',
+      );
+  if (signed) return null;
+
+  return (assignment: assignment, daysLeft: daysLeft);
+}
+
+/// How close to departure the Home prompt appears — `assignment.from − 3 days`.
+const attestationLeadDays = 3;
 
 /// One answer with only the device's half of its record.
 ///

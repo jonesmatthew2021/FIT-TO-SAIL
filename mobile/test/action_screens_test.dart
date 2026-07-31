@@ -62,7 +62,9 @@ void main() {
         ),
       );
 
-      expect(find.text('EXPIRES IN 19 DAYS'), findsOneWidget);
+      // countdownLabel's phrasing, which also survives a lapse — the raw arithmetic used here
+      // before rendered "EXPIRES IN -6 DAYS" (#21).
+      expect(find.text('19 DAYS LEFT'), findsOneWidget);
 
       await tester.tap(find.text('I have the new certificate'));
       await tester.tap(find.text('I have booked the course'));
@@ -401,10 +403,14 @@ void main() {
       await tester.pump();
       expect(sent, isNull);
 
-      // Two lines are outstanding: the medical one arrives ticked from the record, the other two
-      // are the person's own statements.
+      // Every line arrives unticked (#21): the supporting facts are drawn from the record, but
+      // the ticks are the crew member's own — a legal declaration must not pre-answer itself.
       await scrollTo(tester, find.text('My certificates are the ones on record'));
       await tester.tap(find.text('My certificates are the ones on record'));
+      await tester.pump();
+
+      await scrollTo(tester, find.text('I am medically fit to sail this swing'));
+      await tester.tap(find.text('I am medically fit to sail this swing'));
       await tester.pump();
 
       await scrollTo(tester, find.text('Attest and send'));

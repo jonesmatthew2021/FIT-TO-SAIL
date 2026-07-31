@@ -688,7 +688,9 @@ class SwingDetailView extends StatelessWidget {
                           ],
                         ),
                       ),
-                      Text(record.status, style: NoctType.meta),
+                      // Cased like every label beside it — raw wire text ("approved") beside
+                      // "Annual leave" read as a rendering fault (#21).
+                      Text(leaveKindLabel(record.status), style: NoctType.meta),
                     ],
                   ),
                 ),

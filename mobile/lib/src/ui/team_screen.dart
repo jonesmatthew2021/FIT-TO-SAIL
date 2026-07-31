@@ -137,7 +137,20 @@ class TeamView extends StatelessWidget {
     final clear = members.where((member) => !needsAttention(member.worstState)).toList()
       ..sort((a, b) => a.name.compareTo(b.name));
 
-    final nudged = {for (final intent in nudges) intent.subjectRef};
+    // "Nudged" disarms the button for a day, matching the server's per-day dedupe (#21) — the
+    // device's 30-day intent retention used to freeze it for a month while the server would
+    // happily have delivered a second nudge after midnight. Wall-clock elapsed time, which is
+    // allowed to come from the device (it answers "how recently", not "what day is it").
+    final nudgedToday = <String?>{
+      for (final intent in nudges)
+        if (DateTime.now().toUtc().difference(intent.queuedAt.toUtc()) < const Duration(hours: 24))
+          intent.subjectRef,
+    };
+    bool nudgedRecently(TeamMember member) =>
+        nudgedToday.contains(member.sam) ||
+        (member.nudgedAt != null &&
+            DateTime.now().toUtc().difference(member.nudgedAt!.toUtc()) <
+                const Duration(hours: 24));
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
@@ -189,7 +202,7 @@ class TeamView extends StatelessWidget {
           for (final member in needs)
             _TeamRow(
               member: member,
-              nudged: nudged.contains(member.sam),
+              nudged: nudgedRecently(member),
               onNudge: onNudge == null ? null : () => onNudge!(member),
             ),
         ],
@@ -302,6 +315,12 @@ class _TeamRow extends StatelessWidget {
                 if (member.reason != null) ...[
                   const SizedBox(height: 3),
                   Text(member.reason!, style: NoctType.listSecondary),
+                ],
+                // The server's own record of the last nudge, rendered at last (#21): "no
+                // movement since you nudged 9 days ago" is the fact a supervisor acts on.
+                if (!nudged && member.nudgedAt != null) ...[
+                  const SizedBox(height: 3),
+                  Text('Nudged ${ago(member.nudgedAt!)}', style: NoctType.meta),
                 ],
               ],
             ),

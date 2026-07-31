@@ -445,9 +445,12 @@ that could only ever be checked on the platform itself all hold:
   re-opened the encrypted store and rendered every screen from the local replica under
   `Couldn't sync · last synced 1 min ago · Retry`. This is the property the whole architecture exists
   for, now shown on both platforms.
-- **Sync does not resume by itself when the network returns**, which is worth knowing before reading it
-  as a bug: leaving airplane mode does not clear the banner, and tapping **Retry** syncs immediately
-  and clears it. The app syncs on launch and on demand, and nothing watches connectivity.
+- **Sync now resumes by itself** (31 July, issue #14): on launch, on a warm resume
+  (`AppLifecycleListener`), by pull-to-refresh on all four tabs, and on a once-a-minute foreground
+  tick that retries a failed sync and refreshes one older than 15 minutes — which is what covers
+  connectivity's return without a connectivity dependency. `syncIfStale` never touches the network
+  while the replica is fresh. At the time of the Android run above, none of this existed and Retry
+  was the only path — worth knowing when comparing against that log.
 - **The tab bar is the right height and the credit tiles are absent**, i.e. the two Nocturne layout
   traps above behave on Android exactly as the fixes intend. Notification bodies read `16 Aug 2026`,
   so `humaniseDates` is doing its job here too.

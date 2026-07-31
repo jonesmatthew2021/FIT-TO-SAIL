@@ -147,3 +147,18 @@ class Answer {
   /// reminders it had silenced.
   bool get stands => state != AnswerState.failed && state != AnswerState.dismissed;
 }
+
+/// The reason under an answer, in words a crew member can act on.
+///
+/// A coordinator's decision note is already written for the crew member (ADM-11's form says so)
+/// and passes through verbatim. A *developer* string is not: "Unsupported operation type
+/// 'evidence.reading'" names backend work, and on a phone at sea it reads as "something about my
+/// certificate is broken" (#21). The known machine shapes are translated; anything unrecognised
+/// still shows, because a failure with no cause at all is worse.
+String crewFacingDetail(String detail) {
+  if (detail.startsWith('Unsupported operation type')) {
+    return "The office's system can't take this kind of update yet. "
+        'Your other updates are unaffected.';
+  }
+  return detail;
+}

@@ -10,6 +10,8 @@
 ///    queue. It does not move a holding, and MOB-7's closing line says so.
 library;
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -130,6 +132,8 @@ Future<void> showSendCertificateSheet({
         submissionPublicId: result.publicId!,
         fileName: result.fileName,
         byteSize: result.size,
+        contentType: result.contentType,
+        localPath: result.path,
         requirementId: requirementId,
       ),
       fullscreenDialog: true,
@@ -148,6 +152,8 @@ class ConfirmReadingScreen extends StatelessWidget {
     required this.submissionPublicId,
     this.fileName,
     this.byteSize,
+    this.contentType,
+    this.localPath,
     this.requirementId,
   });
 
@@ -155,6 +161,8 @@ class ConfirmReadingScreen extends StatelessWidget {
   final String submissionPublicId;
   final String? fileName;
   final int? byteSize;
+  final String? contentType;
+  final String? localPath;
   final int? requirementId;
 
   @override
@@ -167,7 +175,15 @@ class ConfirmReadingScreen extends StatelessWidget {
           reading: state.readingFor(submissionPublicId),
           fileName: fileName,
           byteSize: byteSize,
+          contentType: contentType,
+          localPath: localPath,
           requirementId: requirementId,
+          onRetake: () async {
+            // A photo judged illegible here should never spend a satellite round trip. Only a
+            // still-queued submission can be withdrawn; a sent one is the office's record.
+            final withdrawn = await state.withdrawSubmission(submissionPublicId);
+            if (context.mounted && withdrawn) Navigator.of(context).pop();
+          },
           requirements: [
             for (final row in rows)
               (id: row.cell.requirementId, label: '${row.code} · ${row.title}'),
@@ -203,8 +219,11 @@ class ConfirmReadingView extends StatefulWidget {
     this.reading,
     this.fileName,
     this.byteSize,
+    this.contentType,
+    this.localPath,
     this.requirementId,
     this.clearsTheLast = false,
+    this.onRetake,
   });
 
   /// What the §8 pipeline read. Null is a first-class case, not an error: with no LLM provider
@@ -214,6 +233,11 @@ class ConfirmReadingView extends StatefulWidget {
 
   final String? fileName;
   final int? byteSize;
+  final String? contentType;
+
+  /// The staged copy on this device. Shown when it is an image (#21): legibility has to be
+  /// judged *before* a review cycle over a satellite link, and a placeholder judged nothing.
+  final String? localPath;
 
   /// What the *device* said the document was for, used to preselect when the server has not.
   final int? requirementId;
@@ -222,14 +246,21 @@ class ConfirmReadingView extends StatefulWidget {
   final bool clearsTheLast;
   final Future<void> Function(ExtractedReading corrected) onSend;
 
+  /// Withdraws the still-queued submission so a better photo can replace it.
+  final VoidCallback? onRetake;
+
   @override
   State<ConfirmReadingView> createState() => _ConfirmReadingViewState();
 }
 
 class _ConfirmReadingViewState extends State<ConfirmReadingView> {
   late final TextEditingController _number;
-  late final TextEditingController _issued;
-  late final TextEditingController _expires;
+
+  // ISO dates, picked rather than typed (#21): the free-text fields displayed "14 Aug 2026"
+  // and sent their text verbatim onto a wire that wants YYYY-MM-DD — the two formats disagreed
+  // by construction, so every hand-typed date was wrong in one direction or the other.
+  String? _issuedIso;
+  String? _expiresIso;
   int? _requirementId;
   bool _sending = false;
 
@@ -238,20 +269,14 @@ class _ConfirmReadingViewState extends State<ConfirmReadingView> {
     super.initState();
     final reading = widget.reading;
     _number = TextEditingController(text: reading?.certificateNumber ?? '');
-    _issued = TextEditingController(
-      text: reading?.issued == null ? '' : formatDate(reading!.issued!),
-    );
-    _expires = TextEditingController(
-      text: reading?.expires == null ? '' : formatDate(reading!.expires!),
-    );
+    _issuedIso = reading?.issued;
+    _expiresIso = reading?.expires;
     _requirementId = reading?.requirementId ?? widget.requirementId;
   }
 
   @override
   void dispose() {
     _number.dispose();
-    _issued.dispose();
-    _expires.dispose();
     super.dispose();
   }
 
@@ -270,20 +295,7 @@ class _ConfirmReadingViewState extends State<ConfirmReadingView> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 76,
-                height: 96,
-                decoration: BoxDecoration(
-                  color: Nocturne.neutral800,
-                  border: Border.all(color: Nocturne.neutral700),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Icon(
-                  PhosphorIconsRegular.filePdf,
-                  size: 24,
-                  color: Nocturne.neutral600,
-                ),
-              ),
+              _DocumentThumb(localPath: widget.localPath, contentType: widget.contentType),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -297,6 +309,18 @@ class _ConfirmReadingViewState extends State<ConfirmReadingView> {
                     Text(_provenance(reading), style: NoctType.meta),
                     const SizedBox(height: 8),
                     NOutlineTag(label: _confidenceLabel(confidence, matched)),
+                    // Offered only while the submission is still on this device: a photo judged
+                    // illegible here should never cost a satellite round trip (#21).
+                    if (widget.onRetake != null && reading == null) ...[
+                      const SizedBox(height: 6),
+                      NButton(
+                        label: 'Re-take — use a better photo',
+                        variant: NButtonVariant.ghost,
+                        fontSize: 12,
+                        minHeight: 32,
+                        onPressed: widget.onRetake,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -337,10 +361,10 @@ class _ConfirmReadingViewState extends State<ConfirmReadingView> {
               Expanded(
                 child: NField(
                   label: 'Issued',
-                  child: NTextInput(
-                    controller: _issued,
-                    hintText: 'Not read — add it',
-                    keyboardType: TextInputType.datetime,
+                  child: _DateField(
+                    iso: _issuedIso,
+                    lastDate: _expiresIso,
+                    onChanged: (value) => setState(() => _issuedIso = value),
                   ),
                 ),
               ),
@@ -348,10 +372,10 @@ class _ConfirmReadingViewState extends State<ConfirmReadingView> {
               Expanded(
                 child: NField(
                   label: 'Expires',
-                  child: NTextInput(
-                    controller: _expires,
-                    hintText: 'Not read — add it',
-                    keyboardType: TextInputType.datetime,
+                  child: _DateField(
+                    iso: _expiresIso,
+                    firstDate: _issuedIso,
+                    onChanged: (value) => setState(() => _expiresIso = value),
                   ),
                 ),
               ),
@@ -401,8 +425,8 @@ class _ConfirmReadingViewState extends State<ConfirmReadingView> {
         confidence: widget.reading?.confidence ?? 'unmatched',
         requirementId: _requirementId,
         certificateNumber: _number.text.trim().isEmpty ? null : _number.text.trim(),
-        issued: _issued.text.trim().isEmpty ? null : _issued.text.trim(),
-        expires: _expires.text.trim().isEmpty ? null : _expires.text.trim(),
+        issued: _issuedIso,
+        expires: _expiresIso,
         fileName: widget.fileName,
         byteSize: widget.byteSize,
       ),
@@ -486,4 +510,143 @@ String formatBytes(int bytes) {
   if (bytes < 1024) return '$bytes B';
   if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
   return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
+/// The captured document itself, when it is an image on this device — tappable to full screen,
+/// because a 76px thumbnail proves presence and a full-screen zoom proves *legibility* (#21).
+/// A PDF keeps the glyph: rendering one would be a dependency for a case the file picker already
+/// previewed.
+class _DocumentThumb extends StatelessWidget {
+  const _DocumentThumb({required this.localPath, required this.contentType});
+
+  final String? localPath;
+  final String? contentType;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = localPath;
+    final isImage = path != null && (contentType?.startsWith('image/') ?? false);
+
+    final box = Container(
+      width: 76,
+      height: 96,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Nocturne.neutral800,
+        border: Border.all(color: Nocturne.neutral700),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: isImage
+          ? Image.file(
+              File(path),
+              fit: BoxFit.cover,
+              // The staged copy can be gone (a reinstall, the OS reclaiming space); a broken
+              // image widget would read as a corrupt document, which this is not evidence of.
+              errorBuilder: (_, _, _) => const Icon(
+                PhosphorIconsRegular.imageBroken,
+                size: 24,
+                color: Nocturne.neutral600,
+              ),
+            )
+          : const Icon(PhosphorIconsRegular.filePdf, size: 24, color: Nocturne.neutral600),
+    );
+
+    if (!isImage) return box;
+    return Pressable(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (dialogContext) => Dialog.fullscreen(
+          backgroundColor: Nocturne.bg,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: InteractiveViewer(
+                  maxScale: 6,
+                  child: Center(child: Image.file(File(path))),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: SafeArea(
+                  child: NIconButton(
+                    icon: PhosphorIconsRegular.x,
+                    semanticLabel: 'Close',
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      borderRadius: BorderRadius.circular(6),
+      child: box,
+    );
+  }
+}
+
+/// A tap-to-pick calendar date, stored as ISO and shown in the display format — the two can no
+/// longer disagree, which is the whole fix (#21): the free-text field showed `14 Aug 2026` and
+/// sent its text verbatim onto a wire that wants `YYYY-MM-DD`.
+class _DateField extends StatelessWidget {
+  const _DateField({required this.iso, required this.onChanged, this.firstDate, this.lastDate});
+
+  /// The current value, ISO `YYYY-MM-DD`, or null for "not read".
+  final String? iso;
+  final String? firstDate;
+  final String? lastDate;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = iso;
+    return Pressable(
+      onTap: () async {
+        final first = DateTime.tryParse(firstDate ?? '') ?? DateTime(2000);
+        final last = DateTime.tryParse(lastDate ?? '') ?? DateTime(2100);
+        var initial = DateTime.tryParse(value ?? '') ?? DateTime.now();
+        if (initial.isBefore(first)) initial = first;
+        if (initial.isAfter(last)) initial = last;
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: initial,
+          firstDate: first,
+          lastDate: last,
+        );
+        if (picked != null) {
+          onChanged(
+            '${picked.year.toString().padLeft(4, '0')}-'
+            '${picked.month.toString().padLeft(2, '0')}-'
+            '${picked.day.toString().padLeft(2, '0')}',
+          );
+        }
+      },
+      borderRadius: Nocturne.borderMd,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        alignment: Alignment.centerLeft,
+        decoration: BoxDecoration(
+          color: Nocturne.surface,
+          border: Border.all(color: Nocturne.divider),
+          borderRadius: Nocturne.borderMd,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                value == null ? 'Not read — add it' : formatDate(value),
+                style: NoctType.bodyText.copyWith(
+                  fontSize: 13.5,
+                  color: value == null ? Nocturne.neutral600 : Nocturne.text,
+                ),
+              ),
+            ),
+            const Icon(PhosphorIconsRegular.calendarBlank, size: 16, color: Nocturne.neutral600),
+          ],
+        ),
+      ),
+    );
+  }
 }

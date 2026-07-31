@@ -202,8 +202,10 @@ class OneTapUpdateView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
+                        // countdownLabel, not raw arithmetic: a lapsed certificate reads
+                        // "lapsed 6 days ago", never "EXPIRES IN -6 DAYS" (#21).
                         (expiry != null && today != null
-                                ? 'Expires in ${daysBetween(today!, expiry)} days'
+                                ? countdownLabel(today!, expiry)
                                 : cellStateLabel(row.cell.state))
                             .toUpperCase(),
                         style: NoctType.sectionLabel.copyWith(
@@ -988,11 +990,14 @@ List<Declaration> declarationsFor(List<CertificationRow> rows) {
     Declaration(
       id: 'records_correct',
       text: 'My certificates are the ones on record',
+      // With nothing on record there is no fact to confirm against, and the line says so
+      // rather than reading as effortlessly true (#21): "no data" must never present as "all
+      // correct" on a declaration with disciplinary weight.
       supporting: applicable.isEmpty
-          ? null
+          ? 'Nothing is on record to check against — confirm only if you know it to be true'
           : '${applicable.length} requirements · $held held'
                 '${renewing > 0 ? ', $renewing renewing' : ''}',
-      satisfied: renewing == 0,
+      satisfied: applicable.isNotEmpty && renewing == 0,
     ),
     Declaration(
       id: 'medically_fit',
@@ -1082,15 +1087,15 @@ class _AttestationViewState extends State<AttestationView> {
 
   /// The ticks to start from.
   ///
-  /// Signed: exactly what was confirmed, from the record. Unsigned: the lines already true from the
-  /// crew member's own evaluated cells, because they are confirming a fact rather than asserting
-  /// one out of nothing — and the ones left unticked are then exactly the ones that need them.
+  /// Signed: exactly what was confirmed, from the record. Unsigned: **nothing** (#21). The
+  /// supporting fact under each line is still drawn from the crew member's own record — that is
+  /// what they check against — but the tick is theirs to make. A declaration with disciplinary
+  /// weight that arrives pre-ticked is a declaration people sign without reading, and the first
+  /// version of this screen did exactly that.
   Set<String> _initial() => widget.isSigned || widget.confirmed.isNotEmpty
       ? widget.confirmed.toSet()
-      : {
-          for (final declaration in widget.declarations)
-            if (declaration.satisfied) declaration.id,
-        };
+      // Growable, not `const`: the tap handler mutates this set in place.
+      : <String>{};
 
   @override
   Widget build(BuildContext context) {
