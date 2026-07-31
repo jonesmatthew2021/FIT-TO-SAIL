@@ -5153,6 +5153,17 @@ class $CrewStatementsTable extends CrewStatements
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _subjectRefMeta = const VerificationMeta(
+    'subjectRef',
+  );
+  @override
+  late final GeneratedColumn<String> subjectRef = GeneratedColumn<String>(
+    'subject_ref',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _aboutExpiryMeta = const VerificationMeta(
     'aboutExpiry',
   );
@@ -5204,6 +5215,7 @@ class $CrewStatementsTable extends CrewStatements
     kind,
     requirementId,
     status,
+    subjectRef,
     aboutExpiry,
     raisedAt,
     decisionNote,
@@ -5258,6 +5270,12 @@ class $CrewStatementsTable extends CrewStatements
       );
     } else if (isInserting) {
       context.missing(_statusMeta);
+    }
+    if (data.containsKey('subject_ref')) {
+      context.handle(
+        _subjectRefMeta,
+        subjectRef.isAcceptableOrUnknown(data['subject_ref']!, _subjectRefMeta),
+      );
     }
     if (data.containsKey('about_expiry')) {
       context.handle(
@@ -5320,6 +5338,10 @@ class $CrewStatementsTable extends CrewStatements
         DriftSqlType.string,
         data['${effectivePrefix}status'],
       )!,
+      subjectRef: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_ref'],
+      ),
       aboutExpiry: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}about_expiry'],
@@ -5356,6 +5378,11 @@ class LocalCrewStatement extends DataClass
 
   /// `open` · `actioned` · `dismissed`.
   final String status;
+
+  /// The course option a seat request / waitlist named, null for the other kinds. This is what
+  /// keeps the right MOB-8 card reading "Requested" after the intent is pruned (issue #15) —
+  /// without it the server's statement can only say "you asked about *something*".
+  final String? subjectRef;
   final String? aboutExpiry;
   final DateTime raisedAt;
 
@@ -5369,6 +5396,7 @@ class LocalCrewStatement extends DataClass
     required this.kind,
     required this.requirementId,
     required this.status,
+    this.subjectRef,
     this.aboutExpiry,
     required this.raisedAt,
     this.decisionNote,
@@ -5382,6 +5410,9 @@ class LocalCrewStatement extends DataClass
     map['kind'] = Variable<String>(kind);
     map['requirement_id'] = Variable<int>(requirementId);
     map['status'] = Variable<String>(status);
+    if (!nullToAbsent || subjectRef != null) {
+      map['subject_ref'] = Variable<String>(subjectRef);
+    }
     if (!nullToAbsent || aboutExpiry != null) {
       map['about_expiry'] = Variable<String>(aboutExpiry);
     }
@@ -5402,6 +5433,9 @@ class LocalCrewStatement extends DataClass
       kind: Value(kind),
       requirementId: Value(requirementId),
       status: Value(status),
+      subjectRef: subjectRef == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subjectRef),
       aboutExpiry: aboutExpiry == null && nullToAbsent
           ? const Value.absent()
           : Value(aboutExpiry),
@@ -5426,6 +5460,7 @@ class LocalCrewStatement extends DataClass
       kind: serializer.fromJson<String>(json['kind']),
       requirementId: serializer.fromJson<int>(json['requirementId']),
       status: serializer.fromJson<String>(json['status']),
+      subjectRef: serializer.fromJson<String?>(json['subjectRef']),
       aboutExpiry: serializer.fromJson<String?>(json['aboutExpiry']),
       raisedAt: serializer.fromJson<DateTime>(json['raisedAt']),
       decisionNote: serializer.fromJson<String?>(json['decisionNote']),
@@ -5441,6 +5476,7 @@ class LocalCrewStatement extends DataClass
       'kind': serializer.toJson<String>(kind),
       'requirementId': serializer.toJson<int>(requirementId),
       'status': serializer.toJson<String>(status),
+      'subjectRef': serializer.toJson<String?>(subjectRef),
       'aboutExpiry': serializer.toJson<String?>(aboutExpiry),
       'raisedAt': serializer.toJson<DateTime>(raisedAt),
       'decisionNote': serializer.toJson<String?>(decisionNote),
@@ -5454,6 +5490,7 @@ class LocalCrewStatement extends DataClass
     String? kind,
     int? requirementId,
     String? status,
+    Value<String?> subjectRef = const Value.absent(),
     Value<String?> aboutExpiry = const Value.absent(),
     DateTime? raisedAt,
     Value<String?> decisionNote = const Value.absent(),
@@ -5464,6 +5501,7 @@ class LocalCrewStatement extends DataClass
     kind: kind ?? this.kind,
     requirementId: requirementId ?? this.requirementId,
     status: status ?? this.status,
+    subjectRef: subjectRef.present ? subjectRef.value : this.subjectRef,
     aboutExpiry: aboutExpiry.present ? aboutExpiry.value : this.aboutExpiry,
     raisedAt: raisedAt ?? this.raisedAt,
     decisionNote: decisionNote.present ? decisionNote.value : this.decisionNote,
@@ -5478,6 +5516,9 @@ class LocalCrewStatement extends DataClass
           ? data.requirementId.value
           : this.requirementId,
       status: data.status.present ? data.status.value : this.status,
+      subjectRef: data.subjectRef.present
+          ? data.subjectRef.value
+          : this.subjectRef,
       aboutExpiry: data.aboutExpiry.present
           ? data.aboutExpiry.value
           : this.aboutExpiry,
@@ -5497,6 +5538,7 @@ class LocalCrewStatement extends DataClass
           ..write('kind: $kind, ')
           ..write('requirementId: $requirementId, ')
           ..write('status: $status, ')
+          ..write('subjectRef: $subjectRef, ')
           ..write('aboutExpiry: $aboutExpiry, ')
           ..write('raisedAt: $raisedAt, ')
           ..write('decisionNote: $decisionNote, ')
@@ -5512,6 +5554,7 @@ class LocalCrewStatement extends DataClass
     kind,
     requirementId,
     status,
+    subjectRef,
     aboutExpiry,
     raisedAt,
     decisionNote,
@@ -5526,6 +5569,7 @@ class LocalCrewStatement extends DataClass
           other.kind == this.kind &&
           other.requirementId == this.requirementId &&
           other.status == this.status &&
+          other.subjectRef == this.subjectRef &&
           other.aboutExpiry == this.aboutExpiry &&
           other.raisedAt == this.raisedAt &&
           other.decisionNote == this.decisionNote &&
@@ -5538,6 +5582,7 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
   final Value<String> kind;
   final Value<int> requirementId;
   final Value<String> status;
+  final Value<String?> subjectRef;
   final Value<String?> aboutExpiry;
   final Value<DateTime> raisedAt;
   final Value<String?> decisionNote;
@@ -5548,6 +5593,7 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
     this.kind = const Value.absent(),
     this.requirementId = const Value.absent(),
     this.status = const Value.absent(),
+    this.subjectRef = const Value.absent(),
     this.aboutExpiry = const Value.absent(),
     this.raisedAt = const Value.absent(),
     this.decisionNote = const Value.absent(),
@@ -5559,6 +5605,7 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
     required String kind,
     required int requirementId,
     required String status,
+    this.subjectRef = const Value.absent(),
     this.aboutExpiry = const Value.absent(),
     required DateTime raisedAt,
     this.decisionNote = const Value.absent(),
@@ -5574,6 +5621,7 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
     Expression<String>? kind,
     Expression<int>? requirementId,
     Expression<String>? status,
+    Expression<String>? subjectRef,
     Expression<String>? aboutExpiry,
     Expression<DateTime>? raisedAt,
     Expression<String>? decisionNote,
@@ -5585,6 +5633,7 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
       if (kind != null) 'kind': kind,
       if (requirementId != null) 'requirement_id': requirementId,
       if (status != null) 'status': status,
+      if (subjectRef != null) 'subject_ref': subjectRef,
       if (aboutExpiry != null) 'about_expiry': aboutExpiry,
       if (raisedAt != null) 'raised_at': raisedAt,
       if (decisionNote != null) 'decision_note': decisionNote,
@@ -5598,6 +5647,7 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
     Value<String>? kind,
     Value<int>? requirementId,
     Value<String>? status,
+    Value<String?>? subjectRef,
     Value<String?>? aboutExpiry,
     Value<DateTime>? raisedAt,
     Value<String?>? decisionNote,
@@ -5609,6 +5659,7 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
       kind: kind ?? this.kind,
       requirementId: requirementId ?? this.requirementId,
       status: status ?? this.status,
+      subjectRef: subjectRef ?? this.subjectRef,
       aboutExpiry: aboutExpiry ?? this.aboutExpiry,
       raisedAt: raisedAt ?? this.raisedAt,
       decisionNote: decisionNote ?? this.decisionNote,
@@ -5634,6 +5685,9 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
+    if (subjectRef.present) {
+      map['subject_ref'] = Variable<String>(subjectRef.value);
+    }
     if (aboutExpiry.present) {
       map['about_expiry'] = Variable<String>(aboutExpiry.value);
     }
@@ -5657,6 +5711,7 @@ class CrewStatementsCompanion extends UpdateCompanion<LocalCrewStatement> {
           ..write('kind: $kind, ')
           ..write('requirementId: $requirementId, ')
           ..write('status: $status, ')
+          ..write('subjectRef: $subjectRef, ')
           ..write('aboutExpiry: $aboutExpiry, ')
           ..write('raisedAt: $raisedAt, ')
           ..write('decisionNote: $decisionNote, ')
@@ -10910,6 +10965,7 @@ typedef $$CrewStatementsTableCreateCompanionBuilder =
       required String kind,
       required int requirementId,
       required String status,
+      Value<String?> subjectRef,
       Value<String?> aboutExpiry,
       required DateTime raisedAt,
       Value<String?> decisionNote,
@@ -10922,6 +10978,7 @@ typedef $$CrewStatementsTableUpdateCompanionBuilder =
       Value<String> kind,
       Value<int> requirementId,
       Value<String> status,
+      Value<String?> subjectRef,
       Value<String?> aboutExpiry,
       Value<DateTime> raisedAt,
       Value<String?> decisionNote,
@@ -10959,6 +11016,11 @@ class $$CrewStatementsTableFilterComposer
 
   ColumnFilters<String> get status => $composableBuilder(
     column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subjectRef => $composableBuilder(
+    column: $table.subjectRef,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11017,6 +11079,11 @@ class $$CrewStatementsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get subjectRef => $composableBuilder(
+    column: $table.subjectRef,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get aboutExpiry => $composableBuilder(
     column: $table.aboutExpiry,
     builder: (column) => ColumnOrderings(column),
@@ -11063,6 +11130,11 @@ class $$CrewStatementsTableAnnotationComposer
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get subjectRef => $composableBuilder(
+    column: $table.subjectRef,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get aboutExpiry => $composableBuilder(
     column: $table.aboutExpiry,
@@ -11121,6 +11193,7 @@ class $$CrewStatementsTableTableManager
                 Value<String> kind = const Value.absent(),
                 Value<int> requirementId = const Value.absent(),
                 Value<String> status = const Value.absent(),
+                Value<String?> subjectRef = const Value.absent(),
                 Value<String?> aboutExpiry = const Value.absent(),
                 Value<DateTime> raisedAt = const Value.absent(),
                 Value<String?> decisionNote = const Value.absent(),
@@ -11131,6 +11204,7 @@ class $$CrewStatementsTableTableManager
                 kind: kind,
                 requirementId: requirementId,
                 status: status,
+                subjectRef: subjectRef,
                 aboutExpiry: aboutExpiry,
                 raisedAt: raisedAt,
                 decisionNote: decisionNote,
@@ -11143,6 +11217,7 @@ class $$CrewStatementsTableTableManager
                 required String kind,
                 required int requirementId,
                 required String status,
+                Value<String?> subjectRef = const Value.absent(),
                 Value<String?> aboutExpiry = const Value.absent(),
                 required DateTime raisedAt,
                 Value<String?> decisionNote = const Value.absent(),
@@ -11153,6 +11228,7 @@ class $$CrewStatementsTableTableManager
                 kind: kind,
                 requirementId: requirementId,
                 status: status,
+                subjectRef: subjectRef,
                 aboutExpiry: aboutExpiry,
                 raisedAt: raisedAt,
                 decisionNote: decisionNote,

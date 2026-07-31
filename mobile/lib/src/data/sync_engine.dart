@@ -817,6 +817,7 @@ class SyncEngine {
             kind: statement.kind,
             requirementId: statement.requirementId,
             status: statement.status,
+            subjectRef: Value(statement.subjectRef),
             aboutExpiry: Value(statement.aboutExpiry),
             raisedAt: statement.raisedAt,
             decisionNote: Value(statement.decisionNote),

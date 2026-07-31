@@ -84,6 +84,13 @@ data class CrewStatementSyncDto(
     val requirementId: Long,
     /** `open` | `actioned` | `dismissed`. */
     val status: String,
+    /**
+     * The course option this statement named (MOB-8's seat request / waitlist), null for the
+     * others. On the wire because it is the only thing that lets the device keep the right
+     * card reading "Requested" after the outbox record is pruned — a statement without it can
+     * only answer "you asked about *something*" (issue #15).
+     */
+    val subjectRef: String?,
     /** The expiry the statement was about, or null when there was no expiring holding. */
     val aboutExpiry: LocalDate?,
     val raisedAt: Instant,
@@ -455,6 +462,7 @@ fun CrewStatement.toSyncDto() = CrewStatementSyncDto(
     kind = kind.operation,
     requirementId = requirement.requiredId,
     status = status.wire,
+    subjectRef = subjectRef,
     aboutExpiry = aboutExpiry,
     raisedAt = createdAt,
     decisionNote = decisionNote,

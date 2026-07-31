@@ -4600,6 +4600,7 @@ export interface components {
             /** Format: int64 */
             requirementId: number;
             status: string;
+            subjectRef: string | null;
             aboutExpiry: components["schemas"]["LocalDate"] | null;
             raisedAt: components["schemas"]["Instant"];
             decisionNote: string | null;

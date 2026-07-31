@@ -254,6 +254,11 @@ class CrewStatements extends Table {
 
   /// `open` · `actioned` · `dismissed`.
   TextColumn get status => text()();
+
+  /// The course option a seat request / waitlist named, null for the other kinds. This is what
+  /// keeps the right MOB-8 card reading "Requested" after the intent is pruned (issue #15) —
+  /// without it the server's statement can only say "you asked about *something*".
+  TextColumn get subjectRef => text().nullable()();
   TextColumn get aboutExpiry => text().nullable()();
   DateTimeColumn get raisedAt => dateTime()();
 
@@ -434,11 +439,12 @@ class LocalStore extends _$LocalStore {
   LocalStore(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   /// v1 → v2 adds [CrewIntents]; v2 → v3 [CrewStatements]; v3 → v4 [Attestations]; v4 → v5
   /// [CourseOptions], [TeamMembers] and the two supervisor columns on [SyncStates]; v5 → v6 the
-  /// server-composed standing headline and readiness on [SyncStates].
+  /// server-composed standing headline and readiness on [SyncStates]; v6 → v7 `subjectRef` on
+  /// [CrewStatements].
   ///
   /// Additive, and it has to be: an upgrade that dropped and re-created the database would take
   /// the outbox with it, and the outbox is the only copy of writes the server has never seen. A
@@ -473,6 +479,8 @@ class LocalStore extends _$LocalStore {
             await m.addColumn(syncStates, syncStates.standingReady);
             await m.addColumn(syncStates, syncStates.standingTotal);
           }
+          // Nullable again: existing statement rows re-arrive with it on the next snapshot.
+          if (from < 7) await m.addColumn(crewStatements, crewStatements.subjectRef);
         },
       );
 

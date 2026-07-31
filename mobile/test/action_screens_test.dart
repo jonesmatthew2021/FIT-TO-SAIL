@@ -173,32 +173,30 @@ void main() {
       expect(requested?.id, 'c1');
     });
 
+    const seatOption = CourseOption(
+      id: 'c1',
+      starts: '2026-08-03',
+      finishes: '2026-08-04',
+      provider: 'MTC',
+      location: 'Fremantle',
+      durationLabel: '2 days',
+      seats: 4,
+    );
+
     testWidgets('will not ask twice for the same seat', (tester) async {
       await pump(
         tester,
         CourseBookingView(
           row: row(),
           today: '2026-07-26',
-          options: const [
-            CourseOption(
-              id: 'c1',
-              starts: '2026-08-03',
-              finishes: '2026-08-04',
-              provider: 'MTC',
-              location: 'Fremantle',
-              durationLabel: '2 days',
-              seats: 4,
-            ),
-          ],
-          intents: [
-            LocalCrewIntent(
+          options: const [seatOption],
+          answers: const [
+            Answer(
               opId: 'op-1',
               kind: 'course.seat_request',
-              subjectRef: 'c1',
+              state: AnswerState.queued,
               summary: 'Seat requested for Mon 3 – Tue 4 Aug',
-              payload: '{}',
-              queuedAt: DateTime.utc(2026, 7, 26),
-              state: 'queued',
+              subjectRef: 'c1',
             ),
           ],
         ),
@@ -206,6 +204,58 @@ void main() {
 
       expect(find.text('Requested'), findsOneWidget);
       expect(find.text('Request seat'), findsNothing);
+    });
+
+    testWidgets('remembers a successful request after the intent is pruned', (tester) async {
+      // Issue #15: the intent is deleted the moment the server's statement lands, so the card
+      // must read the merged view — a screen keyed on intents forgets the *successful* path,
+      // re-arms the button, and a second tap mints a duplicate ADM-11 row.
+      await pump(
+        tester,
+        CourseBookingView(
+          row: row(),
+          today: '2026-07-26',
+          options: const [seatOption],
+          // What answersFrom produces once only the server's statement remains.
+          answers: const [
+            Answer(
+              opId: 'op-1',
+              kind: 'course.seat_request',
+              state: AnswerState.sent,
+              summary: 'Seat requested',
+              subjectRef: 'c1',
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('Requested'), findsOneWidget);
+      expect(find.text('Request seat'), findsNothing);
+    });
+
+    testWidgets('a dismissed request puts the button back', (tester) async {
+      await pump(
+        tester,
+        CourseBookingView(
+          row: row(),
+          today: '2026-07-26',
+          options: const [seatOption],
+          answers: const [
+            Answer(
+              opId: 'op-1',
+              kind: 'course.seat_request',
+              state: AnswerState.dismissed,
+              summary: 'Seat requested',
+              subjectRef: 'c1',
+              detail: 'No budget approval for this provider.',
+            ),
+          ],
+        ),
+      );
+
+      expect(find.text('Request seat'), findsOneWidget);
+      // The office's own words stay on screen — the ask re-arms, the answer does not vanish.
+      expect(find.textContaining('No budget approval'), findsOneWidget);
     });
   });
 

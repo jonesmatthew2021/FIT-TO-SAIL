@@ -116,6 +116,7 @@ class Answer {
     required this.state,
     required this.summary,
     this.requirementId,
+    this.subjectRef,
     this.detail,
   });
 
@@ -126,6 +127,10 @@ class Answer {
   /// One line, already written — from the intent that raised it, or [answerSummary].
   final String summary;
   final int? requirementId;
+
+  /// The course option a seat request / waitlist named, null for the other kinds. MOB-8 keys its
+  /// per-date "Requested" state on this, which is what survives the intent being pruned (#15).
+  final String? subjectRef;
 
   /// The reason, in whoever's words they are: the server's rejection for a failure, the
   /// coordinator's own note for a decision.

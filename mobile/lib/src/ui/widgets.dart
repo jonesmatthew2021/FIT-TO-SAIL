@@ -1252,6 +1252,51 @@ Future<T?> showNocturneSheet<T>({required BuildContext context, required WidgetB
   );
 }
 
+/// The confirm step in front of "I have booked the course" (issue #16).
+///
+/// The statement is believed on the crew member's word alone (`ON_WORD`): the moment it lands it
+/// silences their own renewal reminders. A claim with that consequence must not be makeable by a
+/// stray tap sitting 8px from a button that does something else — so the consequence is stated
+/// before the claim is recorded, and "Not yet" is the quiet way out.
+Future<bool> confirmCourseBooked({
+  required BuildContext context,
+  required String requirementTitle,
+}) async {
+  final confirmed = await showNocturneSheet<bool>(
+    context: context,
+    builder: (sheetContext) => Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Tell the office it is booked?', style: NoctType.cardTitle),
+        const SizedBox(height: 8),
+        Text(
+          'This records that a course for $requirementTitle is booked, and pauses your renewal '
+          'reminders on your word. The office checks the booking — if they cannot find it, the '
+          'reminders come back.',
+          style: NoctType.cardBody,
+        ),
+        const SizedBox(height: 16),
+        NButton(
+          label: "Yes — it's booked",
+          variant: NButtonVariant.primary,
+          block: true,
+          minHeight: 48,
+          onPressed: () => Navigator.of(sheetContext).pop(true),
+        ),
+        const SizedBox(height: 8),
+        NButton(
+          label: 'Not yet',
+          variant: NButtonVariant.ghost,
+          block: true,
+          onPressed: () => Navigator.of(sheetContext).pop(false),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
 /// Copy a business key to the clipboard on a long press. Not in the mock; added because a crew
 /// member quoting a record id down a satellite phone is the reason rule 4 exists at all.
 Future<void> copyKey(BuildContext context, String value) async {

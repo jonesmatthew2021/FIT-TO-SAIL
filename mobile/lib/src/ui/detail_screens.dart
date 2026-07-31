@@ -297,7 +297,11 @@ class CertificationDetailView extends StatelessWidget {
                     children: [
                       Expanded(
                         child: NButton(
-                          label: 'Course booked',
+                          // Named for what it does — it *opens* the one-tap update screen. The
+                          // old label, "Course booked", was identical to Home's button, which
+                          // posts the statement; same words doing two things one screen apart
+                          // is how a false statement gets made by muscle memory (issue #16).
+                          label: 'Update the office',
                           icon: PhosphorIconsRegular.calendarCheck,
                           fontSize: 12.5,
                           onPressed: onCourseBooked,

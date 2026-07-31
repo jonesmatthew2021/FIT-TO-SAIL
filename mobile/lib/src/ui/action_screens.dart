@@ -107,14 +107,23 @@ class OneTapUpdateScreen extends StatelessWidget {
                 requirementId: row.cell.requirementId,
                 requirementLabel: '${row.code} ${row.title}',
               ),
+              // The claim and the browsing are separate on purpose (issue #16): this button
+              // states a fact and asks first, because the statement silences the crew member's
+              // own reminders on their word alone. Going to look at dates is `onBrowseCourses`,
+              // and posts nothing.
               onCourseBooked: () async {
+                final confirmed = await confirmCourseBooked(
+                  context: context,
+                  requirementTitle: row.title,
+                );
+                if (!confirmed) return;
                 await state.answer(
                   kind: IntentKind.courseBooked,
                   summary: 'Course booked for ${row.title}',
                   requirementId: row.cell.requirementId,
                 );
-                if (context.mounted) openCourseBooking(context, state, row);
               },
+              onBrowseCourses: () => openCourseBooking(context, state, row),
               onNeedHelp: () => state.answer(
                 kind: IntentKind.helpNeeded,
                 summary: 'Asked for help with ${row.title}',
@@ -141,6 +150,7 @@ class OneTapUpdateView extends StatelessWidget {
     this.submissions = const <LocalSubmission>[],
     this.onHaveIt,
     this.onCourseBooked,
+    this.onBrowseCourses,
     this.onNeedHelp,
     this.onExemption,
     this.onRetryIntent,
@@ -154,6 +164,9 @@ class OneTapUpdateView extends StatelessWidget {
   final List<LocalSubmission> submissions;
   final VoidCallback? onHaveIt;
   final VoidCallback? onCourseBooked;
+
+  /// Opens MOB-8's course list, posting nothing — browsing dates is not claiming a booking.
+  final VoidCallback? onBrowseCourses;
   final VoidCallback? onNeedHelp;
   final VoidCallback? onExemption;
   final void Function(String opId)? onRetryIntent;
@@ -239,6 +252,19 @@ class OneTapUpdateView extends StatelessWidget {
                   alignStart: true,
                   minHeight: 52,
                   onPressed: helped == null ? onNeedHelp : null,
+                ),
+                const SizedBox(height: 8),
+                // Navigation, not an answer: the course list posts nothing until a date is
+                // picked there. This is how you look before you claim (issue #16).
+                NButton(
+                  label: 'See course dates',
+                  icon: PhosphorIconsRegular.calendarBlank,
+                  iconSize: 20,
+                  variant: NButtonVariant.ghost,
+                  block: true,
+                  alignStart: true,
+                  minHeight: 52,
+                  onPressed: onBrowseCourses,
                 ),
 
                 if (answers.isNotEmpty) ...[
@@ -328,27 +354,36 @@ class CourseBookingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Both halves, merged — never intents alone. The intent is pruned the moment the server's
+    // statement lands, so a card keyed on intents forgets a *successful* request, re-arms its
+    // button, and a second tap mints a duplicate ADM-11 row (issue #15).
     return StreamBuilder<List<LocalCrewIntent>>(
       stream: state.watchIntentsFor(row.cell.requirementId),
-      builder: (context, snapshot) => CourseBookingView(
-        row: row,
-        options: state.courseOptionsFor(row.cell.requirementId),
-        today: state.serverToday,
-        swingTo: state.syncState?.standingTo,
-        intents: snapshot.data ?? const <LocalCrewIntent>[],
-        onRequestSeat: (option) => state.answer(
-          kind: option.waitlistOnly ? IntentKind.waitlist : IntentKind.seatRequest,
-          summary: option.waitlistOnly
-              ? 'Waitlisted for ${option.dateLabel}'
-              : 'Seat requested for ${option.dateLabel}',
-          requirementId: row.cell.requirementId,
-          subjectRef: option.id,
-          payload: {'starts': option.starts, 'finishes': option.finishes},
-        ),
-        onOtherDates: () => state.answer(
-          kind: IntentKind.helpNeeded,
-          summary: 'Asked about other dates for ${row.title}',
-          requirementId: row.cell.requirementId,
+      builder: (context, intentSnapshot) => StreamBuilder<List<LocalCrewStatement>>(
+        stream: state.watchStatementsFor(row.cell.requirementId),
+        builder: (context, statementSnapshot) => CourseBookingView(
+          row: row,
+          options: state.courseOptionsFor(row.cell.requirementId),
+          today: state.serverToday,
+          swingTo: state.syncState?.standingTo,
+          answers: answersFrom(
+            intentSnapshot.data ?? const <LocalCrewIntent>[],
+            statementSnapshot.data ?? const <LocalCrewStatement>[],
+          ),
+          onRequestSeat: (option) => state.answer(
+            kind: option.waitlistOnly ? IntentKind.waitlist : IntentKind.seatRequest,
+            summary: option.waitlistOnly
+                ? 'Waitlisted for ${option.dateLabel}'
+                : 'Seat requested for ${option.dateLabel}',
+            requirementId: row.cell.requirementId,
+            subjectRef: option.id,
+            payload: {'starts': option.starts, 'finishes': option.finishes},
+          ),
+          onOtherDates: () => state.answer(
+            kind: IntentKind.helpNeeded,
+            summary: 'Asked about other dates for ${row.title}',
+            requirementId: row.cell.requirementId,
+          ),
         ),
       ),
     );
@@ -362,7 +397,7 @@ class CourseBookingView extends StatelessWidget {
     required this.options,
     required this.today,
     this.swingTo,
-    this.intents = const <LocalCrewIntent>[],
+    this.answers = const <Answer>[],
     this.onRequestSeat,
     this.onOtherDates,
   });
@@ -371,16 +406,23 @@ class CourseBookingView extends StatelessWidget {
   final List<CourseOption> options;
   final String? today;
   final String? swingTo;
-  final List<LocalCrewIntent> intents;
+
+  /// The merged device + server record (`answersFrom`), never intents alone — the intent is
+  /// pruned when the server's statement lands, and only the merge keeps a successful request
+  /// remembered (issue #15).
+  final List<Answer> answers;
   final void Function(CourseOption option)? onRequestSeat;
   final VoidCallback? onOtherDates;
 
   @override
   Widget build(BuildContext context) {
     final expiry = row.expiry;
+    // Every answer naming an option is shown (a failed one must not vanish silently); whether
+    // the button re-arms is `stands`, so a dismissal or a failure puts "Request seat" back —
+    // the same way the office resumes its own chasing.
     final requested = {
-      for (final intent in intents)
-        if (intent.subjectRef != null) intent.subjectRef!: intent,
+      for (final answer in answers)
+        if (answer.subjectRef != null) answer.subjectRef!: answer,
     };
 
     return Scaffold(
@@ -472,7 +514,7 @@ class CourseBookingView extends StatelessWidget {
             for (final option in options) ...[
               _CourseCard(
                 option: option,
-                intent: requested[option.id],
+                answer: requested[option.id],
                 onRequestSeat: onRequestSeat == null ? null : () => onRequestSeat!(option),
               ),
               const SizedBox(height: 8),
@@ -509,10 +551,12 @@ class CourseBookingView extends StatelessWidget {
 }
 
 class _CourseCard extends StatelessWidget {
-  const _CourseCard({required this.option, this.intent, this.onRequestSeat});
+  const _CourseCard({required this.option, this.answer, this.onRequestSeat});
 
   final CourseOption option;
-  final LocalCrewIntent? intent;
+
+  /// The standing answer naming this option, from the merged view — null when nothing stands.
+  final Answer? answer;
   final VoidCallback? onRequestSeat;
 
   @override
@@ -539,10 +583,10 @@ class _CourseCard extends StatelessWidget {
             ),
             const SizedBox(width: 10),
             NButton(
-              label: intent == null ? 'Waitlist' : 'Waitlisted',
+              label: answer?.stands ?? false ? 'Waitlisted' : 'Waitlist',
               variant: NButtonVariant.ghost,
               fontSize: 12.5,
-              onPressed: intent == null ? onRequestSeat : null,
+              onPressed: answer?.stands ?? false ? null : onRequestSeat,
             ),
           ],
         ),
@@ -590,16 +634,16 @@ class _CourseCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               NButton(
-                label: intent == null ? 'Request seat' : 'Requested',
+                label: answer?.stands ?? false ? 'Requested' : 'Request seat',
                 variant: option.recommended ? NButtonVariant.primary : NButtonVariant.secondary,
                 fontSize: 13,
-                onPressed: intent == null ? onRequestSeat : null,
+                onPressed: answer?.stands ?? false ? null : onRequestSeat,
               ),
             ],
           ),
-          if (intent != null) ...[
+          if (answer != null) ...[
             const SizedBox(height: 8),
-            AnswerLine(answer: answerFromIntent(intent!)),
+            AnswerLine(answer: answer!),
           ],
         ],
       ),

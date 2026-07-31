@@ -842,6 +842,7 @@ class CrewStatementSyncDto {
   final String kind;
   final int requirementId;
   final String status;
+  final String? subjectRef;
   final String? aboutExpiry;
   final DateTime raisedAt;
   final String? decisionNote;
@@ -853,6 +854,7 @@ class CrewStatementSyncDto {
     required this.kind,
     required this.requirementId,
     required this.status,
+    this.subjectRef,
     this.aboutExpiry,
     required this.raisedAt,
     this.decisionNote,
@@ -865,6 +867,7 @@ class CrewStatementSyncDto {
         kind: json['kind'] as String,
         requirementId: json['requirementId'] as int,
         status: json['status'] as String,
+        subjectRef: json['subjectRef'] == null ? null : json['subjectRef'] as String,
         aboutExpiry: json['aboutExpiry'] == null ? null : json['aboutExpiry'] as String,
         raisedAt: DateTime.parse(json['raisedAt'] as String).toUtc(),
         decisionNote: json['decisionNote'] == null ? null : json['decisionNote'] as String,
@@ -877,6 +880,7 @@ class CrewStatementSyncDto {
         'kind': kind,
         'requirementId': requirementId,
         'status': status,
+        'subjectRef': subjectRef,
         'aboutExpiry': aboutExpiry,
         'raisedAt': raisedAt.toIso8601String(),
         'decisionNote': decisionNote,

@@ -441,11 +441,20 @@ class HomeScreen extends StatelessWidget {
                 requirementId: row.cell.requirementId,
                 requirementLabel: '${row.code} ${row.title}',
               ),
-              onCourseBooked: (row) => state.answer(
-                kind: IntentKind.courseBooked,
-                summary: 'Course booked for ${row.title}',
-                requirementId: row.cell.requirementId,
-              ),
+              // Confirmed first (issue #16): the statement silences the crew member's own
+              // reminders on their word alone, and this button sits 8px from "I have it".
+              onCourseBooked: (row) async {
+                final confirmed = await confirmCourseBooked(
+                  context: context,
+                  requirementTitle: row.title,
+                );
+                if (!confirmed) return;
+                await state.answer(
+                  kind: IntentKind.courseBooked,
+                  summary: 'Course booked for ${row.title}',
+                  requirementId: row.cell.requirementId,
+                );
+              },
               onAsk: (row) => state.answer(
                 kind: IntentKind.helpNeeded,
                 summary: 'Asked for help with ${row.title}',

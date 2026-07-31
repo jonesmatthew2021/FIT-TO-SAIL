@@ -441,6 +441,7 @@ List<Answer> answersFrom(
                 .firstOrNull ??
             answerSummary(statement.kind),
         requirementId: statement.requirementId,
+        subjectRef: statement.subjectRef,
         detail: statement.decisionNote,
       ),
     for (final intent in intents)
@@ -450,8 +451,10 @@ List<Answer> answersFrom(
 
 /// One answer with only the device's half of its record.
 ///
-/// The right shape for the five operations that will never get a server statement back — a course
-/// seat request, a nudge — and the fallback for a statement that has not arrived yet.
+/// The fallback for a statement that has not arrived yet, and the whole record for the
+/// operations that never get one back (a nudge, an attestation — those settle other tables).
+/// A seat request is *not* in that set: it is a statement and its server row arrives like any
+/// other, which is why MOB-8 must read the merged view rather than intents (issue #15).
 Answer answerFromIntent(LocalCrewIntent intent) => Answer(
       opId: intent.opId,
       kind: intent.kind,
@@ -462,6 +465,7 @@ Answer answerFromIntent(LocalCrewIntent intent) => Answer(
       },
       summary: intent.summary,
       requirementId: intent.requirementId,
+      subjectRef: intent.subjectRef,
       detail: intent.detail,
     );
 

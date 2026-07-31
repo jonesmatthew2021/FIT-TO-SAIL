@@ -227,7 +227,11 @@ void main() {
         ),
       );
 
-      await tester.tap(find.text('Course booked'));
+      // "Update the office", not "Course booked": this button *navigates* to the one-tap
+      // screen, and it must not share a label with Home's button, which posts the statement
+      // (issue #16 — same words doing two things one screen apart).
+      expect(find.text('Course booked'), findsNothing);
+      await tester.tap(find.text('Update the office'));
       await tester.tap(find.text('Need help'));
       await tester.pump();
 
