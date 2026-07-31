@@ -160,20 +160,28 @@ function NotificationRow({
         </p>
       </div>
 
-      {/* A read row loses its Open link and its Mark-read button: there is nothing left to do to it,
-          and a column of dead controls is what makes a list of forty rows unreadable. */}
-      {!notification.read && (
-        <div className="notification__actions">
-          {internalPath !== null && (
-            <Link className="notification__open" to={internalPath}>
-              Open
-            </Link>
-          )}
+      {/* A read row keeps its Open link — the notification is often the only pointer to the
+          record it is about, and "Mark all read" must not destroy navigability (#20). What a
+          read row sheds is the Mark-read button, which really is spent. Open marks the row read
+          on the way through: opening is the strongest evidence of reading there is. */}
+      <div className="notification__actions">
+        {internalPath !== null && (
+          <Link
+            className="notification__open"
+            to={internalPath}
+            onClick={() => {
+              if (!notification.read) onMarkRead()
+            }}
+          >
+            Open
+          </Link>
+        )}
+        {!notification.read && (
           <button type="button" className="link-action" disabled={pending} onClick={onMarkRead}>
             Mark read
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </li>
   )
 }

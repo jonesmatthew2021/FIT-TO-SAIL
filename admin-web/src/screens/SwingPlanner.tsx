@@ -502,6 +502,10 @@ function SlotActions({
   onConsiderSlot: (slotRef: number | null) => void
   selectedSlotRef: number | null
 }): React.ReactNode {
+  // Unassign asks first (#20): it deletes the row *and* pushes a notification to the crew
+  // member's phone, and an outward-facing action should not fire off a stray click.
+  const [confirmingUnassign, setConfirmingUnassign] = useState<number | null>(null)
+
   const counts = new Map<string, number>()
   for (const assignment of row.assignments) {
     for (const cell of assignment.evaluation.cells) {
@@ -551,21 +555,47 @@ function SlotActions({
         )}
 
         {canEditRoster &&
-          row.assignments.map((assignment) => (
-            <button
-              key={assignment.assignmentId}
-              type="button"
-              className="button button--quiet"
-              disabled={unassignPending}
-              onClick={() => onUnassign(assignment.assignmentId)}
-              title={`Remove ${assignment.name} from slot ${row.ref}`}
-            >
-              {/* Named only on a handover, where there are two people to tell apart. */}
-              {row.assignments.length > 1
-                ? `Unassign ${assignment.name.split(' ')[0]}`
-                : 'Unassign'}
-            </button>
-          ))}
+          row.assignments.map((assignment) =>
+            confirmingUnassign === assignment.assignmentId ? (
+              <span key={assignment.assignmentId} className="row-actions">
+                <span className="dim">
+                  Removes {assignment.name} and notifies their phone.
+                </span>
+                <button
+                  type="button"
+                  className="button button--quiet"
+                  disabled={unassignPending}
+                  onClick={() => {
+                    onUnassign(assignment.assignmentId)
+                    setConfirmingUnassign(null)
+                  }}
+                >
+                  Confirm unassign
+                </button>
+                <button
+                  type="button"
+                  className="button button--quiet"
+                  onClick={() => setConfirmingUnassign(null)}
+                >
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <button
+                key={assignment.assignmentId}
+                type="button"
+                className="button button--quiet"
+                disabled={unassignPending}
+                onClick={() => setConfirmingUnassign(assignment.assignmentId)}
+                title={`Remove ${assignment.name} from slot ${row.ref}`}
+              >
+                {/* Named only on a handover, where there are two people to tell apart. */}
+                {row.assignments.length > 1
+                  ? `Unassign ${assignment.name.split(' ')[0]}…`
+                  : 'Unassign…'}
+              </button>
+            ),
+          )}
       </div>
     </>
   )
@@ -799,10 +829,14 @@ function GapReport({ partnership, cc }: { partnership: string; cc: string }): Re
       accessorFn: (row) => row.notes.join(' '),
       // §6, ADM-2: a gap with no register record gets a one-click pre-filled exemption request.
       // Everything the form needs is already on this row, so nothing has to be retyped.
+      // Not on `recommended` or `quota_only` rows (#20): neither is individually mandatory, so
+      // there is nothing to exempt anyone from.
       cell: ({ row }) => (
         <span className="table__wrap">
           {row.original.notes.join(' · ')}
-          {row.original.registerRecordId === null && (
+          {row.original.registerRecordId === null &&
+            row.original.state !== 'recommended' &&
+            row.original.state !== 'quota_only' && (
             <>
               {row.original.notes.length > 0 && ' · '}
               <Link

@@ -82,6 +82,19 @@ export function Evidence(): React.ReactNode {
   const code = (id: number | null) =>
     id === null ? null : (requirements.data?.find((r) => r.id === id)?.code ?? `#${id}`)
 
+  // Working a queue means moving to the next thing without going back to the list (#20). The
+  // next document is the one after this in queue order, skipping anything already decided;
+  // wraps to the top, and closes the panel when this was the last one.
+  const undecided = rows.filter(
+    (row) => row.verificationStatus !== 'verified' && row.verificationStatus !== 'rejected',
+  )
+  const nextAfter = (currentId: string): string | null => {
+    const remaining = undecided.filter((row) => row.publicId !== currentId)
+    if (remaining.length === 0) return null
+    const index = undecided.findIndex((row) => row.publicId === currentId)
+    return (undecided[index + 1] ?? remaining[0])?.publicId ?? null
+  }
+
   /*
    * The status filter is a multi-select, and it says so.
    *
@@ -229,7 +242,12 @@ export function Evidence(): React.ReactNode {
       />
 
       {selected !== null && (
-        <ReviewPanel key={selected.publicId} document={selected} canDecide={canDecide} />
+        <ReviewPanel
+          key={selected.publicId}
+          document={selected}
+          canDecide={canDecide}
+          onAdvance={() => select(nextAfter(selected.publicId))}
+        />
       )}
     </div>
   )
@@ -245,9 +263,12 @@ export function Evidence(): React.ReactNode {
 function ReviewPanel({
   document,
   canDecide,
+  onAdvance,
 }: {
   document: EvidenceDocument
   canDecide: boolean
+  /** Moves to the next undecided document — called after a decision, and offered as a skip. */
+  onAdvance?: () => void
 }): React.ReactNode {
   const requirements = useRequirements()
   const accept = useAcceptEvidence()
@@ -401,16 +422,22 @@ function ReviewPanel({
             onSubmit={(event) => {
               event.preventDefault()
               if (requirementId === null) return
-              accept.mutate({
-                publicId: document.publicId,
-                body: {
-                  requirementId,
-                  status,
-                  expiry: expiryRequired && expiry !== '' ? expiry : null,
-                  issueDate: issueDate === '' ? null : issueDate,
-                  note: note === '' ? null : note,
+              accept.mutate(
+                {
+                  publicId: document.publicId,
+                  body: {
+                    requirementId,
+                    status,
+                    expiry: expiryRequired && expiry !== '' ? expiry : null,
+                    issueDate: issueDate === '' ? null : issueDate,
+                    note: note === '' ? null : note,
+                  },
                 },
-              })
+                // Deciding advances the queue (#20): the reviewer's next act was always "open
+                // the next one", and making them find it in the list again is the tax this
+                // screen exists to remove.
+                { onSuccess: () => onAdvance?.() },
+              )
             }}
           >
             <label className="field field--inline field--grow">
@@ -502,6 +529,19 @@ function ReviewPanel({
 
             {accept.error !== null && <p className="editor__error">{errorText(accept.error)}</p>}
 
+            {/* The disable is never silent (#20): with nothing extracted — the launch posture —
+                the empty expiry disabled Accept with no cue, which read as a broken button. */}
+            {requirementId === null ? (
+              <p className="section__note">
+                Pick which requirement this document evidences before accepting.
+              </p>
+            ) : expiryRequired && expiry === '' ? (
+              <p className="section__note">
+                "Held, expires" needs the expiry date — type it from the document, or change the
+                status if this certificate never expires.
+              </p>
+            ) : null}
+
             <div className="editor__actions">
               <button
                 type="submit"
@@ -515,6 +555,11 @@ function ReviewPanel({
               <button type="button" className="button" onClick={() => setRejecting(true)}>
                 Reject…
               </button>
+              {onAdvance !== undefined && (
+                <button type="button" className="button button--quiet" onClick={onAdvance}>
+                  Skip to next
+                </button>
+              )}
             </div>
           </form>
         )}
@@ -524,7 +569,10 @@ function ReviewPanel({
             className="editor"
             onSubmit={(event) => {
               event.preventDefault()
-              reject.mutate({ publicId: document.publicId, reason })
+              reject.mutate(
+                { publicId: document.publicId, reason },
+                { onSuccess: () => onAdvance?.() },
+              )
             }}
           >
             <label className="field field--inline field--grow">

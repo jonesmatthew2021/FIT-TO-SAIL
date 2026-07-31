@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useSession } from '../api/session'
-import { useNotificationSummary } from '../api/queries'
+import { useCrewRequestSummary, useNotificationSummary } from '../api/queries'
 import { writeDevIdentity } from '../api/client'
 import { formatDate } from '../domain/dates'
 import { roleLabel } from '../domain/enums'
@@ -158,9 +158,27 @@ function NavGroup({
           }
         >
           <span className="nav__label">{item.label}</span>
+          {item.to === '/crew-requests' && <CrewRequestCount />}
           {SHOW_SCREEN_CODES && <span className="nav__module">{item.module}</span>}
         </NavLink>
       ))}
     </>
+  )
+}
+
+/**
+ * How many crew requests are waiting on somebody (#20). The count was computed and rendered
+ * nowhere, which made ADM-11 a queue you had to remember to check — the failure mode the module
+ * exists to prevent. Same rule as the unread badge: never shown at zero.
+ */
+function CrewRequestCount(): React.ReactNode {
+  const summary = useCrewRequestSummary()
+  const open = summary.data?.open ?? 0
+  if (open === 0) return null
+
+  return (
+    <span className="nav__count" aria-label={`${open} open crew requests`}>
+      {open}
+    </span>
   )
 }

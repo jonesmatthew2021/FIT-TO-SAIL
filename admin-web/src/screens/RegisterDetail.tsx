@@ -4,6 +4,7 @@ import {
   useAddRegisterCondition,
   useAddRegisterNote,
   useCloseRegisterRecord,
+  useCrewChanges,
   useRegisterRecord,
   useTransitionRegisterRecord,
 } from '../api/queries'
@@ -164,7 +165,14 @@ export function RegisterDetailPanel({ recordId }: { recordId: string }): React.R
       {form === 'transition' && (
         <TransitionForm recordId={record.recordId} onDone={() => setForm('none')} />
       )}
-      {form === 'close' && <CloseForm recordId={record.recordId} onDone={() => setForm('none')} />}
+      {form === 'close' && (
+        <CloseForm
+          recordId={record.recordId}
+          partnership={record.partnershipAbbrev}
+          cc={record.ccId}
+          onDone={() => setForm('none')}
+        />
+      )}
     </div>
   )
 }
@@ -406,14 +414,28 @@ function TransitionForm({
  * `Approved` with no dates, and this form asks for them rather than letting the refusal be the first
  * anyone hears of it.
  */
-function CloseForm({ recordId, onDone }: { recordId: string; onDone: () => void }): React.ReactNode {
+function CloseForm({
+  recordId,
+  partnership,
+  cc,
+  onDone,
+}: {
+  recordId: string
+  partnership: string
+  cc: string | null
+  onDone: () => void
+}): React.ReactNode {
   const close = useCloseRegisterRecord()
+  const crewChanges = useCrewChanges(partnership)
   const [outcome, setOutcome] = useState(REGISTER_OUTCOMES[0] as string)
   const [approvalFrom, setApprovalFrom] = useState('')
   const [approvalTo, setApprovalTo] = useState('')
   const [note, setNote] = useState('')
 
   const approving = outcome === 'Approved'
+  // The server enforces "the approval window sits inside the swing"; the pickers say so up
+  // front rather than letting the 400 be the first anyone hears of it (#20).
+  const swing = (crewChanges.data ?? []).find((candidate) => candidate.ccId === cc)
 
   return (
     <form
@@ -453,6 +475,8 @@ function CloseForm({ recordId, onDone }: { recordId: string; onDone: () => void 
               className="input"
               type="date"
               value={approvalFrom}
+              min={swing?.from}
+              max={swing?.to}
               onChange={(event) => setApprovalFrom(event.target.value)}
             />
           </label>
@@ -462,6 +486,8 @@ function CloseForm({ recordId, onDone }: { recordId: string; onDone: () => void 
               className="input"
               type="date"
               value={approvalTo}
+              min={approvalFrom !== '' ? approvalFrom : swing?.from}
+              max={swing?.to}
               onChange={(event) => setApprovalTo(event.target.value)}
             />
           </label>

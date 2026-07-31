@@ -128,6 +128,7 @@ function SettingRow({
   const clear = useClearConfig()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(() => renderValue(setting.value))
+  const [parseError, setParseError] = useState<string | null>(null)
 
   if (canEdit && editing) {
     return (
@@ -138,7 +139,16 @@ function SettingRow({
             onSubmit={(event) => {
               event.preventDefault()
               const parsed = parseValue(setting, draft)
-              if (parsed === PARSE_FAILED) return
+              if (parsed === PARSE_FAILED) {
+                // Never a silent no-op (#20): Save that does nothing reads as a broken screen.
+                setParseError(
+                  setting.kind === 'weights'
+                    ? 'Not valid JSON — the weights are an object like {"gap": 100}.'
+                    : 'Not a number.',
+                )
+                return
+              }
+              setParseError(null)
               set.mutate({ key: setting.key, value: parsed }, { onSuccess: () => setEditing(false) })
             }}
           >
@@ -165,6 +175,7 @@ function SettingRow({
                 auto-acceptance.
               </p>
             )}
+            {parseError !== null && <p className="editor__error">{parseError}</p>}
             {set.error !== null && <p className="editor__error">{errorText(set.error)}</p>}
             <div className="editor__actions">
               <button type="submit" className="button button--primary" disabled={set.isPending}>

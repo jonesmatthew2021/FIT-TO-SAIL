@@ -451,6 +451,9 @@ function CellEditor({
   const [partnershipId, setPartnershipId] = useState<number | null>(null)
   const [showOnlyUsed, setShowOnlyUsed] = useState(true)
   const [publishing, setPublishing] = useState(false)
+  // Discard asks first (#20): it deletes every edit in the draft, and it sits directly beside
+  // Publish — the one place a mis-click costs a morning's work.
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
 
   if (detail.isPending || requirements.isPending || positions.isPending) {
     return <Spinner label="Loading the matrix" />
@@ -546,15 +549,34 @@ function CellEditor({
           >
             Export CSV
           </button>
-          {canEdit && summary.version.editable && (
+          {canEdit && summary.version.editable && !confirmingDiscard && (
             <button
               type="button"
               className="button"
               disabled={discard.isPending}
-              onClick={() => discard.mutate(summary.version.id)}
+              onClick={() => setConfirmingDiscard(true)}
             >
-              Discard
+              Discard…
             </button>
+          )}
+          {canEdit && summary.version.editable && confirmingDiscard && (
+            <>
+              <span className="dim">Deletes every edit in {summary.version.label}.</span>
+              <button
+                type="button"
+                className="button"
+                disabled={discard.isPending}
+                onClick={() => {
+                  discard.mutate(summary.version.id)
+                  setConfirmingDiscard(false)
+                }}
+              >
+                Discard the draft
+              </button>
+              <button type="button" className="button" onClick={() => setConfirmingDiscard(false)}>
+                Keep editing
+              </button>
+            </>
           )}
           {canPublish && summary.version.editable && (
             <button

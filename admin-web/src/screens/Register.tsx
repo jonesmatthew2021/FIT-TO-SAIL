@@ -1,10 +1,11 @@
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { usePartnerships, useCrewChanges, useRegister } from '../api/queries'
 import type { RegisterFilters, RegisterRecord } from '../api/client'
-import { useHasRole } from '../api/session'
+import { useHasRole, useSession } from '../api/session'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Spinner } from '../components/Spinner'
+import { daysBetween } from '../domain/dates'
 import { REGISTER_TYPES, registerStatusTone } from '../domain/enums'
 import { RegisterDetailPanel } from './RegisterDetail'
 
@@ -35,6 +36,7 @@ export function Register(): React.ReactNode {
   const { recordId } = useParams()
   const navigate = useNavigate()
   const canRaise = useHasRole(...REGISTER_RAISERS)
+  const today = useSession().today
 
   const filters: RegisterFilters = {
     partnership: params.get('partnership') ?? undefined,
@@ -152,9 +154,23 @@ export function Register(): React.ReactNode {
           `${row.original.partnershipAbbrev} ${row.original.ccId}`
         ),
     },
+    {
+      // The queue's central question — "what has been sitting longest" — asked and answerable
+      // (#20): the age is on every open row, and the header sorts by it. Business days against
+      // the session's date, never the browser's (NFR-5).
+      id: 'waiting',
+      header: 'Waiting',
+      accessorFn: (row) => (row.open ? daysBetween(row.raisedDate, today) : -1),
+      cell: ({ row }) => {
+        if (!row.original.open) return <span className="dim">—</span>
+        const days = daysBetween(row.original.raisedDate, today)
+        return <span>{days === 0 ? 'today' : days === 1 ? '1 day' : `${days} days`}</span>
+      },
+    },
     // Raised, Approved for and the effective window are on the detail beside this list rather than
     // in it: nine columns in a 700px pane wrapped every cell onto two lines, and the whole point of
-    // the pane is that the record you selected is *right there*. The CSV still carries all of them.
+    // the pane is that the record you selected is *right there*. The CSV still carries all of them
+    // — "Waiting" earns its place because it is the queue's sort key, not another date to read.
   ]
 
   const toolbar = (
