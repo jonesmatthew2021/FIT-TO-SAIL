@@ -45,6 +45,7 @@ class AppState extends ChangeNotifier {
 
   bool _syncing = false;
   String? _lastError;
+  bool _sessionExpired = false;
   LocalSyncState? _syncState;
   LocalPerson? _person;
   List<LocalCourseOption> _courseOptions = const [];
@@ -52,6 +53,11 @@ class AppState extends ChangeNotifier {
 
   bool get syncing => _syncing;
   String? get lastError => _lastError;
+
+  /// The last sync failed with a 401 — a different fact from "no signal", and shown as one
+  /// (issue #14). An expired session presenting as "Couldn't sync · Retry" forever would have
+  /// the crew member blaming the weather for something reconnecting cannot fix.
+  bool get sessionExpired => _sessionExpired;
   LocalSyncState? get syncState => _syncState;
   LocalPerson? get person => _person;
 
@@ -98,8 +104,24 @@ class AppState extends ChangeNotifier {
 
     final outcome = await engine.sync();
     _lastError = outcome.succeeded ? null : outcome.error;
+    _sessionExpired = outcome.unauthenticated;
     _syncing = false;
     await load();
+  }
+
+  /// Syncs unless the replica is fresh — the resume/tick entry point (issue #14).
+  ///
+  /// A failed last attempt always retries; a successful one is left alone until it is
+  /// [threshold] old, so returning to the app every few minutes does not hammer a satellite
+  /// link for data that has not had time to change.
+  Future<void> syncIfStale({Duration threshold = const Duration(minutes: 1)}) async {
+    if (_syncing) return;
+    final last = lastSyncedAt;
+    final fresh = last != null &&
+        _lastError == null &&
+        DateTime.now().toUtc().difference(last) < threshold;
+    if (fresh) return;
+    await sync();
   }
 
   Future<void> markRead(int notificationId) async {

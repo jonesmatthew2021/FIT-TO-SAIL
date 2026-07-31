@@ -30,13 +30,14 @@ void main() {
     String headline = 'A certificate lapses before this swing ends.',
     int ready = 5,
     int total = 6,
+    DateTime? lastSyncedAt,
   }) => LocalSyncState(
     id: 0,
     cursor: 100,
     referenceCursor: 50,
     supervisor: false,
     serverToday: '2026-07-26',
-    lastSyncedAt: DateTime.now().toUtc(),
+    lastSyncedAt: lastSyncedAt ?? DateTime.now().toUtc(),
     standingCcId: ccId,
     standingPartnership: ccId == null ? null : 'UNI',
     standingFrom: ccId == null ? null : '2026-07-21',
@@ -94,6 +95,59 @@ void main() {
 
     test('is complete when nothing is outstanding', () {
       expect(readinessFrom([row(1, 'ok', 'A-1', 'A')]).complete, isTrue);
+    });
+  });
+
+  group('staleness and session (issue #14)', () {
+    testWidgets('Home says so when a successful sync has grown old', (tester) async {
+      final old = DateTime.now().toUtc().subtract(const Duration(hours: 9));
+      await pump(
+        tester,
+        HomeView(
+          rows: swing,
+          answers: const [],
+          person: person,
+          sync: syncState(lastSyncedAt: old),
+          today: '2026-07-26',
+        ),
+      );
+
+      // Old-but-successful data used to show no cue at all, so Home could answer "am I OK to
+      // sail" from a fortnight-old replica with nothing on screen saying so.
+      expect(find.textContaining('Last synced'), findsOneWidget);
+    });
+
+    testWidgets('a fresh successful sync shows no line, as designed', (tester) async {
+      await pump(
+        tester,
+        HomeView(
+          rows: swing,
+          answers: const [],
+          person: person,
+          sync: syncState(),
+          today: '2026-07-26',
+        ),
+      );
+
+      expect(find.textContaining('Last synced'), findsNothing);
+    });
+
+    testWidgets('an expired session is not dressed up as no signal', (tester) async {
+      await pump(
+        tester,
+        HomeView(
+          rows: swing,
+          answers: const [],
+          person: person,
+          sync: syncState(),
+          today: '2026-07-26',
+          error: '401',
+          sessionExpired: true,
+        ),
+      );
+
+      expect(find.textContaining('Session expired'), findsOneWidget);
+      expect(find.textContaining("Couldn't sync"), findsNothing);
     });
   });
 

@@ -10,6 +10,8 @@
 /// widget-test fake-async zone and hangs there.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -37,12 +39,31 @@ class CrewHome extends StatefulWidget {
 
 class _CrewHomeState extends State<CrewHome> {
   int _tab = 0;
+  late final AppLifecycleListener _lifecycle;
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
     // Fire-and-forget: the screens already have whatever the last sync left behind.
     widget.state.sync();
+    // A warm resume re-syncs too (issue #14) — before this, sync ran once per process launch,
+    // and an app parked in the switcher for a fortnight answered "am I OK to sail" from
+    // fortnight-old data with no cue.
+    _lifecycle = AppLifecycleListener(onResume: () => widget.state.syncIfStale());
+    // And the ordinary foreground case: nothing watches the radio (no connectivity plugin, on
+    // purpose — see pubspec's short-dependency stance), so a quiet tick retries a failed sync
+    // and refreshes a stale one. It never touches the network while data is fresh.
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+      widget.state.syncIfStale(threshold: const Duration(minutes: 15));
+    });
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    _ticker?.cancel();
+    super.dispose();
   }
 
   @override
@@ -294,6 +315,7 @@ class SyncLine extends StatelessWidget {
     required this.syncing,
     required this.lastSyncedAt,
     required this.error,
+    this.sessionExpired = false,
     this.onRetry,
     this.padding = const EdgeInsets.fromLTRB(Nocturne.gutter, 0, Nocturne.gutter, 12),
   });
@@ -301,6 +323,10 @@ class SyncLine extends StatelessWidget {
   final bool syncing;
   final DateTime? lastSyncedAt;
   final String? error;
+
+  /// The failure was a 401, which reconnecting cannot fix — named as its own state (issue #14)
+  /// so it never reads as "no signal".
+  final bool sessionExpired;
   final VoidCallback? onRetry;
   final EdgeInsetsGeometry padding;
 
@@ -313,6 +339,12 @@ class SyncLine extends StatelessWidget {
     var retry = false;
     if (syncing) {
       message = 'Syncing…';
+    } else if (sessionExpired) {
+      message = last == null
+          ? 'Session expired — the office no longer recognises this device'
+          : 'Session expired · showing records from ${ago(last)}';
+      colour = Nocturne.warningText;
+      retry = true;
     } else if (last == null) {
       message = 'Never synced — showing nothing yet';
       colour = Nocturne.warningText;
@@ -421,7 +453,13 @@ class HomeScreen extends StatelessWidget {
           stream: state.watchIntents(),
           builder: (context, intentSnapshot) => StreamBuilder<List<LocalCrewStatement>>(
             stream: state.watchStatements(),
-            builder: (context, statementSnapshot) => HomeView(
+            // Pull-to-refresh (issue #14): the certifications empty state has always instructed
+            // "Pull down to sync", and until now nothing anywhere implemented it.
+            builder: (context, statementSnapshot) => RefreshIndicator(
+              color: Nocturne.accent,
+              backgroundColor: Nocturne.surface,
+              onRefresh: state.sync,
+              child: HomeView(
               rows: rowSnapshot.data,
               answers: answersFrom(
                 intentSnapshot.data ?? const <LocalCrewIntent>[],
@@ -433,6 +471,7 @@ class HomeScreen extends StatelessWidget {
               today: state.serverToday,
               syncing: state.syncing,
               error: state.lastError,
+              sessionExpired: state.sessionExpired,
               onSync: state.syncing ? null : state.sync,
               onOpenRequirement: (row) => openRequirement(context, state, row.cell.requirementId),
               onSendCertificate: (row) => showSendCertificateSheet(
@@ -460,6 +499,7 @@ class HomeScreen extends StatelessWidget {
                 summary: 'Asked for help with ${row.title}',
                 requirementId: row.cell.requirementId,
               ),
+              ),
             ),
           ),
         );
@@ -479,6 +519,7 @@ class HomeView extends StatelessWidget {
     this.credits,
     this.syncing = false,
     this.error,
+    this.sessionExpired = false,
     this.onSync,
     this.onOpenRequirement,
     this.onSendCertificate,
@@ -494,7 +535,11 @@ class HomeView extends StatelessWidget {
   final Credits? credits;
   final bool syncing;
   final String? error;
+  final bool sessionExpired;
   final VoidCallback? onSync;
+
+  /// How old a *successful* sync may be before Home starts saying so (issue #14).
+  static const staleAfter = Duration(hours: 6);
   final void Function(CertificationRow row)? onOpenRequirement;
   final void Function(CertificationRow row)? onSendCertificate;
   final void Function(CertificationRow row)? onCourseBooked;
@@ -540,14 +585,19 @@ class HomeView extends StatelessWidget {
         _HomeHeader(person: person, sync: sync, syncing: syncing, onSync: onSync),
 
         // On Home the staleness line only appears when it is telling the crew member something
-        // they need: that the last attempt failed, or that nothing has ever arrived. The mock has
-        // no line here, and a permanent "synced 2 min ago" under a readiness ring reads as
-        // reassurance about the wrong thing.
-        if (error != null || sync?.lastSyncedAt == null)
+        // they need: the last attempt failed, nothing has ever arrived, the session died — or
+        // the data is simply old (issue #14). The mock has no line here, and a permanent
+        // "synced 2 min ago" under a readiness ring reads as reassurance about the wrong thing;
+        // but a headline confidently answered from hours-old data with no cue is worse.
+        if (error != null ||
+            sessionExpired ||
+            sync?.lastSyncedAt == null ||
+            DateTime.now().toUtc().difference(sync!.lastSyncedAt!) > staleAfter)
           SyncLine(
             syncing: syncing,
             lastSyncedAt: sync?.lastSyncedAt,
             error: error,
+            sessionExpired: sessionExpired,
             onRetry: onSync,
             padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 0, Nocturne.gutter, 10),
           ),
@@ -1058,15 +1108,21 @@ class CertificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<List<CertificationRow>>(
       stream: state.watchCertifications(),
-      builder: (context, snapshot) => CertificationsView(
-        rows: snapshot.data,
-        sync: state.syncState,
-        today: state.serverToday,
-        person: state.person,
-        syncing: state.syncing,
-        error: state.lastError,
-        onSync: state.syncing ? null : state.sync,
-        onOpen: (row) => openRequirement(context, state, row.cell.requirementId),
+      builder: (context, snapshot) => RefreshIndicator(
+        color: Nocturne.accent,
+        backgroundColor: Nocturne.surface,
+        onRefresh: state.sync,
+        child: CertificationsView(
+          rows: snapshot.data,
+          sync: state.syncState,
+          today: state.serverToday,
+          person: state.person,
+          syncing: state.syncing,
+          error: state.lastError,
+          sessionExpired: state.sessionExpired,
+          onSync: state.syncing ? null : state.sync,
+          onOpen: (row) => openRequirement(context, state, row.cell.requirementId),
+        ),
       ),
     );
   }
@@ -1081,6 +1137,7 @@ class CertificationsView extends StatelessWidget {
     this.person,
     this.syncing = false,
     this.error,
+    this.sessionExpired = false,
     this.onSync,
     this.onOpen,
   });
@@ -1091,6 +1148,7 @@ class CertificationsView extends StatelessWidget {
   final LocalPerson? person;
   final bool syncing;
   final String? error;
+  final bool sessionExpired;
   final VoidCallback? onSync;
 
   /// Navigation is the wrapper's, not the view's: a pure widget that pushed a route would drag
@@ -1106,7 +1164,13 @@ class CertificationsView extends StatelessWidget {
     final header = Column(
       children: [
         CrewHeader(name: person?.name ?? 'CREWCOMP', syncing: syncing, onSync: onSync),
-        SyncLine(syncing: syncing, lastSyncedAt: sync?.lastSyncedAt, error: error, onRetry: onSync),
+        SyncLine(
+          syncing: syncing,
+          lastSyncedAt: sync?.lastSyncedAt,
+          error: error,
+          sessionExpired: sessionExpired,
+          onRetry: onSync,
+        ),
       ],
     );
 
@@ -1298,18 +1362,24 @@ class RosterScreen extends StatelessWidget {
       builder: (context, assignmentSnapshot) {
         return StreamBuilder<List<LocalLeave>>(
           stream: state.watchLeave(),
-          builder: (context, leaveSnapshot) => RosterView(
-            assignments: assignmentSnapshot.data ?? const <LocalAssignment>[],
-            leave: leaveSnapshot.data ?? const <LocalLeave>[],
-            today: state.serverToday,
-            person: state.person,
-            sync: state.syncState,
-            syncing: state.syncing,
-            error: state.lastError,
-            onSync: state.syncing ? null : state.sync,
-            onOpenSwing: (assignment) => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SwingDetailScreen(state: state, assignment: assignment),
+          builder: (context, leaveSnapshot) => RefreshIndicator(
+            color: Nocturne.accent,
+            backgroundColor: Nocturne.surface,
+            onRefresh: state.sync,
+            child: RosterView(
+              assignments: assignmentSnapshot.data ?? const <LocalAssignment>[],
+              leave: leaveSnapshot.data ?? const <LocalLeave>[],
+              today: state.serverToday,
+              person: state.person,
+              sync: state.syncState,
+              syncing: state.syncing,
+              error: state.lastError,
+              sessionExpired: state.sessionExpired,
+              onSync: state.syncing ? null : state.sync,
+              onOpenSwing: (assignment) => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SwingDetailScreen(state: state, assignment: assignment),
+                ),
               ),
             ),
           ),
@@ -1329,6 +1399,7 @@ class RosterView extends StatelessWidget {
     this.sync,
     this.syncing = false,
     this.error,
+    this.sessionExpired = false,
     this.onSync,
     this.onOpenSwing,
   });
@@ -1340,6 +1411,7 @@ class RosterView extends StatelessWidget {
   final LocalSyncState? sync;
   final bool syncing;
   final String? error;
+  final bool sessionExpired;
   final VoidCallback? onSync;
   final void Function(LocalAssignment assignment)? onOpenSwing;
 
@@ -1356,6 +1428,7 @@ class RosterView extends StatelessWidget {
           syncing: syncing,
           lastSyncedAt: sync?.lastSyncedAt,
           error: error,
+          sessionExpired: sessionExpired,
           onRetry: onSync,
           padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 0, Nocturne.gutter, 16),
         ),
@@ -1487,15 +1560,21 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<List<LocalNotification>>(
       stream: state.watchNotifications(),
-      builder: (context, snapshot) => NotificationsView(
-        notifications: snapshot.data,
-        onMarkRead: state.markRead,
-        person: state.person,
-        sync: state.syncState,
-        syncing: state.syncing,
-        error: state.lastError,
-        onSync: state.syncing ? null : state.sync,
-        onAct: (notification) => _act(context, notification),
+      builder: (context, snapshot) => RefreshIndicator(
+        color: Nocturne.accent,
+        backgroundColor: Nocturne.surface,
+        onRefresh: state.sync,
+        child: NotificationsView(
+          notifications: snapshot.data,
+          onMarkRead: state.markRead,
+          person: state.person,
+          sync: state.syncState,
+          syncing: state.syncing,
+          error: state.lastError,
+          sessionExpired: state.sessionExpired,
+          onSync: state.syncing ? null : state.sync,
+          onAct: (notification) => _act(context, notification),
+        ),
       ),
     );
   }
@@ -1529,6 +1608,7 @@ class NotificationsView extends StatelessWidget {
     this.sync,
     this.syncing = false,
     this.error,
+    this.sessionExpired = false,
     this.onSync,
     this.onAct,
   });
@@ -1539,6 +1619,7 @@ class NotificationsView extends StatelessWidget {
   final LocalSyncState? sync;
   final bool syncing;
   final String? error;
+  final bool sessionExpired;
   final VoidCallback? onSync;
   final void Function(LocalNotification notification)? onAct;
 
@@ -1554,6 +1635,7 @@ class NotificationsView extends StatelessWidget {
           syncing: syncing,
           lastSyncedAt: sync?.lastSyncedAt,
           error: error,
+          sessionExpired: sessionExpired,
           onRetry: onSync,
           padding: const EdgeInsets.fromLTRB(Nocturne.gutter, 0, Nocturne.gutter, 16),
         ),

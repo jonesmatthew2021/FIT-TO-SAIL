@@ -32,7 +32,11 @@ class TeamScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<List<LocalCrewIntent>>(
       stream: state.watchIntents(),
-      builder: (context, snapshot) => TeamView(
+      builder: (context, snapshot) => RefreshIndicator(
+        color: Nocturne.accent,
+        backgroundColor: Nocturne.surface,
+        onRefresh: state.sync,
+        child: TeamView(
         members: state.team,
         ccId: state.teamCcId,
         nudges: (snapshot.data ?? const <LocalCrewIntent>[])
@@ -41,6 +45,7 @@ class TeamScreen extends StatelessWidget {
         sync: state.syncState,
         syncing: state.syncing,
         error: state.lastError,
+        sessionExpired: state.sessionExpired,
         onSync: state.syncing ? null : state.sync,
         onNudge: (member) => state.answer(
           kind: IntentKind.nudge,
@@ -51,6 +56,7 @@ class TeamScreen extends StatelessWidget {
           // checks against the sender's own watch rather than trusting.
           subjectRef: member.sam,
           payload: {'targetSam': member.sam},
+        ),
         ),
       ),
     );
@@ -66,6 +72,7 @@ class TeamView extends StatelessWidget {
     this.sync,
     this.syncing = false,
     this.error,
+    this.sessionExpired = false,
     this.onSync,
     this.onNudge,
   });
@@ -84,6 +91,7 @@ class TeamView extends StatelessWidget {
   final LocalSyncState? sync;
   final bool syncing;
   final String? error;
+  final bool sessionExpired;
   final VoidCallback? onSync;
   final void Function(TeamMember member)? onNudge;
 
@@ -99,6 +107,7 @@ class TeamView extends StatelessWidget {
             syncing: syncing,
             lastSyncedAt: sync?.lastSyncedAt,
             error: error,
+            sessionExpired: sessionExpired,
             onRetry: onSync,
           ),
           Expanded(
@@ -134,7 +143,13 @@ class TeamView extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         header,
-        SyncLine(syncing: syncing, lastSyncedAt: sync?.lastSyncedAt, error: error, onRetry: onSync),
+        SyncLine(
+          syncing: syncing,
+          lastSyncedAt: sync?.lastSyncedAt,
+          error: error,
+          sessionExpired: sessionExpired,
+          onRetry: onSync,
+        ),
 
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Nocturne.gutter),

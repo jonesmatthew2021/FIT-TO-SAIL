@@ -639,6 +639,10 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      // Overscrollable even though the content never fills a screen, so an enclosing
+      // RefreshIndicator can be pulled — "Pull down to sync." must work on the empty state
+      // most of all (issue #14).
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 40),
       children: [
         const SizedBox(height: 80),
