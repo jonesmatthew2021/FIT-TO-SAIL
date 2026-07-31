@@ -6,6 +6,7 @@ import au.crewcomp.engine.ConditionalRuleView
 import au.crewcomp.engine.CrewChangeId
 import au.crewcomp.engine.DependentRuleView
 import au.crewcomp.engine.HoldingView
+import au.crewcomp.engine.LeaveView
 import au.crewcomp.engine.OneOfRuleView
 import au.crewcomp.engine.PartnershipId
 import au.crewcomp.engine.PartnershipView
@@ -19,6 +20,7 @@ import au.crewcomp.engine.RequirementRuleView
 import au.crewcomp.engine.SlotView
 import au.crewcomp.engine.SwingWindow
 import au.crewcomp.people.Assignment
+import au.crewcomp.people.LeaveRecord
 import au.crewcomp.people.Person
 import au.crewcomp.people.QualificationHolding
 import au.crewcomp.reference.CrewChange
@@ -74,6 +76,13 @@ fun Assignment.toView() = AssignmentView(
     crewChangeId = CrewChangeId(crewChange.requiredId),
     partnershipId = PartnershipId(partnership.requiredId),
     slotRef = slotRef,
+    from = fromDate,
+    to = toDate,
+)
+
+fun LeaveRecord.toView() = LeaveView(
+    personId = PersonId(person.requiredId),
+    kind = kind,
     from = fromDate,
     to = toDate,
 )

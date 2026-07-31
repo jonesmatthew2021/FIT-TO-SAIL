@@ -127,6 +127,7 @@ class ConfigService(
             expiring = weight("expiring", defaults.expiring),
             crossPartnership = weight("crossPartnership", defaults.crossPartnership),
             overlappingAssignment = weight("overlappingAssignment", defaults.overlappingAssignment),
+            onLeave = weight("onLeave", defaults.onLeave),
         )
     }
 
@@ -181,7 +182,7 @@ enum class ConfigKey(
     SUGGESTION_WEIGHTS(
         key = "suggestion.weights",
         kind = ConfigKind.WEIGHTS,
-        description = "Penalties the §5.4 ranking applies: gap, unknown, expiring, crossPartnership, overlappingAssignment.",
+        description = "Penalties the §5.4 ranking applies: gap, unknown, expiring, crossPartnership, overlappingAssignment, onLeave.",
         defaultValue = SuggestionWeights().let {
             mapOf(
                 "gap" to it.gap,
@@ -189,6 +190,7 @@ enum class ConfigKey(
                 "expiring" to it.expiring,
                 "crossPartnership" to it.crossPartnership,
                 "overlappingAssignment" to it.overlappingAssignment,
+                "onLeave" to it.onLeave,
             )
         },
     ),
@@ -226,7 +228,7 @@ enum class ConfigKey(
         ConfigKind.WEIGHTS -> {
             val map = value as? Map<*, *>
                 ?: throw IllegalArgumentException("$key is an object of named weights, not '$value'")
-            val allowed = setOf("gap", "unknown", "expiring", "crossPartnership", "overlappingAssignment")
+            val allowed = setOf("gap", "unknown", "expiring", "crossPartnership", "overlappingAssignment", "onLeave")
             val unknownNames = map.keys.map { it.toString() } - allowed
             require(unknownNames.isEmpty()) {
                 "$key has no weight named ${unknownNames.joinToString()}; the weights are ${allowed.joinToString()}"

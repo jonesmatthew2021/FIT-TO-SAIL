@@ -79,6 +79,19 @@ data class AssignmentView(
     val to: LocalDate,
 )
 
+/**
+ * §4.3 LeaveRecord, reduced to what suggestion ranking needs. Only *standing* leave should reach
+ * the engine — the caller filters, because "declined leave is not leave" is a persistence-side
+ * reading ([au.crewcomp.people] owns the status vocabulary).
+ */
+data class LeaveView(
+    val personId: PersonId,
+    /** e.g. `annual_leave` — rendered into the reason line with underscores replaced. */
+    val kind: String,
+    val from: LocalDate,
+    val to: LocalDate,
+)
+
 /** §4.1 CrewChange (Swing) — the evaluation window. */
 data class SwingWindow(
     val crewChangeId: CrewChangeId,

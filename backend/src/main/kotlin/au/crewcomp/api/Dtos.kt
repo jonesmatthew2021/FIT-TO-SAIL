@@ -97,6 +97,8 @@ data class SuggestionDto(
     val crossPartnership: Boolean,
     /** Shown, never hidden (§5.4). */
     val clash: Boolean,
+    /** Standing leave overlapping the swing — scored and labelled, same rule as [clash]. */
+    val onLeave: Boolean,
     val reasons: List<String>,
 )
 
@@ -211,6 +213,7 @@ fun Suggestion.toDto() = SuggestionDto(
     expiringCount = expiringCount,
     crossPartnership = crossPartnership,
     clash = hasClash,
+    onLeave = onLeave,
     reasons = reasons,
 )
 

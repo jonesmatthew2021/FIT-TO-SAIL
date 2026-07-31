@@ -165,6 +165,48 @@ class FixtureSeeder(private val em: EntityManager) {
             .setParameter("r", requirementId)
             .executeUpdate()
 
+    /**
+     * An unassigned, fully compliant GPH candidate — someone for §5.4's suggestion ranking to
+     * find. Both seeded crew are already on the fixture swing, and §5.4 excludes anyone assigned,
+     * so a test of the ranking itself has to add its own candidate.
+     *
+     * Not folded into [seed] for the same reason as [giveAccount]: several tests count people.
+     */
+    @Transactional
+    fun seedCandidate(
+        sam: String,
+        name: String,
+        leaveFrom: LocalDate? = null,
+        leaveTo: LocalDate? = null,
+        leaveStatus: String = "approved",
+    ): Long {
+        val now = Instant.now()
+        val gph = em.createQuery("from CrewPosition where name = 'GPH'", CrewPosition::class.java).singleResult
+        val partnership = em.createQuery("from Partnership where abbrev = 'UNI'", Partnership::class.java).singleResult
+        val candidate = person(sam, name, gph, partnership, "test-seeder", now)
+        em.persist(candidate)
+        listOf("PS-04", "MS-01").forEach { code ->
+            val requirement = em.createQuery(
+                "from Requirement where code = :c", Requirement::class.java,
+            ).setParameter("c", code).singleResult
+            holding(candidate, requirement, HoldingStatus.HELD_PERPETUAL, null, "test-seeder", now)
+        }
+        if (leaveFrom != null && leaveTo != null) {
+            em.persist(
+                LeaveRecord().apply {
+                    person = candidate
+                    kind = "annual_leave"
+                    fromDate = leaveFrom
+                    toDate = leaveTo
+                    status = leaveStatus
+                    stampCreated("test-seeder", now)
+                },
+            )
+        }
+        em.flush()
+        return candidate.requiredId
+    }
+
     /** One MOB-8 course date. Returns its business ref, which is what a device sends back. */
     @Transactional
     fun seedCourseOption(

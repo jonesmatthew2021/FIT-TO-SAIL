@@ -250,10 +250,10 @@ silently stops replicating a row to a device, with no error anywhere. Consequenc
 - The snapshot reads its cursor *before* the rows, in the same transaction, so the cursor can
   never be ahead of what the client actually received.
 
-## Three advisory locks, and why they are separate
+## Four advisory locks, and why they are separate
 
 Postgres advisory locks are a flat global namespace keyed by a `bigint`, so two unrelated uses of
-one number serialise against each other for no reason. There are three, and they must stay distinct:
+one number serialise against each other for no reason. There are four, and they must stay distinct:
 
 - `AuditWriter.ADVISORY_LOCK_KEY` serialises audit appends so `seq` follows commit order (ADR
   0007). One lock for the whole trail; that is the point.
@@ -267,8 +267,14 @@ one number serialise against each other for no reason. There are three, and they
   one current published version" is a service-layer invariant; the schema's index only orders
   defensively.
 
-Both are `pg_advisory_xact_lock`, released on commit — there is no unlock to forget, and a
-rollback cannot strand one. A fourth use needs a namespace of its own, not a borrowed constant.
+- `AssignmentRepository.SLOT_LOCK_NAMESPACE` serialises assignment writes per
+  `(crew_change, slot_ref)`, because "read the slot's assignments, check for overlap, insert" is a
+  race between two concurrent assigns — and unlike the others it has a database backstop:
+  `assignment_slot_no_overlap` (V11, a btree_gist exclusion constraint) refuses an overlap from
+  any write path that never heard of the lock.
+
+All are `pg_advisory_xact_lock`, released on commit — there is no unlock to forget, and a
+rollback cannot strand one. A fifth use needs a namespace of its own, not a borrowed constant.
 
 ## Local development
 

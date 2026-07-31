@@ -1145,6 +1145,7 @@ function Suggestions({
                   { header: 'Unknown', value: (row) => row.unknownCount },
                   { header: 'Expiring', value: (row) => row.expiringCount },
                   { header: 'Clash', value: (row) => row.clash },
+                  { header: 'On leave', value: (row) => row.onLeave },
                   { header: 'Cross-partnership', value: (row) => row.crossPartnership },
                   { header: 'Reasons', value: (row) => row.reasons.join(' | ') },
                 ]),
@@ -1208,10 +1209,11 @@ function Suggestions({
                       <td>
                         {/* §5.4: a clashing candidate is shown and scored, never filtered out. */}
                         {candidate.clash && <span className="chip chip--critical">Clash</span>}
+                        {candidate.onLeave && <span className="chip chip--warning">On leave</span>}
                         {candidate.crossPartnership && (
                           <span className="chip chip--muted">Cross-partnership</span>
                         )}
-                        {!candidate.clash && !candidate.crossPartnership && (
+                        {!candidate.clash && !candidate.onLeave && !candidate.crossPartnership && (
                           <span className="dim">—</span>
                         )}
                       </td>

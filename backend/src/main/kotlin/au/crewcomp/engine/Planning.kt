@@ -19,7 +19,10 @@ object Planning {
      * positions and who are not already assigned to this swing, ranked **ascending by penalty
      * score**. Reference weights come from the POC; they are configuration ([SuggestionWeights]).
      *
-     * A clash — an overlapping assignment elsewhere — is scored, not hidden (POC behaviour).
+     * A clash — an overlapping assignment elsewhere, or standing leave — is scored, not hidden
+     * (POC behaviour). Leave is the same two-tier reading as [au.crewcomp.courses.CourseOffers]:
+     * the person *could* take the slot (leave gets cancelled), so it ranks them last-ish and says
+     * why, where hiding them would make the write path's 409 unreachable knowledge.
      */
     fun suggestCrew(
         slot: SlotView,
@@ -27,6 +30,8 @@ object Planning {
         candidates: Collection<PersonView>,
         /** Assignments outside this swing, used to detect overlaps. */
         otherAssignments: Collection<AssignmentView> = emptyList(),
+        /** Standing leave only — the caller applies the status filter. */
+        leave: Collection<LeaveView> = emptyList(),
         weights: SuggestionWeights = SuggestionWeights(),
         limit: Int = 20,
     ): List<Suggestion> {
@@ -37,7 +42,7 @@ object Planning {
             .filter { it.status == PersonStatus.ACTIVE }
             .filter { it.positionId in slot.allowedPositionIds }
             .filterNot { it.id in alreadyAssigned }
-            .map { person -> score(person, inputs, otherAssignments, weights) }
+            .map { person -> score(person, inputs, otherAssignments, leave, weights) }
             .sortedWith(compareBy({ it.score }, { it.person.name }))
             .take(limit)
             .toList()
@@ -47,6 +52,7 @@ object Planning {
         person: PersonView,
         inputs: SwingEvaluationInputs,
         otherAssignments: Collection<AssignmentView>,
+        leave: Collection<LeaveView>,
         weights: SuggestionWeights,
     ): Suggestion {
         val evaluation = PersonEvaluator.evaluate(
@@ -67,6 +73,10 @@ object Planning {
                 it.crewChangeId != inputs.swing.crewChangeId &&
                 overlaps(it.from, it.to, inputs.swing.from, inputs.swing.to)
         }
+        val leaveClashes = leave.filter {
+            it.personId == person.id &&
+                overlaps(it.from, it.to, inputs.swing.from, inputs.swing.to)
+        }
 
         val reasons = buildList {
             if (gaps > 0) add("$gaps gap${plural(gaps)}")
@@ -74,13 +84,15 @@ object Planning {
             if (expiring > 0) add("$expiring expiring mid-swing")
             if (crossPartnership) add("cross-partnership")
             if (clashes.isNotEmpty()) add("clash: already assigned elsewhere in this window")
+            leaveClashes.forEach { add("on ${it.kind.replace('_', ' ')} ${it.from}..${it.to}") }
         }
 
         val score = gaps * weights.gap +
             unknowns * weights.unknown +
             expiring * weights.expiring +
             (if (crossPartnership) weights.crossPartnership else 0) +
-            clashes.size * weights.overlappingAssignment
+            clashes.size * weights.overlappingAssignment +
+            leaveClashes.size * weights.onLeave
 
         return Suggestion(
             person = person,
@@ -90,6 +102,7 @@ object Planning {
             expiringCount = expiring,
             crossPartnership = crossPartnership,
             clashingAssignmentIds = clashes.map { it.id },
+            leaveClashes = leaveClashes.map { "${it.kind.replace('_', ' ')} ${it.from}..${it.to}" },
             reasons = reasons,
             evaluation = evaluation,
         )
@@ -195,7 +208,9 @@ object Planning {
 /**
  * Suggestion penalty weights (§5.4). POC reference values; configurable via ADM-10.
  * An overlapping assignment is weighted so heavily that a clashing candidate always sorts last
- * while still being shown.
+ * while still being shown. Standing leave weighs slightly less than a hard clash: leave can be
+ * cancelled by agreement, another assignment cannot, so of two clashing candidates the one on
+ * leave is the better ask.
  */
 data class SuggestionWeights(
     val gap: Int = 100,
@@ -203,6 +218,7 @@ data class SuggestionWeights(
     val expiring: Int = 5,
     val crossPartnership: Int = 3,
     val overlappingAssignment: Int = 1000,
+    val onLeave: Int = 800,
 )
 
 data class Suggestion(
@@ -213,10 +229,13 @@ data class Suggestion(
     val expiringCount: Int,
     val crossPartnership: Boolean,
     val clashingAssignmentIds: List<AssignmentId>,
+    /** Human-readable standing-leave overlaps ("annual leave 2026-08-03..2026-08-10"). */
+    val leaveClashes: List<String> = emptyList(),
     val reasons: List<String>,
     val evaluation: PersonEvaluation,
 ) {
     val hasClash: Boolean get() = clashingAssignmentIds.isNotEmpty()
+    val onLeave: Boolean get() = leaveClashes.isNotEmpty()
 }
 
 data class GapReportRow(

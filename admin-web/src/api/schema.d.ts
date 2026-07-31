@@ -5107,6 +5107,7 @@ export interface components {
             expiringCount: number;
             crossPartnership: boolean;
             clash: boolean;
+            onLeave: boolean;
             reasons: string[];
         };
         SwingEvaluationDto: {

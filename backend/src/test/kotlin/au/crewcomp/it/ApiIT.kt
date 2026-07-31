@@ -872,6 +872,56 @@ class ApiIT {
         }
 
         @Test
+        fun `standing leave is the 409 the planner already warned about`() {
+            // The planner ranks this person with an onLeave flag rather than hiding them; the
+            // write path answers with the same fact rather than a surprise (issue #10).
+            val away = seeder.seedCandidate(
+                "SAM803", "Away Candidate",
+                leaveFrom = LocalDate.parse("2026-08-05"), leaveTo = LocalDate.parse("2026-08-12"),
+            )
+            asRoles("crew_coordinator").delete("/api/v1/assignments/${slot15AssignmentId()}").then().statusCode(204)
+
+            asRoles("crew_coordinator")
+                .contentType(ContentType.JSON)
+                .body("""{"slotRef":15,"personId":$away}""")
+                .post("/api/v1/swings/UNI/CC24/assignments")
+                .then()
+                .statusCode(409)
+                .body("error", equalTo("assignment_clash"))
+                .body("detail", containsString("annual leave"))
+        }
+
+        @Test
+        fun `two concurrent assigns to one slot commit exactly one`() {
+            // The read-then-check is serialised by the per-(swing, slot) advisory lock, so the
+            // second write sees the first's row and refuses — never two commits (issue #11). The
+            // V11 exclusion constraint backstops paths that never took the lock.
+            val candidate = seeder.seedCandidate("SAM804", "Second Candidate")
+            asRoles("crew_coordinator").delete("/api/v1/assignments/${slot15AssignmentId()}").then().statusCode(204)
+
+            val barrier = java.util.concurrent.CyclicBarrier(2)
+            val executor = java.util.concurrent.Executors.newFixedThreadPool(2)
+            try {
+                val statuses = listOf(seed.gapPersonId, candidate)
+                    .map { personId ->
+                        executor.submit<Int> {
+                            barrier.await()
+                            asRoles("crew_coordinator")
+                                .contentType(ContentType.JSON)
+                                .body("""{"slotRef":15,"personId":$personId}""")
+                                .post("/api/v1/swings/UNI/CC24/assignments")
+                                .statusCode()
+                        }
+                    }
+                    .map { it.get() }
+
+                org.assertj.core.api.Assertions.assertThat(statuses).containsExactlyInAnyOrder(200, 400)
+            } finally {
+                executor.shutdown()
+            }
+        }
+
+        @Test
         fun `a Data Steward may edit holdings but may not move crew`() {
             asRoles("data_steward")
                 .contentType(ContentType.JSON)
@@ -982,6 +1032,43 @@ class ApiIT {
                 .statusCode(200)
                 .contentType(ContentType.JSON)
                 .body("size()", equalTo(0))
+        }
+
+        @Test
+        fun `standing leave is scored and labelled, and ADM-10's weights re-rank the list`() {
+            val away = seeder.seedCandidate(
+                "SAM801", "Away Candidate",
+                leaveFrom = LocalDate.parse("2026-08-05"), leaveTo = LocalDate.parse("2026-08-12"),
+            )
+            val sparse = seeder.seedCandidate("SAM802", "Sparse Candidate")
+            seeder.deleteHolding(sparse, seed.wahRequirementId)
+
+            // Default weights: one unknown holding (10) ranks ahead of standing leave (800) —
+            // and the leave is on the row, not hidden (§5.4).
+            asRoles("crew_coordinator")
+                .get("/api/v1/swings/UNI/CC24/suggestions?slotRef=15")
+                .then()
+                .statusCode(200)
+                .body("[0].personId", equalTo(sparse.toInt()))
+                .body("[1].personId", equalTo(away.toInt()))
+                .body("[1].onLeave", equalTo(true))
+                .body("[1].reasons", hasItem(containsString("annual leave")))
+
+            // The configured weights are policy, not decoration: a Compliance Lead changing them
+            // on ADM-10 changes who the planner recommends (issue #9).
+            asRoles("system_administrator")
+                .contentType(ContentType.JSON)
+                .body("""{"value":{"unknown":1000,"onLeave":1}}""")
+                .put("/api/v1/administration/config/suggestion.weights")
+                .then()
+                .statusCode(200)
+
+            asRoles("crew_coordinator")
+                .get("/api/v1/swings/UNI/CC24/suggestions?slotRef=15")
+                .then()
+                .statusCode(200)
+                .body("[0].personId", equalTo(away.toInt()))
+                .body("[1].personId", equalTo(sparse.toInt()))
         }
     }
 }

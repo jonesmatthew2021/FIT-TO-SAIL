@@ -85,6 +85,10 @@ class AssignmentService(
 
         val fromDate = from ?: crewChange.fromDate
         val toDate = to ?: crewChange.toDate
+
+        // Before the overlap read, not after: two concurrent assigns to one slot must serialise
+        // so the second sees the first's row. The V11 exclusion constraint is the backstop.
+        assignments.lockSlot(crewChange.requiredId, slotRef)
         validate(person, slot, crewChange, fromDate, toDate)
 
         val clashes = clashesFor(person, fromDate, toDate)

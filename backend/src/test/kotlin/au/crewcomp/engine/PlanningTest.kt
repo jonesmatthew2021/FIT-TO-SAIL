@@ -157,6 +157,66 @@ class PlanningTest {
 
             assertThat(suggestions.map { it.score }).containsExactly(0, 1, 1, 1)
         }
+
+        @Test
+        fun `a candidate on standing leave is scored and labelled, not hidden`() {
+            val away = Fx.person(7, name = "Away", position = Fx.GPH)
+            val all = listOf(oneGap, away)
+            val withHoldings = holdings + (away.id to Fx.holdings(Fx.perpetual(Fx.WAH), Fx.perpetual(Fx.MED)))
+            val leave = listOf(
+                LeaveView(away.id, "annual_leave", swing.from.plusDays(3), swing.from.plusDays(9)),
+            )
+
+            val suggestions = Planning.suggestCrew(
+                slot, inputs(people = all, holdings = withHoldings), all, leave = leave,
+            )
+
+            val awaySuggestion = suggestions.first { it.person.name == "Away" }
+            assertThat(awaySuggestion.onLeave).isTrue()
+            assertThat(awaySuggestion.score).isEqualTo(800)
+            assertThat(suggestions.last().person.name).isEqualTo("Away")
+            assertThat(awaySuggestion.reasons).anyMatch { it.contains("annual leave") }
+        }
+
+        @Test
+        fun `leave outside the swing window is not a clash`() {
+            val away = Fx.person(7, name = "Away", position = Fx.GPH)
+            val withHoldings = holdings + (away.id to Fx.holdings(Fx.perpetual(Fx.WAH), Fx.perpetual(Fx.MED)))
+            val leave = listOf(
+                LeaveView(away.id, "annual_leave", swing.to.plusDays(1), swing.to.plusDays(14)),
+            )
+
+            val suggestions = Planning.suggestCrew(
+                slot, inputs(people = listOf(away), holdings = withHoldings), listOf(away), leave = leave,
+            )
+
+            assertThat(suggestions.single().onLeave).isFalse()
+            assertThat(suggestions.single().score).isEqualTo(0)
+        }
+
+        @Test
+        fun `leave weighs less than a hard clash, so of two clashing candidates the one on leave ranks first`() {
+            val away = Fx.person(7, name = "Away", position = Fx.GPH)
+            val busy = Fx.person(8, name = "Busy", position = Fx.GPH)
+            val all = listOf(away, busy)
+            val withHoldings = holdings +
+                (away.id to Fx.holdings(Fx.perpetual(Fx.WAH), Fx.perpetual(Fx.MED))) +
+                (busy.id to Fx.holdings(Fx.perpetual(Fx.WAH), Fx.perpetual(Fx.MED)))
+            val elsewhere = listOf(
+                AssignmentView(
+                    AssignmentId(99), busy.id, CrewChangeId(99), Fx.UNI.id, 3,
+                    swing.from, swing.to,
+                ),
+            )
+            val leave = listOf(LeaveView(away.id, "annual_leave", swing.from, swing.to))
+
+            val suggestions = Planning.suggestCrew(
+                slot, inputs(people = all, holdings = withHoldings), all,
+                otherAssignments = elsewhere, leave = leave,
+            )
+
+            assertThat(suggestions.map { it.person.name }).containsExactly("Away", "Busy")
+        }
     }
 
     @Nested

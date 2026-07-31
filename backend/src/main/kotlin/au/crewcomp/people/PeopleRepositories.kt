@@ -152,6 +152,29 @@ class AssignmentRepository(private val scopeGuard: ScopeGuard) : PanacheReposito
                 "where a.person.id = ?1 and a.fromDate <= ?2 and a.toDate >= ?3 order by a.fromDate",
             personId, to, from,
         ).list()
+
+    /**
+     * Serialises assignment writes for one slot of one swing. "Read the slot's assignments, check
+     * for overlap, insert" is a race between two concurrent assigns — improbable with two humans,
+     * near-certain the moment a batch apply posts a whole plan — so the write path takes this
+     * before it reads. Keyed per (crew change, slot) so filling slot 15 does not wait behind
+     * slot 16; transaction-scoped, so it releases on commit with no unlock to forget.
+     *
+     * The fourth advisory-lock namespace (see `backend/CLAUDE.md`) — the others are the audit
+     * sequence, register business keys and matrix publication. The database's exclusion
+     * constraint (`assignment_slot_no_overlap`, V11) is the backstop this lock cannot be: a write
+     * path that forgets to take it still cannot commit an overlap.
+     */
+    fun lockSlot(crewChangeId: Long, slotRef: Int) {
+        getEntityManager()
+            .createNativeQuery("select pg_advisory_xact_lock(:key)")
+            .setParameter("key", SLOT_LOCK_NAMESPACE + java.util.Objects.hash(crewChangeId, slotRef))
+            .singleResult
+    }
+
+    companion object {
+        const val SLOT_LOCK_NAMESPACE = 0x4153_474E_0000_0000L // "ASGN"
+    }
 }
 
 @ApplicationScoped
@@ -227,6 +250,17 @@ class LeaveRecordRepository(private val scopeGuard: ScopeGuard) : PanacheReposit
         list(
             "person.id = ?1 and fromDate <= ?2 and toDate >= ?3 and status in ?4 order by fromDate",
             personId, to, from, STANDING_STATUSES,
+        )
+
+    /**
+     * All standing leave overlapping `[from, to]`, for every person — the suggestion ranking's
+     * read (§5.4). Same status reading as the clash check above, by construction: a candidate the
+     * planner ranks clean and the write path then 409s on would be the defect this exists to fix.
+     */
+    fun overlappingUnscoped(from: LocalDate, to: LocalDate): List<LeaveRecord> =
+        list(
+            "fromDate <= ?1 and toDate >= ?2 and status in ?3 order by fromDate",
+            to, from, STANDING_STATUSES,
         )
 
     companion object {

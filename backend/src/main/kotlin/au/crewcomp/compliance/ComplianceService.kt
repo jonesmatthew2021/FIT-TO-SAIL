@@ -16,8 +16,10 @@ import au.crewcomp.engine.SwingEvaluation
 import au.crewcomp.engine.SwingEvaluationInputs
 import au.crewcomp.engine.SwingEvaluator
 import au.crewcomp.people.AssignmentRepository
+import au.crewcomp.people.LeaveRecordRepository
 import au.crewcomp.people.PersonRepository
 import au.crewcomp.people.QualificationHoldingRepository
+import au.crewcomp.platform.config.ConfigService
 import au.crewcomp.platform.security.AccessPolicy
 import au.crewcomp.platform.security.Role
 import au.crewcomp.platform.security.ScopeGuard
@@ -44,8 +46,10 @@ class ComplianceService(
     private val assignments: AssignmentRepository,
     private val people: PersonRepository,
     private val holdings: QualificationHoldingRepository,
+    private val leaveRecords: LeaveRecordRepository,
     private val registerRecords: RegisterRecordRepository,
     private val matrixSnapshots: MatrixSnapshotService,
+    private val config: ConfigService,
     private val policy: AccessPolicy,
     private val scopeGuard: ScopeGuard,
     private val clock: BusinessClock,
@@ -136,13 +140,19 @@ class ComplianceService(
     // Suggestions and alerts (§5.4)
     // -----------------------------------------------------------------------
 
-    /** Ranked crew suggestions for an open slot. Planning is a coordinator activity. */
+    /**
+     * Ranked crew suggestions for an open slot. Planning is a coordinator activity.
+     *
+     * Weights default to ADM-10's configured values (§5.4 "weights become configuration") —
+     * passing them explicitly is for callers that already resolved them, not for overriding
+     * policy.
+     */
     @Transactional
     fun suggestions(
         partnershipAbbrev: String,
         ccId: String,
         slotRef: Int,
-        weights: SuggestionWeights = SuggestionWeights(),
+        weights: SuggestionWeights? = null,
         limit: Int = 20,
     ): List<Suggestion> {
         policy.require(Role.CREW_COORDINATOR, Role.SYSTEM_ADMINISTRATOR)
@@ -169,7 +179,12 @@ class ComplianceService(
             otherAssignments = assignments
                 .overlappingUnscoped(crewChange.fromDate, crewChange.toDate, crewChange.requiredId)
                 .map { it.toView() },
-            weights = weights,
+            // Standing leave, same status reading as the write path's clash check — a candidate
+            // ranked clean here must not 409 there (§5.4; review 31 Jul).
+            leave = leaveRecords
+                .overlappingUnscoped(crewChange.fromDate, crewChange.toDate)
+                .map { it.toView() },
+            weights = weights ?: config.suggestionWeights(),
             limit = limit,
         )
     }
