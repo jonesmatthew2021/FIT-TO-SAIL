@@ -45,6 +45,8 @@ void main() {
     int? size = 1000,
     bool complete = false,
     String source = 'mobile_camera',
+    String sendState = 'sent',
+    String? sendError,
   }) =>
       LocalSubmission(
         publicId: publicId,
@@ -54,6 +56,8 @@ void main() {
         uploadComplete: complete,
         verificationStatus: status,
         submittedAt: DateTime.utc(2026, 7, 27),
+        sendState: sendState,
+        sendError: sendError,
       );
 
   const assignment = LocalAssignment(
@@ -156,7 +160,84 @@ void main() {
 
       await scrollTo(tester, find.textContaining('Sending — 25%'));
       expect(find.textContaining('Sending — 25%'), findsOneWidget);
-      expect(find.text('Processing'), findsOneWidget);
+      // Never a verification status while the bytes are still on the phone (issue #13):
+      // "Processing" above "Sending — 25%" was two contradicting truths on one tile.
+      expect(find.text('Processing'), findsNothing);
+      expect(find.text('Sending to the office'), findsOneWidget);
+    });
+
+    testWidgets('a submission the office refused says so, with a retry', (tester) async {
+      // Issue #13: a rejected registration used to read "Processing · Sending — 0%" forever —
+      // a file still on the phone described as being processed by the server, with no error
+      // and no way out.
+      final retried = <String>[];
+      await pump(
+        tester,
+        CertificationDetailView(
+          row: row(),
+          submissions: [
+            submission(sendState: 'failed', sendError: 'Unsupported content type'),
+          ],
+          today: '2026-07-26',
+          onSubmit: () {},
+          onRetrySubmission: retried.add,
+        ),
+      );
+
+      await scrollTo(tester, find.text("Couldn't send"));
+      expect(find.textContaining('Unsupported content type'), findsOneWidget);
+      expect(find.text('Processing'), findsNothing);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pump();
+      expect(retried, ['doc-1']);
+    });
+
+    testWidgets('a queued submission says it is waiting for signal, not processing', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        CertificationDetailView(
+          row: row(),
+          submissions: [submission(sendState: 'queued')],
+          today: '2026-07-26',
+          onSubmit: () {},
+        ),
+      );
+
+      await scrollTo(tester, find.text('Waiting to send'));
+      expect(find.textContaining('Sends when you have signal'), findsOneWidget);
+      expect(find.text('Processing'), findsNothing);
+    });
+
+    testWidgets('a failed reading is not blamed on the delivered document', (tester) async {
+      // The document uploaded; only the typed fields (evidence.reading) failed. Without the
+      // note, the crew member's conclusion — "my certificate didn't get through" — is the
+      // opposite of the truth (issue #13).
+      await pump(
+        tester,
+        CertificationDetailView(
+          row: row(),
+          submissions: [
+            submission(offset: 1000, complete: true, status: 'pending_review'),
+          ],
+          answers: const [
+            Answer(
+              opId: 'op-9',
+              kind: IntentKind.readingConfirmed,
+              state: AnswerState.failed,
+              summary: 'Confirmed the reading',
+              detail: "Unsupported operation type 'evidence.reading'",
+            ),
+          ],
+          today: '2026-07-26',
+          onSubmit: () {},
+        ),
+      );
+
+      await scrollTo(tester, find.textContaining('only your typed details'));
+      expect(find.textContaining('The document itself is with the office'), findsOneWidget);
     });
 
     testWidgets('says a submission is sent once the bytes are the server\'s', (tester) async {

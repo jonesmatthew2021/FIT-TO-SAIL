@@ -109,17 +109,17 @@ class SyncEngine {
   }
 
   Future<void> _applySnapshot(SyncSnapshotDto snapshot) async {
-    // `local_path` is the one column on a submission the server does not own, and a snapshot
-    // replaces every server-owned row wholesale. Losing it would strand the bytes: the row comes
-    // back from the payload looking like an ordinary in-flight submission, with nothing left to
-    // say where the file is, so the uploader skips it forever and the crew member waits on a
-    // verdict for a document that will never arrive. Carried across the replacement by hand.
-    final stagedPaths = {
-      for (final row in await (store.select(store.submissions)
-                ..where((t) => t.localPath.isNotNull()))
-              .get())
-        row.publicId: row.localPath!,
-    };
+    // A submission carries device-owned columns the server cannot restore — `local_path` (where
+    // the staged bytes are) and the send-state trio (issue #13) — and a snapshot replaces every
+    // server-owned row wholesale. Losing the path would strand the bytes: the row comes back
+    // from the payload looking like an ordinary in-flight submission, the uploader skips it
+    // forever, and the crew member waits on a verdict for a document that will never arrive.
+    // Carried across the replacement by hand — and a row the server has never accepted at all
+    // (still queued, or refused) is re-inserted whole, because "the server does not know it"
+    // must not render as "it never happened".
+    final deviceRows = await (store.select(store.submissions)
+          ..where((t) => t.localPath.isNotNull() | t.sendState.equals('sent').not()))
+        .get();
 
     await store.transaction(() async {
       // A snapshot is authoritative for everything server-owned, so the replica is replaced
@@ -152,13 +152,27 @@ class SyncEngine {
       for (final notification in snapshot.notifications) {
         await _upsertNotification(notification);
       }
+      final serverSubmissionIds = <String>{};
       for (final submission in snapshot.submissions) {
+        serverSubmissionIds.add(submission.publicId);
         await _upsertSubmission(submission);
-        final staged = stagedPaths[submission.publicId];
-        if (staged != null) {
-          await (store.update(store.submissions)
-                ..where((t) => t.publicId.equals(submission.publicId)))
-              .write(SubmissionsCompanion(localPath: Value(staged)));
+      }
+      for (final row in deviceRows) {
+        if (serverSubmissionIds.contains(row.publicId)) {
+          // The server has the row, so the registration is settled; only the device-owned
+          // columns are put back. `sendState` is left at the insert default ('sent').
+          await (store.update(store.submissions)..where((t) => t.publicId.equals(row.publicId)))
+              .write(
+            SubmissionsCompanion(
+              localPath: Value(row.localPath),
+              opId: Value(row.opId),
+              declaredSha256: Value(row.declaredSha256),
+            ),
+          );
+        } else {
+          // Still queued or refused — the server has nothing to replace it with, and dropping
+          // it would erase the crew member's submission without a word.
+          await store.into(store.submissions).insertOnConflictUpdate(row.toCompanion(false));
         }
       }
       for (final statement in snapshot.crewStatements) {
@@ -461,10 +475,50 @@ class SyncEngine {
               verificationStatus: 'pending_extraction',
               submittedAt: now(),
               localPath: Value(localPath),
+              opId: Value(opId),
+              sendState: const Value('queued'),
+              declaredSha256: Value(declaredSha256),
             ),
           );
     });
     return opId;
+  }
+
+  /// Re-queues a submission whose registration the office refused or that exhausted its retries,
+  /// under the original op id — the same idempotency rule as [retryIntent] (issue #13).
+  Future<void> retrySubmission(String publicId) async {
+    final row = await (store.select(store.submissions)
+          ..where((t) => t.publicId.equals(publicId)))
+        .getSingleOrNull();
+    final opId = row?.opId;
+    if (row == null || opId == null) return;
+
+    await store.transaction(() async {
+      await store.into(store.outbox).insertOnConflictUpdate(
+            OutboxCompanion.insert(
+              opId: opId,
+              type: 'evidence.submit',
+              payload: jsonEncode({
+                'opId': opId,
+                'type': 'evidence.submit',
+                'submission': {
+                  'publicId': row.publicId,
+                  'source': row.source,
+                  'contentType': row.contentType,
+                  'declaredSize': row.declaredSize,
+                  'declaredSha256': row.declaredSha256,
+                  'requirementHintId': row.requirementHintId,
+                },
+              }),
+              queuedAt: now(),
+              attempts: const Value(0),
+              nextAttemptAt: const Value.absent(),
+            ),
+          );
+      await (store.update(store.submissions)..where((t) => t.publicId.equals(publicId))).write(
+        const SubmissionsCompanion(sendState: Value('queued'), sendError: Value(null)),
+      );
+    });
   }
 
   /// Queues one of the crew member's one-tap answers and records it locally so the row can
@@ -608,15 +662,22 @@ class SyncEngine {
           applied += 1;
           await (store.delete(store.outbox)..where((t) => t.opId.equals(verdict.opId))).go();
           await _settleIntent(verdict.opId, 'sent', null);
+          await _settleSubmission(verdict.opId, 'sent', null);
         case 'rejected':
           // Permanently refused. Dropping it from the queue is the point: a poison entry retried
           // forever is how an offline queue wedges and every good entry behind it stops moving.
           //
           // The *intent* is not dropped with it. If it were, a crew member's tap would disappear
           // without a word and the row would revert on the next snapshot — the one failure mode
-          // the one-tap design explicitly rules out.
+          // the one-tap design explicitly rules out. A submission records the refusal the same
+          // way (issue #13): without it, its tile read "Sending — 0%" forever.
           await (store.delete(store.outbox)..where((t) => t.opId.equals(verdict.opId))).go();
           await _settleIntent(
+            verdict.opId,
+            'failed',
+            verdict.detail ?? 'The office could not accept this',
+          );
+          await _settleSubmission(
             verdict.opId,
             'failed',
             verdict.detail ?? 'The office could not accept this',
@@ -631,6 +692,13 @@ class SyncEngine {
   Future<void> _settleIntent(String opId, String state, String? detail) =>
       (store.update(store.crewIntents)..where((t) => t.opId.equals(opId))).write(
         CrewIntentsCompanion(state: Value(state), detail: Value(detail)),
+      );
+
+  /// The submissions half of settlement — a no-op for every other operation kind, because no
+  /// other kind's op id is on a submission row.
+  Future<void> _settleSubmission(String opId, String state, String? detail) =>
+      (store.update(store.submissions)..where((t) => t.opId.equals(opId))).write(
+        SubmissionsCompanion(sendState: Value(state), sendError: Value(detail)),
       );
 
   Future<void> _backOff(List<OutboxEntry> entries) async {
@@ -659,6 +727,11 @@ class SyncEngine {
       // Same reason as a rejection: the crew member must be told their tap did not land. The
       // outbox entry stays so it can be retried by hand; the intent carries the message.
       await _settleIntent(opId, 'failed', error ?? 'Could not reach the office after $next tries');
+      await _settleSubmission(
+        opId,
+        'failed',
+        error ?? 'Could not reach the office after $next tries',
+      );
       return;
     }
 

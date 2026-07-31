@@ -87,6 +87,7 @@ class CertificationDetailScreen extends StatelessWidget {
                             ),
                       onRetryIntent: state.retryAnswer,
                       onDiscardIntent: state.discardAnswer,
+                      onRetrySubmission: state.retrySubmission,
                     );
                   },
                 );
@@ -112,6 +113,7 @@ class CertificationDetailView extends StatelessWidget {
     this.onNeedHelp,
     this.onRetryIntent,
     this.onDiscardIntent,
+    this.onRetrySubmission,
   });
 
   final CertificationRow? row;
@@ -124,6 +126,9 @@ class CertificationDetailView extends StatelessWidget {
   final VoidCallback? onNeedHelp;
   final void Function(String opId)? onRetryIntent;
   final void Function(String opId)? onDiscardIntent;
+
+  /// Re-queues a submission whose registration failed (issue #13).
+  final void Function(String publicId)? onRetrySubmission;
 
   @override
   Widget build(BuildContext context) {
@@ -241,7 +246,7 @@ class CertificationDetailView extends StatelessWidget {
                     'What you have told the office',
                     padding: EdgeInsets.only(bottom: 10),
                   ),
-                  for (final answer in answers)
+                  for (final answer in answers) ...[
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: AnswerLine(
@@ -254,6 +259,21 @@ class CertificationDetailView extends StatelessWidget {
                             : null,
                       ),
                     ),
+                    // A failed *reading* beside a delivered document reads as "my certificate
+                    // didn't get through" — the opposite of the truth (issue #13). Say which
+                    // half failed.
+                    if (answer.kind == IntentKind.readingConfirmed &&
+                        answer.failed &&
+                        submissions.any((s) => s.uploadComplete))
+                      Padding(
+                        padding: const EdgeInsets.only(left: 23, bottom: 8),
+                        child: Text(
+                          'The document itself is with the office — only your typed details '
+                          'did not send.',
+                          style: NoctType.meta,
+                        ),
+                      ),
+                  ],
                 ],
 
                 const SizedBox(height: 14),
@@ -264,7 +284,12 @@ class CertificationDetailView extends StatelessWidget {
                   for (final submission in submissions)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: SubmissionTile(submission: submission),
+                      child: SubmissionTile(
+                        submission: submission,
+                        onRetry: onRetrySubmission == null
+                            ? null
+                            : () => onRetrySubmission!(submission.publicId),
+                      ),
                     ),
               ],
             ),
@@ -340,24 +365,53 @@ class CertificationDetailView extends StatelessWidget {
 }
 
 /// One submission, with the part of its life the crew member can see.
+///
+/// The primary line never claims a server status while the document is still on the phone
+/// (issue #13): "Processing" above "Sending — 0%" was two contradicting truths on one tile, and
+/// a registration the office refused used to keep that reading forever, with no error and no
+/// way out. The send states here are the same five-state honesty the one-tap answers have.
 class SubmissionTile extends StatelessWidget {
-  const SubmissionTile({super.key, required this.submission, this.onTap});
+  const SubmissionTile({super.key, required this.submission, this.onTap, this.onRetry});
 
   final LocalSubmission submission;
   final VoidCallback? onTap;
 
+  /// Re-queues a refused or exhausted registration. Shown only when [submission] has failed.
+  final VoidCallback? onRetry;
+
   @override
   Widget build(BuildContext context) {
     final size = submission.declaredSize;
+    final failed = submission.sendState == 'failed';
+    final queued = submission.sendState == 'queued';
+    final bytesLocal = !submission.uploadComplete;
 
-    final String progress;
-    if (submission.uploadComplete) {
-      progress = 'Sent ${_shortDate(submission.submittedAt)}';
-    } else if (size != null && size > 0) {
-      progress = 'Sending — ${((submission.uploadOffset / size) * 100).clamp(0, 100).round()}%';
+    final String primary;
+    if (failed) {
+      primary = "Couldn't send";
+    } else if (queued) {
+      primary = 'Waiting to send';
+    } else if (bytesLocal) {
+      primary = 'Sending to the office';
     } else {
-      progress = 'Waiting to send';
+      primary = submissionStatusLabel(submission.verificationStatus);
     }
+
+    final secondary = [
+      if (failed)
+        // The server's own words, exactly like a failed one-tap answer.
+        submission.sendError ?? 'The office could not accept this'
+      else if (queued)
+        'Sends when you have signal'
+      else if (bytesLocal && size != null && size > 0)
+        'Sending — ${((submission.uploadOffset / size) * 100).clamp(0, 100).round()}%'
+      else if (bytesLocal)
+        'Waiting to send'
+      else
+        'Sent ${_shortDate(submission.submittedAt)}',
+      if (submission.source == 'mobile_camera') 'Photo' else 'File',
+      if (submission.rejectionReason != null) submission.rejectionReason!,
+    ].join(' · ');
 
     return NCard(
       onTap: onTap,
@@ -365,11 +419,15 @@ class SubmissionTile extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            submission.uploadComplete
-                ? PhosphorIconsRegular.cloudCheck
-                : PhosphorIconsRegular.cloudArrowUp,
+            failed
+                ? PhosphorIconsRegular.warningCircle
+                : queued
+                    ? PhosphorIconsRegular.clockCountdown
+                    : submission.uploadComplete
+                        ? PhosphorIconsRegular.cloudCheck
+                        : PhosphorIconsRegular.cloudArrowUp,
             size: 22,
-            color: Nocturne.accent,
+            color: failed ? Nocturne.criticalText : Nocturne.accent,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -377,23 +435,31 @@ class SubmissionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  submissionStatusLabel(submission.verificationStatus),
-                  style: NoctType.listPrimary,
+                  primary,
+                  style: NoctType.listPrimary.copyWith(
+                    color: failed ? Nocturne.criticalText : null,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  [
-                    progress,
-                    if (submission.source == 'mobile_camera') 'Photo' else 'File',
-                    if (submission.rejectionReason != null) submission.rejectionReason!,
-                  ].join(' · '),
+                  secondary,
                   style: NoctType.listSecondary.copyWith(color: Nocturne.neutral600),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          if (submission.uploadComplete)
+          if (failed)
+            NButton(
+              label: 'Retry',
+              variant: NButtonVariant.ghost,
+              fontSize: 12,
+              minHeight: 36,
+              onPressed: onRetry,
+            )
+          else if (queued)
+            const SizedBox.shrink()
+          else if (submission.uploadComplete)
             NTag(
               label: submissionStatusLabel(submission.verificationStatus),
               tone: submissionStatusTone(submission.verificationStatus),

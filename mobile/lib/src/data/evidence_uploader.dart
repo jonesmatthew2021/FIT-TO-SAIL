@@ -46,7 +46,13 @@ class EvidenceUploader {
   /// local path, so the next sync tries again.
   Future<int> uploadPending() async {
     final pending = await (store.select(store.submissions)
-          ..where((t) => t.localPath.isNotNull() & t.uploadComplete.equals(false))
+          // Only registrations the office has accepted: a queued one has nothing server-side to
+          // append to yet, and a failed one would 404 here on every sync, forever, describing a
+          // refusal as an upload in progress (issue #13).
+          ..where((t) =>
+              t.localPath.isNotNull() &
+              t.uploadComplete.equals(false) &
+              t.sendState.equals('sent'))
           ..orderBy([(t) => OrderingTerm(expression: t.submittedAt)]))
         .get();
 

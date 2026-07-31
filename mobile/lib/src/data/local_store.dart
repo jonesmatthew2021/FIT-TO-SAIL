@@ -102,6 +102,24 @@ class Submissions extends Table {
   /// Local path of the captured file, if it is still on the device awaiting upload.
   TextColumn get localPath => text().nullable()();
 
+  /// The outbox entry that registered this submission — device-owned, like [localPath]; null on
+  /// a row that only ever arrived from the server. What lets a rejection land on this row.
+  TextColumn get opId => text().nullable()();
+
+  /// Whether the *registration* reached the office: `queued` · `sent` · `failed` (issue #13).
+  ///
+  /// Distinct from [verificationStatus] on purpose — that is the server's word about a document
+  /// it has, and rendering it while the bytes are still on the phone described a local file as
+  /// "Processing" forever. Defaults to `sent` because a row inserted from the sync payload is by
+  /// definition one the server has.
+  TextColumn get sendState => text().withDefault(const Constant('sent'))();
+
+  /// The server's words when [sendState] is `failed` — shown verbatim, beside a Retry.
+  TextColumn get sendError => text().nullable()();
+
+  /// Kept so a failed registration can be re-queued byte-for-byte under the same [opId].
+  TextColumn get declaredSha256 => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {publicId};
 }
@@ -444,7 +462,7 @@ class LocalStore extends _$LocalStore {
   /// v1 → v2 adds [CrewIntents]; v2 → v3 [CrewStatements]; v3 → v4 [Attestations]; v4 → v5
   /// [CourseOptions], [TeamMembers] and the two supervisor columns on [SyncStates]; v5 → v6 the
   /// server-composed standing headline and readiness on [SyncStates]; v6 → v7 `subjectRef` on
-  /// [CrewStatements].
+  /// [CrewStatements] and the send-state columns on [Submissions].
   ///
   /// Additive, and it has to be: an upgrade that dropped and re-created the database would take
   /// the outbox with it, and the outbox is the only copy of writes the server has never seen. A
@@ -480,7 +498,15 @@ class LocalStore extends _$LocalStore {
             await m.addColumn(syncStates, syncStates.standingTotal);
           }
           // Nullable again: existing statement rows re-arrive with it on the next snapshot.
-          if (from < 7) await m.addColumn(crewStatements, crewStatements.subjectRef);
+          if (from < 7) {
+            await m.addColumn(crewStatements, crewStatements.subjectRef);
+            // `sendState` defaults to 'sent', which is the correct reading of every existing
+            // row: anything already replicated here had reached the server.
+            await m.addColumn(submissions, submissions.opId);
+            await m.addColumn(submissions, submissions.sendState);
+            await m.addColumn(submissions, submissions.sendError);
+            await m.addColumn(submissions, submissions.declaredSha256);
+          }
         },
       );
 

@@ -2307,6 +2307,49 @@ class $SubmissionsTable extends Submissions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _opIdMeta = const VerificationMeta('opId');
+  @override
+  late final GeneratedColumn<String> opId = GeneratedColumn<String>(
+    'op_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sendStateMeta = const VerificationMeta(
+    'sendState',
+  );
+  @override
+  late final GeneratedColumn<String> sendState = GeneratedColumn<String>(
+    'send_state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('sent'),
+  );
+  static const VerificationMeta _sendErrorMeta = const VerificationMeta(
+    'sendError',
+  );
+  @override
+  late final GeneratedColumn<String> sendError = GeneratedColumn<String>(
+    'send_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _declaredSha256Meta = const VerificationMeta(
+    'declaredSha256',
+  );
+  @override
+  late final GeneratedColumn<String> declaredSha256 = GeneratedColumn<String>(
+    'declared_sha256',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     publicId,
@@ -2320,6 +2363,10 @@ class $SubmissionsTable extends Submissions
     rejectionReason,
     submittedAt,
     localPath,
+    opId,
+    sendState,
+    sendError,
+    declaredSha256,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2431,6 +2478,33 @@ class $SubmissionsTable extends Submissions
         localPath.isAcceptableOrUnknown(data['local_path']!, _localPathMeta),
       );
     }
+    if (data.containsKey('op_id')) {
+      context.handle(
+        _opIdMeta,
+        opId.isAcceptableOrUnknown(data['op_id']!, _opIdMeta),
+      );
+    }
+    if (data.containsKey('send_state')) {
+      context.handle(
+        _sendStateMeta,
+        sendState.isAcceptableOrUnknown(data['send_state']!, _sendStateMeta),
+      );
+    }
+    if (data.containsKey('send_error')) {
+      context.handle(
+        _sendErrorMeta,
+        sendError.isAcceptableOrUnknown(data['send_error']!, _sendErrorMeta),
+      );
+    }
+    if (data.containsKey('declared_sha256')) {
+      context.handle(
+        _declaredSha256Meta,
+        declaredSha256.isAcceptableOrUnknown(
+          data['declared_sha256']!,
+          _declaredSha256Meta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2484,6 +2558,22 @@ class $SubmissionsTable extends Submissions
         DriftSqlType.string,
         data['${effectivePrefix}local_path'],
       ),
+      opId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}op_id'],
+      ),
+      sendState: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}send_state'],
+      )!,
+      sendError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}send_error'],
+      ),
+      declaredSha256: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}declared_sha256'],
+      ),
     );
   }
 
@@ -2509,6 +2599,24 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
 
   /// Local path of the captured file, if it is still on the device awaiting upload.
   final String? localPath;
+
+  /// The outbox entry that registered this submission — device-owned, like [localPath]; null on
+  /// a row that only ever arrived from the server. What lets a rejection land on this row.
+  final String? opId;
+
+  /// Whether the *registration* reached the office: `queued` · `sent` · `failed` (issue #13).
+  ///
+  /// Distinct from [verificationStatus] on purpose — that is the server's word about a document
+  /// it has, and rendering it while the bytes are still on the phone described a local file as
+  /// "Processing" forever. Defaults to `sent` because a row inserted from the sync payload is by
+  /// definition one the server has.
+  final String sendState;
+
+  /// The server's words when [sendState] is `failed` — shown verbatim, beside a Retry.
+  final String? sendError;
+
+  /// Kept so a failed registration can be re-queued byte-for-byte under the same [opId].
+  final String? declaredSha256;
   const LocalSubmission({
     required this.publicId,
     this.requirementHintId,
@@ -2521,6 +2629,10 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
     this.rejectionReason,
     required this.submittedAt,
     this.localPath,
+    this.opId,
+    required this.sendState,
+    this.sendError,
+    this.declaredSha256,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2545,6 +2657,16 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
     map['submitted_at'] = Variable<DateTime>(submittedAt);
     if (!nullToAbsent || localPath != null) {
       map['local_path'] = Variable<String>(localPath);
+    }
+    if (!nullToAbsent || opId != null) {
+      map['op_id'] = Variable<String>(opId);
+    }
+    map['send_state'] = Variable<String>(sendState);
+    if (!nullToAbsent || sendError != null) {
+      map['send_error'] = Variable<String>(sendError);
+    }
+    if (!nullToAbsent || declaredSha256 != null) {
+      map['declared_sha256'] = Variable<String>(declaredSha256);
     }
     return map;
   }
@@ -2572,6 +2694,14 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
       localPath: localPath == null && nullToAbsent
           ? const Value.absent()
           : Value(localPath),
+      opId: opId == null && nullToAbsent ? const Value.absent() : Value(opId),
+      sendState: Value(sendState),
+      sendError: sendError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sendError),
+      declaredSha256: declaredSha256 == null && nullToAbsent
+          ? const Value.absent()
+          : Value(declaredSha256),
     );
   }
 
@@ -2594,6 +2724,10 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
       rejectionReason: serializer.fromJson<String?>(json['rejectionReason']),
       submittedAt: serializer.fromJson<DateTime>(json['submittedAt']),
       localPath: serializer.fromJson<String?>(json['localPath']),
+      opId: serializer.fromJson<String?>(json['opId']),
+      sendState: serializer.fromJson<String>(json['sendState']),
+      sendError: serializer.fromJson<String?>(json['sendError']),
+      declaredSha256: serializer.fromJson<String?>(json['declaredSha256']),
     );
   }
   @override
@@ -2611,6 +2745,10 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
       'rejectionReason': serializer.toJson<String?>(rejectionReason),
       'submittedAt': serializer.toJson<DateTime>(submittedAt),
       'localPath': serializer.toJson<String?>(localPath),
+      'opId': serializer.toJson<String?>(opId),
+      'sendState': serializer.toJson<String>(sendState),
+      'sendError': serializer.toJson<String?>(sendError),
+      'declaredSha256': serializer.toJson<String?>(declaredSha256),
     };
   }
 
@@ -2626,6 +2764,10 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
     Value<String?> rejectionReason = const Value.absent(),
     DateTime? submittedAt,
     Value<String?> localPath = const Value.absent(),
+    Value<String?> opId = const Value.absent(),
+    String? sendState,
+    Value<String?> sendError = const Value.absent(),
+    Value<String?> declaredSha256 = const Value.absent(),
   }) => LocalSubmission(
     publicId: publicId ?? this.publicId,
     requirementHintId: requirementHintId.present
@@ -2642,6 +2784,12 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
         : this.rejectionReason,
     submittedAt: submittedAt ?? this.submittedAt,
     localPath: localPath.present ? localPath.value : this.localPath,
+    opId: opId.present ? opId.value : this.opId,
+    sendState: sendState ?? this.sendState,
+    sendError: sendError.present ? sendError.value : this.sendError,
+    declaredSha256: declaredSha256.present
+        ? declaredSha256.value
+        : this.declaredSha256,
   );
   LocalSubmission copyWithCompanion(SubmissionsCompanion data) {
     return LocalSubmission(
@@ -2672,6 +2820,12 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
           ? data.submittedAt.value
           : this.submittedAt,
       localPath: data.localPath.present ? data.localPath.value : this.localPath,
+      opId: data.opId.present ? data.opId.value : this.opId,
+      sendState: data.sendState.present ? data.sendState.value : this.sendState,
+      sendError: data.sendError.present ? data.sendError.value : this.sendError,
+      declaredSha256: data.declaredSha256.present
+          ? data.declaredSha256.value
+          : this.declaredSha256,
     );
   }
 
@@ -2688,7 +2842,11 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
           ..write('verificationStatus: $verificationStatus, ')
           ..write('rejectionReason: $rejectionReason, ')
           ..write('submittedAt: $submittedAt, ')
-          ..write('localPath: $localPath')
+          ..write('localPath: $localPath, ')
+          ..write('opId: $opId, ')
+          ..write('sendState: $sendState, ')
+          ..write('sendError: $sendError, ')
+          ..write('declaredSha256: $declaredSha256')
           ..write(')'))
         .toString();
   }
@@ -2706,6 +2864,10 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
     rejectionReason,
     submittedAt,
     localPath,
+    opId,
+    sendState,
+    sendError,
+    declaredSha256,
   );
   @override
   bool operator ==(Object other) =>
@@ -2721,7 +2883,11 @@ class LocalSubmission extends DataClass implements Insertable<LocalSubmission> {
           other.verificationStatus == this.verificationStatus &&
           other.rejectionReason == this.rejectionReason &&
           other.submittedAt == this.submittedAt &&
-          other.localPath == this.localPath);
+          other.localPath == this.localPath &&
+          other.opId == this.opId &&
+          other.sendState == this.sendState &&
+          other.sendError == this.sendError &&
+          other.declaredSha256 == this.declaredSha256);
 }
 
 class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
@@ -2736,6 +2902,10 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
   final Value<String?> rejectionReason;
   final Value<DateTime> submittedAt;
   final Value<String?> localPath;
+  final Value<String?> opId;
+  final Value<String> sendState;
+  final Value<String?> sendError;
+  final Value<String?> declaredSha256;
   final Value<int> rowid;
   const SubmissionsCompanion({
     this.publicId = const Value.absent(),
@@ -2749,6 +2919,10 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
     this.rejectionReason = const Value.absent(),
     this.submittedAt = const Value.absent(),
     this.localPath = const Value.absent(),
+    this.opId = const Value.absent(),
+    this.sendState = const Value.absent(),
+    this.sendError = const Value.absent(),
+    this.declaredSha256 = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SubmissionsCompanion.insert({
@@ -2763,6 +2937,10 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
     this.rejectionReason = const Value.absent(),
     required DateTime submittedAt,
     this.localPath = const Value.absent(),
+    this.opId = const Value.absent(),
+    this.sendState = const Value.absent(),
+    this.sendError = const Value.absent(),
+    this.declaredSha256 = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : publicId = Value(publicId),
        source = Value(source),
@@ -2780,6 +2958,10 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
     Expression<String>? rejectionReason,
     Expression<DateTime>? submittedAt,
     Expression<String>? localPath,
+    Expression<String>? opId,
+    Expression<String>? sendState,
+    Expression<String>? sendError,
+    Expression<String>? declaredSha256,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2794,6 +2976,10 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
       if (rejectionReason != null) 'rejection_reason': rejectionReason,
       if (submittedAt != null) 'submitted_at': submittedAt,
       if (localPath != null) 'local_path': localPath,
+      if (opId != null) 'op_id': opId,
+      if (sendState != null) 'send_state': sendState,
+      if (sendError != null) 'send_error': sendError,
+      if (declaredSha256 != null) 'declared_sha256': declaredSha256,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2810,6 +2996,10 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
     Value<String?>? rejectionReason,
     Value<DateTime>? submittedAt,
     Value<String?>? localPath,
+    Value<String?>? opId,
+    Value<String>? sendState,
+    Value<String?>? sendError,
+    Value<String?>? declaredSha256,
     Value<int>? rowid,
   }) {
     return SubmissionsCompanion(
@@ -2824,6 +3014,10 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
       rejectionReason: rejectionReason ?? this.rejectionReason,
       submittedAt: submittedAt ?? this.submittedAt,
       localPath: localPath ?? this.localPath,
+      opId: opId ?? this.opId,
+      sendState: sendState ?? this.sendState,
+      sendError: sendError ?? this.sendError,
+      declaredSha256: declaredSha256 ?? this.declaredSha256,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2864,6 +3058,18 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
     if (localPath.present) {
       map['local_path'] = Variable<String>(localPath.value);
     }
+    if (opId.present) {
+      map['op_id'] = Variable<String>(opId.value);
+    }
+    if (sendState.present) {
+      map['send_state'] = Variable<String>(sendState.value);
+    }
+    if (sendError.present) {
+      map['send_error'] = Variable<String>(sendError.value);
+    }
+    if (declaredSha256.present) {
+      map['declared_sha256'] = Variable<String>(declaredSha256.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2884,6 +3090,10 @@ class SubmissionsCompanion extends UpdateCompanion<LocalSubmission> {
           ..write('rejectionReason: $rejectionReason, ')
           ..write('submittedAt: $submittedAt, ')
           ..write('localPath: $localPath, ')
+          ..write('opId: $opId, ')
+          ..write('sendState: $sendState, ')
+          ..write('sendError: $sendError, ')
+          ..write('declaredSha256: $declaredSha256, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9495,6 +9705,10 @@ typedef $$SubmissionsTableCreateCompanionBuilder =
       Value<String?> rejectionReason,
       required DateTime submittedAt,
       Value<String?> localPath,
+      Value<String?> opId,
+      Value<String> sendState,
+      Value<String?> sendError,
+      Value<String?> declaredSha256,
       Value<int> rowid,
     });
 typedef $$SubmissionsTableUpdateCompanionBuilder =
@@ -9510,6 +9724,10 @@ typedef $$SubmissionsTableUpdateCompanionBuilder =
       Value<String?> rejectionReason,
       Value<DateTime> submittedAt,
       Value<String?> localPath,
+      Value<String?> opId,
+      Value<String> sendState,
+      Value<String?> sendError,
+      Value<String?> declaredSha256,
       Value<int> rowid,
     });
 
@@ -9574,6 +9792,26 @@ class $$SubmissionsTableFilterComposer
 
   ColumnFilters<String> get localPath => $composableBuilder(
     column: $table.localPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sendState => $composableBuilder(
+    column: $table.sendState,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sendError => $composableBuilder(
+    column: $table.sendError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get declaredSha256 => $composableBuilder(
+    column: $table.declaredSha256,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -9641,6 +9879,26 @@ class $$SubmissionsTableOrderingComposer
     column: $table.localPath,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sendState => $composableBuilder(
+    column: $table.sendState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sendError => $composableBuilder(
+    column: $table.sendError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get declaredSha256 => $composableBuilder(
+    column: $table.declaredSha256,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SubmissionsTableAnnotationComposer
@@ -9700,6 +9958,20 @@ class $$SubmissionsTableAnnotationComposer
 
   GeneratedColumn<String> get localPath =>
       $composableBuilder(column: $table.localPath, builder: (column) => column);
+
+  GeneratedColumn<String> get opId =>
+      $composableBuilder(column: $table.opId, builder: (column) => column);
+
+  GeneratedColumn<String> get sendState =>
+      $composableBuilder(column: $table.sendState, builder: (column) => column);
+
+  GeneratedColumn<String> get sendError =>
+      $composableBuilder(column: $table.sendError, builder: (column) => column);
+
+  GeneratedColumn<String> get declaredSha256 => $composableBuilder(
+    column: $table.declaredSha256,
+    builder: (column) => column,
+  );
 }
 
 class $$SubmissionsTableTableManager
@@ -9744,6 +10016,10 @@ class $$SubmissionsTableTableManager
                 Value<String?> rejectionReason = const Value.absent(),
                 Value<DateTime> submittedAt = const Value.absent(),
                 Value<String?> localPath = const Value.absent(),
+                Value<String?> opId = const Value.absent(),
+                Value<String> sendState = const Value.absent(),
+                Value<String?> sendError = const Value.absent(),
+                Value<String?> declaredSha256 = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SubmissionsCompanion(
                 publicId: publicId,
@@ -9757,6 +10033,10 @@ class $$SubmissionsTableTableManager
                 rejectionReason: rejectionReason,
                 submittedAt: submittedAt,
                 localPath: localPath,
+                opId: opId,
+                sendState: sendState,
+                sendError: sendError,
+                declaredSha256: declaredSha256,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -9772,6 +10052,10 @@ class $$SubmissionsTableTableManager
                 Value<String?> rejectionReason = const Value.absent(),
                 required DateTime submittedAt,
                 Value<String?> localPath = const Value.absent(),
+                Value<String?> opId = const Value.absent(),
+                Value<String> sendState = const Value.absent(),
+                Value<String?> sendError = const Value.absent(),
+                Value<String?> declaredSha256 = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SubmissionsCompanion.insert(
                 publicId: publicId,
@@ -9785,6 +10069,10 @@ class $$SubmissionsTableTableManager
                 rejectionReason: rejectionReason,
                 submittedAt: submittedAt,
                 localPath: localPath,
+                opId: opId,
+                sendState: sendState,
+                sendError: sendError,
+                declaredSha256: declaredSha256,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

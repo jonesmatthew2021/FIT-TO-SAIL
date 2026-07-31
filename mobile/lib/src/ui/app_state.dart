@@ -146,6 +146,13 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Re-queues a refused or exhausted evidence registration under its original op id (#13).
+  Future<void> retrySubmission(String publicId) async {
+    await engine.retrySubmission(publicId);
+    notifyListeners();
+    unawaited(engine.flushOutbox().catchError((_) => 0));
+  }
+
   // -------------------------------------------------------------------------
   // Facts the sync payload does not carry yet
   // -------------------------------------------------------------------------

@@ -423,7 +423,56 @@ void main() {
       // MOB-4: "pending" the moment they hit submit, in a dead spot.
       final submission = await store.select(store.submissions).getSingle();
       expect(submission.verificationStatus, 'pending_extraction');
+      expect(submission.sendState, 'queued');
       expect(await store.select(store.outbox).get(), hasLength(1));
+    });
+
+    test('a rejected submission records the refusal, and a retry re-queues the same opId', () async {
+      // Issue #13: submissions have no crew-intents row, so a rejected `evidence.submit` used
+      // to vanish from the outbox with nothing recorded anywhere — a tile stuck at
+      // "Sending — 0%" forever, over bytes still on the phone.
+      final engine = engineFor(MockClient((request) async {
+        if (request.url.path == '/api/v1/sync/queue') {
+          final operations =
+              (jsonDecode(request.body) as Map<String, dynamic>)['operations'] as List<dynamic>;
+          final opId = (operations.single as Map<String, dynamic>)['opId'];
+          return http.Response(
+            jsonEncode({
+              'cursor': 10,
+              'results': [
+                {'opId': opId, 'status': 'rejected', 'detail': 'Unsupported content type'},
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('{}', 500);
+      }));
+
+      final opId = await engine.queueSubmission(
+        publicId: '11111111-2222-4333-a444-666666666666',
+        source: 'mobile_camera',
+        contentType: 'image/heic',
+        declaredSize: 2048,
+        declaredSha256: 'abc123',
+      );
+      await engine.flushOutbox();
+
+      final submission = await store.select(store.submissions).getSingle();
+      expect(submission.sendState, 'failed');
+      expect(submission.sendError, 'Unsupported content type');
+      expect(await store.select(store.outbox).get(), isEmpty,
+          reason: 'a poison entry retried forever wedges the queue');
+
+      // The retry rebuilds the payload from the row itself, under the original opId — the
+      // server's idempotency key, so a half-delivered retry cannot register two documents.
+      await engine.retrySubmission(submission.publicId);
+      final retried = await store.select(store.outbox).getSingle();
+      expect(retried.opId, opId);
+      expect((await store.select(store.submissions).getSingle()).sendState, 'queued');
+      final payload = jsonDecode(retried.payload) as Map<String, dynamic>;
+      expect((payload['submission'] as Map<String, dynamic>)['declaredSha256'], 'abc123');
     });
   });
 
