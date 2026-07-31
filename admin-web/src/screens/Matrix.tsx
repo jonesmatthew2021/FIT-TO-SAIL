@@ -696,6 +696,9 @@ function CellEditor({
  * (§4.2) — `M9`, `Mˣ` and whatever the next version invents are all valid levels, and a fixed list
  * would quietly make the matrix unable to express the thing the source workbook already expresses.
  */
+/** Select-option sentinel for a blank override — never sent to the server as a level. */
+const NOT_REQUIRED_OPTION = '__not_required__'
+
 function LevelCell({
   base,
   override,
@@ -746,16 +749,30 @@ function LevelCell({
   }
 
   const current = effective ?? ''
+  // A blank override is "not required" — a positive statement the server accepts and the diff
+  // renders apart from "no rule". It gets its own option so it can be *created*, not only read:
+  // routing it through the blank option would make it indistinguishable from clearing, which is
+  // the opposite edit (clear = follow the base rule again).
+  const selectValue =
+    overridden && override === ''
+      ? NOT_REQUIRED_OPTION
+      : COMMON_LEVELS.includes(current as (typeof COMMON_LEVELS)[number])
+        ? current
+        : current === ''
+          ? ''
+          : 'other'
   return (
     <select
       className={overridden ? 'input input--level input--overridden' : 'input input--level'}
-      value={COMMON_LEVELS.includes(current as (typeof COMMON_LEVELS)[number]) ? current : current === '' ? '' : 'other'}
+      value={selectValue}
       title={overridden ? `Overrides the base rule (${base ?? 'none'})` : undefined}
       onChange={(event) => {
         const value = event.target.value
         if (value === '') {
           // Clearing a base rule removes it; clearing an override restores the base rule.
-          if (effective !== null) onClear()
+          if (effective !== null || overridden) onClear()
+        } else if (value === NOT_REQUIRED_OPTION) {
+          onSet('')
         } else if (value === 'other') {
           setTyping(true)
           setTyped(current === '' ? '' : current)
@@ -764,7 +781,8 @@ function LevelCell({
         }
       }}
     >
-      <option value="">{overriding && override === undefined ? '— base —' : '—'}</option>
+      <option value="">{overriding ? '— base —' : '—'}</option>
+      {overriding && <option value={NOT_REQUIRED_OPTION}>not required</option>}
       {COMMON_LEVELS.map((level) => (
         <option key={level} value={level}>
           {level}

@@ -138,11 +138,15 @@ export function CrewRequests(): React.ReactNode {
               Dismiss
             </button>
             {/* §6's "one-click pre-filled exemption request", from the other end: when the course
-                lands after the cutoff, the register is where this goes next. Same link the gap
-                report uses. */}
+                lands after the cutoff, the register is where this goes next. Same param names as
+                the gap report's link. A statement is not swing-bound, so the swing itself is the
+                one thing the coordinator still picks. */}
             <Link
               className="link-action"
-              to={`/register/new?person=${row.original.personId}&requirement=${row.original.requirementId}`}
+              to={
+                `/register/new?partnership=${encodeURIComponent(row.original.partnershipAbbrev)}` +
+                `&personId=${row.original.personId}&requirementId=${row.original.requirementId}`
+              }
             >
               Raise request
             </Link>

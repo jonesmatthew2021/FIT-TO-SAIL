@@ -292,8 +292,10 @@ function SlotAxis({
         </div>
         <div className="row-actions">
           {/* A shortcut to the first slot with a hole in it, which is where a coordinator arriving
-              at this screen with open slots was going anyway. Every row keeps its own control. */}
-          {firstOpen !== undefined && (
+              at this screen with open slots was going anyway. Every row keeps its own control.
+              Coordinator-gated because the suggestions endpoint is: offering the modal to a role
+              the server 403s would be a dead end wearing a button. */}
+          {canEditRoster && firstOpen !== undefined && (
             <button
               type="button"
               className="button button--primary"
@@ -536,8 +538,9 @@ function SlotActions({
 
       <div className="ruler__actions">
         {/* A fully covered slot has nowhere to put anyone: any window would overlap the person
-            already there, and the server refuses that outright. Unassign first. */}
-        {row.coverage !== 'covered' && (
+            already there, and the server refuses that outright. Unassign first. Gated like the
+            header's shortcut — the suggestions endpoint is coordinator-only. */}
+        {canEditRoster && row.coverage !== 'covered' && (
           <button
             type="button"
             className="button button--primary button--quiet"
