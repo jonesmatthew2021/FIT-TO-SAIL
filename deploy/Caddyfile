@@ -1,0 +1,59 @@
+# Caddy on the tailnet box: static SPA, reverse proxy for the API, one origin for both.
+#
+# TLS is not here. `tailscale serve` terminates HTTPS with a real certificate for the node's
+# tailnet name and forwards to this port over loopback, so Caddy speaks plain HTTP and the
+# container publishes its port on 127.0.0.1 only. Two consequences worth knowing:
+#   - nothing on the box's LAN or Wi-Fi interface can reach this, even if a tailnet ACL is wrong;
+#   - `auto_https off` because Caddy must not try to provision a certificate of its own.
+
+{
+	auto_https off
+	admin off
+}
+
+:8081 {
+	encode zstd gzip
+
+	# Everything the backend owns. `handle` blocks are used rather than bare matchers because
+	# `try_files` below is a rewrite, and rewrites run before proxying — an /api path would be
+	# rewritten to /index.html before reverse_proxy ever saw it.
+	@backend path /api/* /health /health/* /q/*
+	handle @backend {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		root * /srv/www
+
+		header {
+			X-Content-Type-Options nosniff
+			Referrer-Policy same-origin
+			-Server
+		}
+		# Vite fingerprints these, so they can be cached forever.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+
+		# The fonts are not fingerprinted — the filename is stable across builds — so a day,
+		# not a year: a replaced font must not be invisible until next August.
+		@fonts path /fonts/*
+		header @fonts Cache-Control "public, max-age=86400"
+
+		# Everything else is the document, and it must revalidate. A cached index.html is a
+		# browser still asking for the previous build's asset filenames after a rebuild, which
+		# looks like the deployment failed. Matched by exclusion because `header` runs before
+		# `try_files`, so at this point a client route is still /matrix, not /index.html.
+		@document not path /assets/* /fonts/*
+		header @document Cache-Control "no-cache"
+
+		# The SPA's client-side routes are real URLs a person will refresh on and paste to
+		# somebody else; without this, /matrix answers 404 from the filesystem.
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

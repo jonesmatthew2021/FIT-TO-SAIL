@@ -1,0 +1,26 @@
+# Build context exclusions for deploy/ (the tailnet box's images).
+#
+# The context is the repository root, because the backend image builds from `backend/` and the
+# web image from `admin-web/`. Without this file the context would carry every build output in
+# the tree — target/, node_modules/, the Flutter build directory — which is both slow to send to
+# the daemon and a way for a stale local artefact to end up inside an image.
+.git/
+.dev/
+scratch/
+
+backend/target/
+backend/build/
+backend/.gradle/
+
+admin-web/node_modules/
+admin-web/dist/
+
+mobile/
+docs/
+runbooks/
+infra/
+
+# Never in an image: the deploy box's own runtime state and secrets.
+deploy/.env
+deploy/backups/
+deploy/extracts/

@@ -33,5 +33,11 @@ mobile/.dart_tool/
 scratch/
 *.local.*
 
+# The tailnet box's runtime state (deploy/): its environment file is covered by the .env rule
+# above; these are the database dumps and, if the extracted dataset is in use, real crew data.
+deploy/backups/
+deploy/extracts/*
+!deploy/extracts/.gitkeep
+
 # Development stack runtime state (scripts/dev-start.sh): pidfiles, logs, generated MCP token
 .dev/

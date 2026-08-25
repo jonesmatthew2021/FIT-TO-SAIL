@@ -1,0 +1,110 @@
+# The persistent CREWCOMP instance on a Tailscale node. See deploy/README.md first — in
+# particular the part about the box having no login, which is the whole of its access control.
+#
+# Three services, one volume. The volume is the point: it is what makes this instance persistent
+# rather than another copy of the dev stack, and it is the thing to back up (deploy/backup.sh).
+
+name: crewcomp
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crewcomp
+      POSTGRES_USER: crewcomp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      TZ: Australia/Perth
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # Deliberately no `ports:`. Nothing outside this compose network has any business reaching
+    # the database, and a published 5432 on a box on a shared tailnet is exactly the accident
+    # this file should not make possible. `docker compose exec db psql` is the way in.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crewcomp -d crewcomp"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # The profile the image was *built* with must also be the one it runs with: the build
+      # fixed the shim into the artefact, and the runtime half of %demo (OIDC off, seeding on)
+      # is only read if this matches.
+      QUARKUS_PROFILE: demo
+
+      QUARKUS_DATASOURCE_JDBC_URL: jdbc:postgresql://db:5432/crewcomp
+      QUARKUS_DATASOURCE_USERNAME: crewcomp
+      QUARKUS_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+
+      # Which roles an unheadered request gets. The admin SPA sends no X-Dev-* headers (a
+      # production bundle has no role picker in it), so this is what the back office runs as.
+      # Narrow it and restart the container to demonstrate a single role.
+      CREWCOMP_DEV_AUTH_DEFAULT_ROLES: ${CREWCOMP_DEV_AUTH_DEFAULT_ROLES:-crew_coordinator,workflow_manager,compliance_lead,data_steward}
+
+      # `synthetic` or `extracted`. Only ever read against an empty database — the seeder refuses
+      # one that already holds people — so changing it does nothing until the volume is recreated.
+      # deploy/README.md, "Switching to the extracted dataset", is the whole procedure.
+      CREWCOMP_DEV_SEED_DATASET: ${CREWCOMP_DEV_SEED_DATASET:-synthetic}
+      CREWCOMP_DEV_SEED_EXTRACT_ROOT: /srv/extracts
+
+      # O-11: the §9 scans' cron times are in the JVM's zone, so give the JVM the operating one.
+      TZ: Australia/Perth
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70
+    volumes:
+      # Empty unless the extracted dataset is in use, and read-only either way: the extracts are
+      # real personal data and nothing in the application has cause to write to them.
+      - ${CREWCOMP_EXTRACT_ROOT:-./extracts}:/srv/extracts:ro
+    # Again no `ports:` — only `web` can reach 8080, over the compose network.
+
+  # This app's own node on the tailnet, rather than a port on the host's node.
+  #
+  # It exists to make "the device" and "the application" the same thing. Tailscale shares a
+  # *machine*, so an app that is alone inside a machine's network namespace can be shared with
+  # somebody outside the tailnet without giving them anything else on the box — and without
+  # inviting them into the tailnet at all. It also means nothing here binds a host port.
+  #
+  # Registered as a user-owned node, deliberately NOT tagged: only users can accept a machine
+  # share, and Tailscale's wording on whether a *tagged* machine can be shared reads both ways.
+  # The cost is that a user-owned node's key expires in 90 days and would take the share down
+  # with it, so disable key expiry for this device in the admin console once it appears.
+  ts-attest:
+    image: tailscale/tailscale:latest
+    hostname: attest
+    restart: unless-stopped
+    environment:
+      TS_HOSTNAME: attest
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in deploy/.env — a reusable, untagged auth key}
+      TS_STATE_DIR: /var/lib/tailscale
+      # Userspace networking (the image's default), so no NET_ADMIN and no /dev/net/tun.
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - ts-state:/var/lib/tailscale
+      - ./ts-serve.json:/config/serve.json:ro
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      ts-attest:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    # Shares the sidecar's network namespace, so Caddy's :8081 exists only inside it and
+    # `tailscale serve` reaches it over that namespace's loopback. No `ports:` here at all —
+    # and none is possible: a service using another's namespace cannot publish its own.
+    # The sidecar is still an ordinary member of the compose network, so `backend` resolves.
+    network_mode: service:ts-attest
+
+volumes:
+  db-data:
+  ts-state:
