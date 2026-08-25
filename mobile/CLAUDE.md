@@ -45,11 +45,16 @@ is where the remaining risk sits; see "What is unverified" first.
 
 ## Stack (decided — ADR 0002, amended by ADR 0009)
 
-Flutter 3.44 stable / Dart 3.12. Runtime dependencies, all of them: `drift` (local store),
+Flutter 3.47.1 stable / Dart 3.13. Runtime dependencies, all of them: `drift` (local store),
 `sqlite3`, `path_provider`, `flutter_secure_storage`, `http`, `image_picker` (MOB-4 camera and
 photo library), `file_picker` (MOB-4 attachments), `crypto` (the SHA-256 a resumed upload is
 verified against), `phosphor_icons` (the design system's icon set, as bundled fonts).
 Dev: `drift_dev`, `build_runner`, `flutter_lints`.
+
+**The minimum iOS is 15.0**, raised from 13.0 by Flutter 3.47.1's own migration — it rewrites
+`ios/Podfile` and the three `IPHONEOS_DEPLOYMENT_TARGET` entries in `Runner.xcodeproj` on the next
+`flutter build ios` and there is no opt-out short of pinning Flutter. Recorded here because it is a
+product decision wearing a toolchain change: iOS 14 and earlier are now unsupported for crew devices.
 
 Inter is **vendored** in `fonts/`, two static instances at 400 and 500 — Nocturne is never bolder
 than 500, so those two are the whole type system. Not `google_fonts`: it downloads at first paint,
@@ -86,7 +91,7 @@ and `test/encrypted_store_test.dart` fails.
 ## Build and test
 
 ```bash
-flutter test                              # 145 tests
+flutter test                              # 157 tests
 flutter analyze                           # clean
 dart run tool/generate_api.dart           # regenerate lib/src/api/schema.g.dart
 dart run tool/generate_api.dart --check   # fail if committed types are stale — the CI check
@@ -423,10 +428,10 @@ phone — everything under "What is unverified" about physical devices stands.
   which needs the NDK's clang, and nothing had ever exercised that path off macOS. CI now asserts all
   three ABIs, because a missing one fails at run time on that architecture only.
 - **The pinned NDK is what makes it work.** `ndkVersion = flutter.ndkVersion` resolves to an exact
-  revision (28.2.13676358 on Flutter 3.44.8). AGP auto-downloads build-tools and CMake when they are
+  revision (28.2.13676358 on Flutter 3.47.1). AGP auto-downloads build-tools and CMake when they are
   missing but **not** the NDK, so it has to be installed deliberately — locally and in CI.
 - **AGP 9 cannot build this app**, which is the trap above and the reason for `settings.gradle.kts`'s
-  version pin. Found by building; invisible to `flutter analyze` and to all 145 tests.
+  version pin. Found by building; invisible to `flutter analyze` and to all 157 tests.
 - **The toolchain here:** SDK at `~/Library/Android/sdk` (shared with Android Studio rather than
   Homebrew's own cask root), platform android-36, build-tools 36.0.0, and Studio's bundled JBR 21 as
   the JDK — `flutter doctor -v` names the one it picked, which is not necessarily the one on `PATH`.
