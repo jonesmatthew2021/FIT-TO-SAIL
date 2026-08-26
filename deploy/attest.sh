@@ -174,6 +174,10 @@ identity_report() {
     warn "It re-registered at some point: the stable name is gone and so is any share on the old"
     warn "device. Restore a saved identity (attest identity --restore ...) or repair the share in"
     warn "the admin console, then delete the stray device."
+  elif [[ -z "$dns" ]]; then
+    # Seconds after a restart the node knows who it is before the control plane has sent it a
+    # netmap. Saying so beats printing `attest ()`, which reads as something being wrong.
+    printf '  node        %s (netmap still arriving)\n' "$host"
   else
     printf '  node        %s (%s)\n' "$host" "${dns%.}"
   fi
