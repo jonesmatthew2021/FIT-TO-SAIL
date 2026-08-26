@@ -168,7 +168,9 @@ identity_report() {
     local age
     age=$(( ( $(date +%s) - $(date -d "$TS_AUTHKEY_ISSUED" +%s) ) / 86400 ))
     printf '  auth key    issued %s (%s days ago)\n' "$TS_AUTHKEY_ISSUED" "$age"
-    (( age > 80 )) && warn "that key is near or past its 90-day ceiling — mint a new reusable, UNTAGGED one"
+    if (( age > 80 )); then
+      warn "that key is near or past its 90-day ceiling — mint a new reusable, UNTAGGED one"
+    fi
   else
     warn "TS_AUTHKEY_ISSUED is not set in .env, so nothing here can tell you when the key lapses"
   fi
@@ -177,6 +179,7 @@ identity_report() {
   # tags — and its key expiry was disabled in the admin console on 27 August 2026. If that ever
   # needs asserting from here, it is POST /api/v2/device/{id}/key with keyExpiryDisabled, which
   # needs an API credential this box does not otherwise want.
+  return 0
 }
 
 identity_backup() {
@@ -281,7 +284,10 @@ v_dataset() {
   env_check || die "run: attest env --fix"
   assume_yes
 
-  (( refresh )) && { [[ "$want" == portal ]] || die "--refresh only means anything for the portal dataset"; v_snapshot; }
+  if (( refresh )); then
+    [[ "$want" == portal ]] || die "--refresh only means anything for the portal dataset"
+    v_snapshot
+  fi
 
   sed -i "s|^CREWCOMP_DEV_SEED_DATASET=.*|CREWCOMP_DEV_SEED_DATASET=$want|" .env
   say "dataset is now '$want' in deploy/.env"
