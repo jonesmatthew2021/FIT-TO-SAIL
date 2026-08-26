@@ -203,7 +203,17 @@ identity_backup() {
 identity_restore() {
   local tarball="${1:?attest identity --restore FILE}"
   [[ -f "$tarball" ]] || die "no such file: $tarball"
+  # Check the tarball is what it claims BEFORE anything is removed. This function empties the
+  # volume, so a tarball without a node key in it would turn a recovery into the loss it exists
+  # to undo.
+  tar tzf "$tarball" 2>/dev/null | grep -qx './tailscaled.state' ||
+    die "$tarball has no ./tailscaled.state in it — that is not a tailnet identity"
   assume_yes
+  # And keep a way back from the recovery itself, if there is anything to keep.
+  if volume_exists ts-state; then
+    say "Saving the identity that is there now, before replacing it"
+    identity_backup
+  fi
   say "Replacing the sidecar's state from $(basename "$tarball")"
   docker compose stop ts-attest web >/dev/null
   docker volume create "${project}_ts-state" >/dev/null
@@ -327,9 +337,12 @@ v_restore() {
   [[ -f "$dump" ]] || die "no such file: $dump"
   load_env
   assume_yes
-  say "Restoring $(basename "$dump") over the running database (pg_restore --clean)"
+  # The backend comes down first. pg_restore --clean drops every table, which an application
+  # holding connections would either block with its locks or observe half-applied.
+  say "Restoring $(basename "$dump") — stopping the backend while the schema is replaced"
+  docker compose stop backend >/dev/null
   docker compose exec -T db pg_restore -U crewcomp -d crewcomp --clean --if-exists < "$dump"
-  docker compose restart backend
+  docker compose up --detach --wait --wait-timeout 300 backend
   docker compose ps
 }
 
