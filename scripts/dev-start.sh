@@ -9,6 +9,10 @@
 #   ./scripts/dev-start.sh --dataset extracted    seed the POC's workbook extracts (REAL crew
 #                                                 data, read from ~/shipping by default —
 #                                                 override with --extract-root PATH)
+#   ./scripts/dev-start.sh --dataset portal       seed the Coolibah portal snapshot (REAL crew
+#                                                 data, read from ~/coolibah-portal/latest —
+#                                                 override with --portal-root PATH; refresh the
+#                                                 snapshot with ./scripts/portal-snapshot.sh)
 #
 # The dataset only takes effect against an empty database: run ./scripts/dev-stop.sh first so
 # the database container is reaped, or the previous dataset is still what you will see.
@@ -26,30 +30,39 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/dev-common.sh"
 what="all"
 dataset="${CREWCOMP_DEV_SEED_DATASET:-synthetic}"
 extract_root="${CREWCOMP_DEV_SEED_EXTRACT_ROOT:-$HOME/shipping}"
+portal_root="${CREWCOMP_DEV_SEED_PORTAL_ROOT:-$HOME/coolibah-portal/latest}"
 while (( $# )); do
   case "$1" in
     all|backend|web) what="$1" ;;
-    --dataset) dataset="${2:?--dataset needs a value: synthetic | extracted}"; shift ;;
+    --dataset) dataset="${2:?--dataset needs a value: synthetic | extracted | portal}"; shift ;;
     --extract-root) extract_root="${2:?--extract-root needs a directory}"; shift ;;
-    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) die "Unknown argument '$1'. Use: all | backend | web [--dataset synthetic|extracted] [--extract-root PATH]" ;;
+    --portal-root) portal_root="${2:?--portal-root needs a directory}"; shift ;;
+    -h|--help) sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "Unknown argument '$1'. Use: all | backend | web [--dataset synthetic|extracted|portal] [--extract-root PATH] [--portal-root PATH]" ;;
   esac
   shift
 done
 
 case "$dataset" in
-  synthetic|extracted) ;;
-  *) die "Unknown dataset '$dataset'. Use: synthetic | extracted" ;;
+  synthetic|extracted|portal) ;;
+  *) die "Unknown dataset '$dataset'. Use: synthetic | extracted | portal" ;;
 esac
 
-# MicroProfile maps these onto crewcomp.dev-seed.dataset / .extract-root. The extracts are real
-# crew data living outside the repository; the backend refuses `extracted` without a root.
+# MicroProfile maps these onto crewcomp.dev-seed.dataset / .extract-root / .portal-root. The
+# extracts and the portal snapshot are real crew data living outside the repository; the backend
+# refuses either dataset without its root.
 export CREWCOMP_DEV_SEED_DATASET="$dataset"
 if [[ "$dataset" == extracted ]]; then
   [[ -f "$extract_root/exceptions.csv" && -d "$extract_root/seed" ]] ||
     die "--dataset extracted: '$extract_root' does not look like the POC extract directory
 (expected seed/*.csv beside exceptions.csv). Point --extract-root at the POC checkout."
   export CREWCOMP_DEV_SEED_EXTRACT_ROOT="$extract_root"
+fi
+if [[ "$dataset" == portal ]]; then
+  [[ -f "$portal_root/portal-state.json" ]] ||
+    die "--dataset portal: '$portal_root' holds no portal-state.json. Run
+./scripts/portal-snapshot.sh first, or point --portal-root at a snapshot directory."
+  export CREWCOMP_DEV_SEED_PORTAL_ROOT="$portal_root"
 fi
 
 mkdir -p "$run_dir"
@@ -198,6 +211,9 @@ say "${yellow}Development mode:${off} the auth shim authenticates any request an
 if [[ "$dataset" == extracted ]]; then
   say "roles by default. ${yellow}Dataset: EXTRACTED — real crew names, Sam numbers and expiry data"
   say "from $extract_root. Do not expose or screen-share this environment beyond its audience.${off}"
+elif [[ "$dataset" == portal ]]; then
+  say "roles by default. ${yellow}Dataset: PORTAL — real crew names, employee ids and expiry data"
+  say "from $portal_root. Do not expose or screen-share this environment beyond its audience.${off}"
 else
   say "roles by default; the seeded crew, vessels and holdings are invented, not real data."
 fi

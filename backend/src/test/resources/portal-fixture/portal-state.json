@@ -1,0 +1,88 @@
+{
+  "rev": 7,
+  "savedAt": "2026-08-23T00:00:00.000Z",
+  "data": {
+    "quals": {
+      "cols": [
+        ["QL-01", "Master ticket", "Qualification"],
+        ["QL-17", "Medical", "Qualification"],
+        ["QL-19", "Resuscitation", "Qualification"],
+        ["QL-20", "Food safety", "Qualification"],
+        ["HR-02", "Vehicle crane", "High Risk Work Licence (HRWL)"],
+        ["PT-03", "Heights", "Permit to Work"]
+      ],
+      "rows": [
+        ["TESTER, Alice", "Master", "a11111A", ["2031-05-26", "2027-01-31", "Y", "Y", "", "N"]],
+        ["SAMPLE, Bob", "Chief Officer - 100m", "b22222B", ["", "2026-11-30", "?", "", "2029-06-01", ""]],
+        ["SAMPLE, Christopher", "GPH", "c33333C", ["", "2027-02-15", "", "Y", "2028-03-01", "N"]],
+        ["DUPLICATE, Dana", "Junior Engineer", "a11111A", ["", "2026-12-01", "", "", "", ""]]
+      ]
+    },
+    "validityPeriods": {
+      "at": "2026-08-23T00:00:00.000Z",
+      "read": true,
+      "periods": [
+        { "code": "QL-01", "item": "Master ticket", "months": 60, "validFor": "5 years", "neverExpires": false },
+        { "code": "QL-17", "item": "Medical", "months": 12, "validFor": "1 year", "neverExpires": false },
+        { "code": "QL-19", "item": "Resuscitation", "months": 36, "validFor": "3 years", "neverExpires": false },
+        { "code": "QL-20", "item": "Food safety", "months": null, "validFor": null, "neverExpires": true },
+        { "code": "HR-02", "item": "Vehicle crane", "months": 60, "validFor": "5 years", "neverExpires": false }
+      ]
+    },
+    "certDates": {
+      "at": "2026-08-23T00:00:00.000Z",
+      "map": {
+        "TESTER, ALICE::QL-01": { "url": "/api/files/x1", "issued": "2026-05-26", "expires": "2031-05-26" },
+        "SAMPLE, Bob::HR-02": { "url": "/api/files/x2", "issued": "2024-01-01", "expires": "2030-01-01" }
+      }
+    },
+    "matrixUpdated": "2026-08-18",
+    "swingReport": {
+      "at": "2026-08-17T00:00:00.000Z",
+      "by": "ADMIN",
+      "swing": {
+        "k": 2,
+        "crew": "A",
+        "label": "08 Sept – 05 Oct",
+        "start": "2026-09-08",
+        "end": "2026-10-05",
+        "flyOut": "2026-09-08",
+        "flyHome": "2026-10-07"
+      },
+      "clear": [{ "name": "SAMPLE, Christopher", "watch": "night", "position": "GPH" }],
+      "blocked": [{ "name": "TESTER, Alice", "watch": "day", "position": "Master", "blockers": [], "during": [] }],
+      "watch": [],
+      "counts": { "clear": 1, "watch": 0, "blocked": 1, "rostered": 4, "unchecked": 0 }
+    },
+    "swingLists": {
+      "A": {
+        "entries": [
+          { "name": "Alice Tester", "rank": "Master" },
+          { "name": "Chris Sample", "rank": "GPH" },
+          { "name": "Bob Sample", "rank": "2nd Mate" },
+          { "name": "Zoe Unknown", "rank": "Cook" }
+        ],
+        "filename": "Crew List - Team Alpha.xlsx",
+        "uploaded": "2026-08-14"
+      }
+    },
+    "swingDates": { "0": { "flyOut": "2026-09-09", "flyHome": "2026-09-25" } },
+    "shiftAnalysis": {
+      "at": "2026-08-18T00:00:00.000Z",
+      "by": "ADMIN",
+      "check": {
+        "what": "Fictional shift allocation check for the loader IT.",
+        "notes": [],
+        "counts": { "met": 4, "short": 2, "unclear": 0, "requirements": 6 },
+        "requirements": [
+          { "have": 2, "item": "QL-19 Resuscitation", "shift": "day", "status": "met", "required": "2", "positions": "Any Position", "holders": [] },
+          { "have": 1, "item": "QL-19 Resuscitation", "shift": "night", "status": "short", "required": "3", "positions": "Any Position", "holders": [] },
+          { "have": 1, "item": "QL-20 Food safety", "shift": "swing", "status": "met", "required": "1", "positions": "GPH", "holders": [] },
+          { "have": 2, "item": "HR-02 Vehicle crane", "shift": "day", "status": "met", "required": "2 per shift", "positions": "Chief Officer or GPH", "holders": [] },
+          { "have": 1, "item": "QL-01 Master ticket / QL-17 Medical", "shift": "swing", "status": "met", "required": "All must hold at least one of the listed tickets", "positions": "Engineer Class 3 (Assistant Engineer)", "holders": [] },
+          { "have": 0, "item": "PT-03 Heights", "shift": "swing", "status": "short", "required": "Required if GPH holds a non-STCW ticket", "positions": "GPH", "holders": [] }
+        ]
+      }
+    }
+  }
+}

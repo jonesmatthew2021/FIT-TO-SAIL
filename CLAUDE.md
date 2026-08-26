@@ -7,7 +7,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 - **Spec (normative):** `docs/spec/crewcomp-production-spec.md` — V2 draft. §5 (engine semantics) and §4 (domain model) are normative; Appendix A enumerations are canonical. The V1 POC (separate repo, `app/`) is the behavioural reference for the engine.
 - **Decisions:** `docs/decisions/` — ADRs. 0001 backend (Kotlin+Quarkus), 0002 mobile (Flutter — its encrypted-store mechanism is **amended by 0009**), 0003 identity (direct OIDC federation), 0004 pipeline (GitHub Actions), 0005 platform (**deferred**: AWS vs GCP, spike decides), 0006 persistence (Hibernate+Panache), 0007 audit ordering & hash chain, 0008 admin web stack & development auth shim, 0009 mobile sync contract, encrypted local store & resumable upload.
 - **Research:** `docs/research/` — the §14 technology research (July 2026, web-verified) behind the ADRs. `00-recommendations.md` is the synthesis.
-- **Handoffs:** `docs/handoff/` — work one component owes another, written when the two get out of step. `mobile-crew-app-backend.md` is the server side of the crew app's eight new screens. `mobile-encrypted-store-for-a-new-app.md` is the outward one: the encrypted-store layer — cipher pin, key handling, start-up guard, the host-runnable encryption assertion, the Android native-library build and its CI check — written verbatim so a second Flutter project can start from working code rather than rediscovering that plain SQLite ignores `pragma key` silently.
+- **Handoffs:** `docs/handoff/` — work one component owes another, written when the two get out of step. `mobile-crew-app-backend.md` is the server side of the crew app's eight new screens. `mobile-encrypted-store-for-a-new-app.md` is the outward one: the encrypted-store layer — cipher pin, key handling, start-up guard, the host-runnable encryption assertion, the Android native-library build and its CI check — written verbatim so a second Flutter project can start from working code rather than rediscovering that plain SQLite ignores `pragma key` silently. `coolibah-portal-dataset.md` indexes Matt's TSV Coolibah portal (live real crew data, shared over Tailscale) and the repeatable snapshot → `portal` dataset process for using it in place of generated data.
 
 ## Layout
 
@@ -19,7 +19,7 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
 | `infra/` | OpenTofu; `aws/` and `gcp/` stacks until ADR 0005 resolves | empty — pipeline bootstrap |
 | `deploy/` | Docker Compose for **one persistent instance on its own Tailscale node** — Postgres with a volume, the backend under the `demo` profile, Caddy serving the built SPA, and a `tailscale` sidecar the SPA runs inside so nothing binds a host port; `rebuild.sh`, `reset.sh`, `backup.sh` | **running** at `https://attest.monster-mora.ts.net`. **Not `infra/`**: no cloud service anywhere in it, so it does not pre-empt ADR 0005 |
 | `runbooks/` | Operational runbooks (markdown, consumed by the AI triage bot) | one written (`ci-failure.md`); the rest arrive with the alerts they answer |
-| `scripts/` | `dev-start.sh` / `dev-stop.sh` — the local development stack; `mobile-start.sh` — the crew app on an iOS simulator; `android-start.sh` / `android-stop.sh` — the same app on an emulator | works; see below |
+| `scripts/` | `dev-start.sh` / `dev-stop.sh` — the local development stack; `mobile-start.sh` — the crew app on an iOS simulator; `android-start.sh` / `android-stop.sh` — the same app on an emulator; `portal-snapshot.sh` — snapshot the Coolibah portal (real crew data) into `~/coolibah-portal`, outside the repo | works; see below |
 | `docs/` | spec, ADRs, research, handoffs | current |
 | `.github/` | workflows + AI review prompts | **verification lanes, AI review and scanning built**; deploy lane and previews wait on ADR 0005 |
 
@@ -35,12 +35,20 @@ Maritime crew-compliance system replacing two forked Excel workbooks: a versione
                                              # synthetic fixture — REAL crew data, read from
                                              # ~/shipping (--extract-root overrides). Stop first:
                                              # a dataset only takes effect on a fresh database.
+
+./scripts/dev-start.sh --dataset portal      # seed the Coolibah portal snapshot — REAL crew
+                                             # data, read from ~/coolibah-portal/latest
+                                             # (--portal-root overrides); refresh it first with
+                                             # ./scripts/portal-snapshot.sh. Same stop-first rule.
 ```
 
-Two dev datasets exist (`crewcomp.dev-seed.dataset`): **synthetic** (default — invented crew,
-safe for any audience, including test cases) and **extracted** (the POC's validated workbook
-extracts, for demonstrations to the people who know the data). The extracts are real personal
-data: they live outside this repository and are never committed to it. The two catalogues never
+Three dev datasets exist (`crewcomp.dev-seed.dataset`): **synthetic** (default — invented crew,
+safe for any audience, including test cases), **extracted** (the POC's validated workbook
+extracts, for demonstrations to the people who know the data), and **portal** (a snapshot of
+Matt's live Coolibah crew portal — `./scripts/dev-start.sh --dataset portal`, reading
+`~/coolibah-portal/latest`, refreshed by `./scripts/portal-snapshot.sh`; the map is
+`docs/handoff/coolibah-portal-dataset.md`). The extracts and the snapshot are real personal
+data: they live outside this repository and are never committed to it. The catalogues never
 mix — switching is stop, then start with the other flag.
 
 Needs a container runtime (Colima or Docker Desktop) for the PostgreSQL that Dev Services

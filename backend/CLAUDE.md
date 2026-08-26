@@ -287,7 +287,7 @@ rather than disabled in it:
   `SecurityIdentity` attribute, which `ActorResolutionFilter` honours. It asks for no password on
   purpose: a shim with a fake credential can be mistaken for authentication, one that plainly
   trusts a header cannot. Replaced by the BFF session in the identity spike (ADR 0003).
-- **`DevDataSeeder`** — now a two-dataset switch (`crewcomp.dev-seed.dataset`):
+- **`DevDataSeeder`** — now a three-dataset switch (`crewcomp.dev-seed.dataset`):
 
   - **`synthetic`** (default) — invented crew, vessels, a published matrix and two swings, shaped
     so every roll-up state appears on one screen (details below). Safe for any audience.
@@ -300,11 +300,23 @@ rather than disabled in it:
     created per active person (SEC-1b `local_test`, no email) and Masters get a
     partnership-scoped `vessel_master`, so the crew app and §9 scans work against it. No course
     catalogue, no evidence documents: nothing fictional is mixed into the real set.
+  - **`portal`** — a snapshot of the collaborator's live Coolibah crew portal, loaded by
+    `PortalSeedLoader` from `crewcomp.dev-seed.portal-root` (`~/coolibah-portal/latest` by
+    convention, maintained by `scripts/portal-snapshot.sh` — **also real crew data, never
+    committed here**). One partnership, the portal's 54-code catalogue, 40 crew with ~1,160
+    holdings read conservatively (dates expire, `Y` is perpetual and cross-checked against the
+    portal's validity list, `N` is a gap, `?` is chased on ADM-7), issue dates joined from the
+    certificate linkage, the one dated swing with watches mapped to shifts, and a **provisional
+    matrix** — quota and one-of rules parsed from the portal's shift-allocation check, flagged
+    loudly because the per-position mandatory cells live in a spreadsheet nobody has schema'd.
+    The published matrix label carries the snapshot revision (`Coolibah portal rev 342`).
+    The mapping decisions and the source's index: `docs/handoff/coolibah-portal-dataset.md`.
+    `PortalSeedIT` drives the loader against a fictional fixture (`portal-fixture/`).
 
-  The two catalogues must never mix (§11), and the empty-database guard enforces it: switching
+  The catalogues must never mix (§11), and the empty-database guard enforces it: switching
   datasets means `dev-stop.sh` (Ryuk reaps the database) then
-  `dev-start.sh --dataset extracted|synthetic`. A mismatch between the configured dataset and
-  what a non-empty database holds is detected by matrix label and logged, not "fixed".
+  `dev-start.sh --dataset extracted|synthetic|portal`. A mismatch between the configured dataset
+  and what a non-empty database holds is detected by matrix label and logged, not "fixed".
 
   The synthetic dataset is shaped so that
   every roll-up state appears on one screen: `ok`, `expiring`, `gap`, `unknown`, `quota_only`,

@@ -65,6 +65,9 @@ import java.util.UUID
  *    from `crewcomp.dev-seed.extract-root` (a directory **outside this repository** — the
  *    extracts are real crew data and are never committed here). For demonstrations to people
  *    who know the real data.
+ *  - **`portal`** — a snapshot of the collaborator's live Coolibah crew portal, loaded by
+ *    [PortalSeedLoader] from `crewcomp.dev-seed.portal-root` (also real crew data, also outside
+ *    this repository — `scripts/portal-snapshot.sh` maintains it).
  *
  * Switching datasets means restarting the stack: the seed only ever runs against an empty
  * database, and `dev-stop.sh` lets Ryuk reap the database container, so the next start
@@ -88,12 +91,15 @@ class DevDataSeeder(
     private val dataset: String,
     @ConfigProperty(name = "crewcomp.dev-seed.extract-root")
     private val extractRoot: Optional<String>,
+    @ConfigProperty(name = "crewcomp.dev-seed.portal-root")
+    private val portalRoot: Optional<String>,
 ) {
     private val log = Logger.getLogger(DevDataSeeder::class.java)
 
     companion object {
         const val DATASET_SYNTHETIC = "synthetic"
         const val DATASET_EXTRACTED = "extracted"
+        const val DATASET_PORTAL = "portal"
         private const val SYNTHETIC_MATRIX_LABEL = "dev-2026.1"
     }
 
@@ -105,9 +111,10 @@ class DevDataSeeder(
                     "seed writes development fixtures and must never run against real data.",
             )
         }
-        if (dataset != DATASET_SYNTHETIC && dataset != DATASET_EXTRACTED) {
+        if (dataset !in setOf(DATASET_SYNTHETIC, DATASET_EXTRACTED, DATASET_PORTAL)) {
             throw IllegalStateException(
-                "crewcomp.dev-seed.dataset must be '$DATASET_SYNTHETIC' or '$DATASET_EXTRACTED', not '$dataset'.",
+                "crewcomp.dev-seed.dataset must be '$DATASET_SYNTHETIC', '$DATASET_EXTRACTED' or " +
+                    "'$DATASET_PORTAL', not '$dataset'.",
             )
         }
 
@@ -145,6 +152,22 @@ class DevDataSeeder(
                         "from $root. Do not expose this environment beyond the demonstration.",
                 )
             }
+            DATASET_PORTAL -> {
+                val root = portalRoot.map(String::trim).filter(String::isNotEmpty).orElseThrow {
+                    IllegalStateException(
+                        "crewcomp.dev-seed.dataset=portal needs crewcomp.dev-seed.portal-root " +
+                            "pointing at a portal snapshot (portal-state.json — see " +
+                            "scripts/portal-snapshot.sh, conventionally ~/coolibah-portal/latest). " +
+                            "It is deliberately unset by default: the snapshot is real crew data " +
+                            "and lives outside this repository.",
+                    )
+                }
+                PortalSeedLoader(em, clock, Path.of(root)).load()
+                log.warn(
+                    "Portal seed applied: REAL crew names, employee ids and certification data " +
+                        "from $root. Do not expose this environment beyond the demonstration.",
+                )
+            }
             else -> {
                 seed()
                 log.warn("Development seed applied: invented crew, vessels and holdings. Not real data.")
@@ -158,6 +181,7 @@ class DevDataSeeder(
         return when {
             labels.contains(SYNTHETIC_MATRIX_LABEL) -> DATASET_SYNTHETIC
             labels.contains(ExtractedSeedLoader.PUBLISHED_MATRIX_LABEL) -> DATASET_EXTRACTED
+            labels.any { it.startsWith(PortalSeedLoader.PUBLISHED_MATRIX_LABEL_PREFIX) } -> DATASET_PORTAL
             else -> null
         }
     }
