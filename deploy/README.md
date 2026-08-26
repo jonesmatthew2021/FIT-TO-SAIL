@@ -183,8 +183,13 @@ a directory outside the checkout — `CREWCOMP_EXTRACT_ROOT` in `.env` points at
 does not belong in a working tree, gitignored or not:
 
 ```bash
-rsync -a ~/shipping/{seed,exceptions.csv} chris-hp:~/attest-extracts/    # once, from the Mac
+ssh chris-hp 'mkdir -p ~/attest-extracts && chmod 700 ~/attest-extracts'   # see below
+rsync -a ~/shipping/{seed,exceptions.csv} chris-hp:~/attest-extracts/      # once, from the Mac
 ```
+
+Make the directory first: compose mounts `CREWCOMP_EXTRACT_ROOT` whatever the dataset is, and a
+bind-mount source that does not exist is created **by the daemon, owned by root** — so the rsync
+would then fail on a directory in your own home that you cannot write to.
 
 After that the switch is a remote command, and the copy stays put:
 
@@ -276,7 +281,34 @@ still there tomorrow.
 
 ## What has been verified, and what has not
 
-Verified on a Mac against a real PostgreSQL 16 before any of this reached the box:
+Verified **on the box, over ssh from a Mac that did nothing but issue the commands** (27 August
+2026):
+
+- `attest update` — a `git pull` over the deploy key, both images rebuilt, the stack restarted, and
+  `tailscale serve status` reported. The backend **image** build is therefore proven now; it was
+  the one thing the note below could not verify.
+- `attest dataset portal --yes` — the database volume destroyed and re-seeded from the snapshot
+  outside the checkout, 40 people, **and the tailnet node still called `attest` afterwards**, which
+  is the property the whole identity section exists for.
+- `attest backup`, then `attest restore <dump>` — proven by the restored database carrying the
+  06:15, 06:30 and 06:45 scan events from *before* the reset, which a freshly seeded one could not
+  have.
+- `attest identity --restore <tarball>` — the sidecar's state replaced from a tarball and the node
+  coming back on the same name and the same 100.68.76.93. A tarball with no `tailscaled.state` in
+  it is refused before anything is removed.
+- The identity **preflight**, against a throwaway project with a database volume and no ts-state:
+  it refuses to start rather than register `attest-1`.
+- `attest env` on the real `.env` — which is how the missing `CREWCOMP_PORTAL_ROOT` was found.
+- `attest dataset extracted --yes` with no extracts on the box: refused, and `.env` left alone.
+- `attest roles data_steward` and back, each confirmed through `GET /api/v1/session` over the
+  tailnet.
+- `attest snapshot` with the portal offline: it says so in 10 seconds and changes nothing.
+
+Not verified: the snapshot **success** path from the box (Matt's laptop was off all morning), and
+whether the four containers come back after a reboot — `restart: unless-stopped` and an enabled
+`docker.service` say they will, and nobody has yet rebooted the box to watch it happen.
+
+Verified earlier, on a Mac against a real PostgreSQL 16 before any of this reached the box:
 
 - the `demo` profile packages, starts, migrates all 11 Flyway migrations and seeds the synthetic
   dataset;
@@ -291,10 +323,9 @@ Verified on a Mac against a real PostgreSQL 16 before any of this reached the bo
 - Caddy serves the SPA's client-side routes, caches fingerprinted assets hard and the document not
   at all, and routes `/api` and `/health` to the backend rather than rewriting them to index.html.
 
-Not verified: the backend **image** build, because the Mac's container VM has 1 GiB and the Kotlin
-compiler needs more (see above). Everything it runs was run outside a container first, and the
-runtime stage is Quarkus's own fast-jar layout — but expect the first `./rebuild.sh` on the box to
-be where that step is genuinely proven, and read its output rather than assuming.
+At that time the backend **image** build was the one unverified step, because the Mac's container
+VM has 1 GiB and the Kotlin compiler needs more. The box has since built it repeatedly, most
+recently through `attest update` — so that caveat is closed.
 
 ## Sharing it outside the tailnet
 
