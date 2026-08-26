@@ -41,7 +41,23 @@ self="$(readlink -f "${BASH_SOURCE[0]}")"
 here="$(cd "$(dirname "$self")" && pwd)"
 repo="$(cd "$here/.." && pwd)"
 project=crewcomp
+# Where the caller was standing. Everything below runs from deploy/, so a file named relatively on
+# the command line — `attest restore deploy/backups/x.dump` from the checkout root — has to be
+# resolved against the caller's directory before that cd, not silently looked for under deploy/.
+caller_pwd="$PWD"
 cd "$here"
+
+resolve_path() {
+  local given="${1:?}"
+  case "$given" in
+    /*) printf '%s\n' "$given"; return 0 ;;
+  esac
+  local candidate
+  for candidate in "$caller_pwd/$given" "$here/$given"; do
+    if [[ -e "$candidate" ]]; then printf '%s\n' "$(readlink -f "$candidate")"; return 0; fi
+  done
+  printf '%s\n' "$caller_pwd/$given"      # does not exist; report the path the caller meant
+}
 
 say()  { printf '==> %s\n' "$*"; }
 warn() { printf '!!  %s\n' "$*" >&2; }
@@ -201,7 +217,7 @@ identity_backup() {
 }
 
 identity_restore() {
-  local tarball="${1:?attest identity --restore FILE}"
+  local tarball; tarball="$(resolve_path "${1:?attest identity --restore FILE}")"
   [[ -f "$tarball" ]] || die "no such file: $tarball"
   # Check the tarball is what it claims BEFORE anything is removed. This function empties the
   # volume, so a tarball without a node key in it would turn a recovery into the loss it exists
@@ -333,7 +349,7 @@ v_backup() {
 }
 
 v_restore() {
-  local dump="${1:?attest restore FILE.dump}"
+  local dump; dump="$(resolve_path "${1:?attest restore FILE.dump}")"
   [[ -f "$dump" ]] || die "no such file: $dump"
   load_env
   assume_yes
