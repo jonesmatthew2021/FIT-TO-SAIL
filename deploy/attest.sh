@@ -187,12 +187,15 @@ identity_backup() {
   mkdir -p backups
   local out="backups/ts-state-$(date +%Y%m%d-%H%M%S).tar.gz"
   # Through a container because the volume is root-owned and its contents must stay that way:
-  # tailscaled.state is 0600 and tailscaled refuses to use it if that changes.
+  # tailscaled.state is 0600 and tailscaled refuses to use it if that changes. The tarball is
+  # handed back to the operator inside the same container — written as root it would be a file
+  # this account can delete but not chmod, and it holds the box's tailnet credentials.
   docker run --rm \
     -v "${project}_ts-state:/state:ro" \
     -v "$here/backups:/out" \
-    alpine:3 tar czf "/out/$(basename "$out")" -C /state . 2>/dev/null
-  chmod 600 "$out"
+    alpine:3 sh -c "tar czf '/out/$(basename "$out")' -C /state . &&
+                    chown $(id -u):$(id -g) '/out/$(basename "$out")' &&
+                    chmod 600 '/out/$(basename "$out")'" 2>/dev/null
   find backups -name 'ts-state-*.tar.gz' -type f -mtime "+${CREWCOMP_BACKUP_KEEP_DAYS:-14}" -delete
   say "$out ($(du -h "$out" | cut -f1)) — the only copy of this node's identity outside the volume"
 }
