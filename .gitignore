@@ -38,6 +38,8 @@ scratch/
 deploy/backups/
 deploy/extracts/*
 !deploy/extracts/.gitkeep
+deploy/portal/*
+!deploy/portal/.gitkeep
 
 # Development stack runtime state (scripts/dev-start.sh): pidfiles, logs, generated MCP token
 .dev/

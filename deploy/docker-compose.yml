@@ -49,19 +49,21 @@ services:
       # Narrow it and restart the container to demonstrate a single role.
       CREWCOMP_DEV_AUTH_DEFAULT_ROLES: ${CREWCOMP_DEV_AUTH_DEFAULT_ROLES:-crew_coordinator,workflow_manager,compliance_lead,data_steward}
 
-      # `synthetic` or `extracted`. Only ever read against an empty database — the seeder refuses
-      # one that already holds people — so changing it does nothing until the volume is recreated.
-      # deploy/README.md, "Switching to the extracted dataset", is the whole procedure.
+      # `synthetic`, `extracted` or `portal`. Only ever read against an empty database — the
+      # seeder refuses one that already holds people — so changing it does nothing until the
+      # volume is recreated. deploy/README.md's "Switching to…" sections are the procedure.
       CREWCOMP_DEV_SEED_DATASET: ${CREWCOMP_DEV_SEED_DATASET:-synthetic}
       CREWCOMP_DEV_SEED_EXTRACT_ROOT: /srv/extracts
+      CREWCOMP_DEV_SEED_PORTAL_ROOT: /srv/portal
 
       # O-11: the §9 scans' cron times are in the JVM's zone, so give the JVM the operating one.
       TZ: Australia/Perth
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70
     volumes:
-      # Empty unless the extracted dataset is in use, and read-only either way: the extracts are
+      # Empty unless the extracted/portal dataset is in use, and read-only either way: both are
       # real personal data and nothing in the application has cause to write to them.
       - ${CREWCOMP_EXTRACT_ROOT:-./extracts}:/srv/extracts:ro
+      - ${CREWCOMP_PORTAL_ROOT:-./portal}:/srv/portal:ro
     # Again no `ports:` — only `web` can reach 8080, over the compose network.
 
   # This app's own node on the tailnet, rather than a port on the host's node.

@@ -19,8 +19,8 @@ set -a; [[ -f .env ]] && . ./.env; set +a
 dataset="${CREWCOMP_DEV_SEED_DATASET:-synthetic}"
 
 echo "This deletes the CREWCOMP database volume on $(hostname) and re-seeds it as '$dataset'."
-if [[ "$dataset" == extracted ]]; then
-  echo "'extracted' is REAL crew data. It will be at rest on this box, readable by anybody the"
+if [[ "$dataset" == extracted || "$dataset" == portal ]]; then
+  echo "'$dataset' is REAL crew data. It will be at rest on this box, readable by anybody the"
   echo "tailnet ACL lets in, behind an authentication shim that trusts every request."
 fi
 read -r -p "Type the word 'destroy' to continue: " confirm

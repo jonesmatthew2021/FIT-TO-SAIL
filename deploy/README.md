@@ -136,6 +136,28 @@ Before doing it: narrow the ACL to the people attending the demonstration, and a
 directory is gitignored, so the extracts can never be committed from here — but that is the only
 protection this repository can give them.
 
+### Switching to the portal dataset
+
+The portal snapshot is the Coolibah crew portal's live data — real crew names, employee ids,
+certificate expiries — so everything above about the extracts applies verbatim: at rest on the
+disk, readable by anyone the ACL admits, reset back and delete when the audience is gone. The
+loader needs only `portal-state.json`; refresh the snapshot on the Mac first
+(`./scripts/portal-snapshot.sh`), then:
+
+```bash
+scp ~/coolibah-portal/latest/portal-state.json chris-hp:~/attest/deploy/portal/   # from the Mac
+cd ~/attest/deploy
+./backup.sh                                       # if anything in the current database matters
+sed -i 's/^CREWCOMP_DEV_SEED_DATASET=.*/CREWCOMP_DEV_SEED_DATASET=portal/' .env
+./reset.sh                                        # destroys the volume, re-seeds from the snapshot
+```
+
+Loading a *newer* snapshot is the same procedure from the `scp` line — the seeder refuses a
+populated database, so a refresh is a reset, and whatever anyone entered through the UI since the
+last seed goes with it. The published matrix's label says which revision the box is showing
+(`Coolibah portal rev N`, on the ADM-3 screen). `docs/handoff/coolibah-portal-dataset.md` is the
+map of the source and the mapping decisions.
+
 ## Showing one role
 
 The SPA is a **production** bundle, so `import.meta.env.DEV` is false and the dev sign-in and
