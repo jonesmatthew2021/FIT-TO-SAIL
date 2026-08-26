@@ -1,7 +1,8 @@
 # deploy/ — the persistent instance on a Tailscale node
 
 One long-lived box running the real artefacts against a real PostgreSQL, reachable at the node's
-tailnet name and rebuilt from a checkout with one command. It exists because `scripts/dev-start.sh`
+tailnet name, pulling its own code from GitHub and operated entirely over ssh — `ssh chris-hp
+attest update`, and nothing needed from a development machine. It exists because `scripts/dev-start.sh`
 is deliberately impermanent — Ryuk reaps its database on every stop, which is the right property
 for a development loop and the wrong one for something you want to show somebody twice.
 
@@ -9,6 +10,40 @@ for a development loop and the wrong one for something you want to show somebody
 ADR 0004 puts the deploy lane behind that verdict; writing a cloud stack now would be writing the
 thing the spike is meant to decide. This is three containers on a machine you own, with no cloud
 service anywhere in it — so it stays clear of that rule rather than pre-empting it.
+
+## Operating it remotely
+
+Everything below can be done with one command from anywhere with ssh access to the box — a
+laptop, a phone, a machine that has never seen this repository:
+
+```bash
+ssh chris-hp attest status                          # code, containers, dataset, identity, disk
+ssh chris-hp attest update                          # pull main, rebuild, restart, wait for /health/ready
+ssh chris-hp attest dataset portal --refresh --yes  # re-snapshot Matt's portal and re-seed from it
+ssh chris-hp attest dataset synthetic --yes         # back to invented crew when the audience leaves
+ssh chris-hp attest reset --yes                     # same dataset, empty database
+ssh chris-hp attest backup                          # database dump + the sidecar's tailnet identity
+ssh chris-hp attest roles data_steward              # what an unheadered request is granted
+ssh chris-hp attest logs backend                    # follow (needs a terminal; ctrl-c to stop)
+```
+
+`deploy/attest.sh` is the implementation and `~/bin/attest` on the box is a symlink to it, so it
+updates itself with the checkout. It delegates to `rebuild.sh`, `reset.sh`, `backup.sh` and
+`scripts/portal-snapshot.sh` rather than duplicating them; what it adds is the three things a
+one-shot ssh command needs and those scripts cannot assume:
+
+- **no terminal.** `reset.sh` asks you to type `destroy`, which nothing can answer over
+  `ssh host cmd`. The destructive verbs take `--yes` instead, and still print what they are about
+  to destroy and whose data it is.
+- **an environment that is actually complete.** Every key in `.env.example` must be present in
+  `.env`; `attest` refuses to run until they are and `attest env --fix` appends the rest. A key
+  that is merely *absent* gets compose's default silently, which is how the portal snapshot came
+  to be mounted from inside the repository — `CREWCOMP_PORTAL_ROOT` was never added, so `./portal`
+  won.
+- **the identity preflight** described under "The tailnet identity" below.
+
+Nothing here needs anything from a development machine. The box pulls its own code from GitHub
+over a read-only deploy key, and takes its own snapshot of the Coolibah portal over the tailnet.
 
 ## What it means that there is no login
 
@@ -59,15 +94,33 @@ Disk: a couple of gigabytes for images and the Maven dependency layer, plus the 
 On the Linux box, once:
 
 ```bash
-sudo apt install docker.io docker-compose-v2 git      # or the distro's equivalent
+sudo apt install docker.io docker-compose-v2 git curl python3   # or the distro's equivalent
 sudo usermod -aG docker "$USER" && newgrp docker
 
-git clone <this repo> ~/attest && cd ~/attest/deploy
-cp .env.example .env
-$EDITOR .env                                          # POSTGRES_PASSWORD at minimum
+# Read-only git access, so the box can fetch its own code and can never push. Paste the public
+# key as a DEPLOY KEY on the repository (Settings -> Deploy keys), with write access UNCHECKED.
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_attest_deploy -N "" -C "attest deploy key (read-only)"
+cat ~/.ssh/id_ed25519_attest_deploy.pub
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/id_ed25519_attest_deploy
+  IdentitiesOnly yes
+EOF
+ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
 
+git clone git@github.com:cdjones32/attest.git ~/attest && cd ~/attest/deploy
+cp .env.example .env
+$EDITOR .env                                          # POSTGRES_PASSWORD and TS_AUTHKEY at minimum
+./attest.sh install                                   # ~/bin/attest, on PATH for `ssh host attest ...`
 ./rebuild.sh --no-pull                                # builds everything, waits until the API answers
 ```
+
+A read-only deploy key rather than a personal access token: it is scoped to this repository, has
+no expiry to renew, and cannot push — the box should never be a source of commits. `attest
+install` puts the PATH line at the *top* of `~/.bashrc`, above the guard that returns early for
+non-interactive shells, because `ssh host cmd` is exactly such a shell.
 
 **No `sudo tailscale serve` step, and no host port.** The stack carries its own tailnet node: the
 `ts-attest` sidecar joins as the device `attest`, and `web` runs inside that container's network
@@ -93,9 +146,11 @@ is also why nothing collided with the three services already on that box.
 ## Rebuilding
 
 ```bash
-cd ~/attest/deploy
-./rebuild.sh                 # pull, rebuild, restart, block until /health/ready answers
-./rebuild.sh --web           # just the SPA
+ssh chris-hp attest update            # from anywhere
+ssh chris-hp attest update --web      # just the SPA
+
+cd ~/attest/deploy                    # or on the box itself, the same thing
+./rebuild.sh
 docker compose logs -f backend
 ```
 
@@ -105,8 +160,8 @@ fails shows up as a failed command with the logs printed — not as a screen tha
 
 That is worth more than convenience: this is the first place the forward-only, expand/contract
 rule is *enforced* rather than asserted. A migration that is not backward-compatible with the
-previous revision, or an edit to one that has already run, fails start-up here. `./reset.sh` is
-the way out, and taking it is the signal that a migration needs rewriting rather than retrying.
+previous revision, or an edit to one that has already run, fails start-up here. `attest reset
+--yes` is the way out, and taking it is the signal that a migration needs rewriting rather than retrying.
 
 ## The dataset
 
@@ -123,18 +178,24 @@ The extracts are the POC's real workbook data: real crew names, Sam numbers, exp
 box they would be at rest on the disk, readable by anyone the ACL admits, behind a shim that trusts
 every request. That is a deliberate decision with a tail, not a flag:
 
+The extracts have no network source to pull from, so they are copied to the box **once**, and to
+a directory outside the checkout — `CREWCOMP_EXTRACT_ROOT` in `.env` points at it. Real crew data
+does not belong in a working tree, gitignored or not:
+
 ```bash
-scp -r ~/shipping/{seed,exceptions.csv} chris-hp:~/attest/deploy/extracts/   # from the Mac
-cd ~/attest/deploy
-./backup.sh                                       # if anything in the current database matters
-sed -i 's/^CREWCOMP_DEV_SEED_DATASET=.*/CREWCOMP_DEV_SEED_DATASET=extracted/' .env
-./reset.sh                                        # destroys the volume, re-seeds from the extracts
+rsync -a ~/shipping/{seed,exceptions.csv} chris-hp:~/attest-extracts/    # once, from the Mac
 ```
 
-Before doing it: narrow the ACL to the people attending the demonstration, and afterwards run
-`./reset.sh` back to `synthetic` and delete `deploy/extracts/` rather than leaving it there. The
-directory is gitignored, so the extracts can never be committed from here — but that is the only
-protection this repository can give them.
+After that the switch is a remote command, and the copy stays put:
+
+```bash
+ssh chris-hp attest backup                      # if anything in the current database matters
+ssh chris-hp attest dataset extracted --yes     # destroys the volume, re-seeds from the extracts
+```
+
+Before doing it: narrow the ACL to the people attending the demonstration. Afterwards
+`ssh chris-hp attest dataset synthetic --yes`, and delete `~/attest-extracts` on the box rather
+than leaving it there — this repository cannot protect data that sits beside it.
 
 ### Switching to the portal dataset
 
@@ -144,17 +205,22 @@ disk, readable by anyone the ACL admits, reset back and delete when the audience
 loader needs only `portal-state.json`; refresh the snapshot on the Mac first
 (`./scripts/portal-snapshot.sh`), then:
 
+Unlike the extracts, this one has a live source, and the box is on the same tailnet as it — so the
+box takes its own snapshot and no laptop is involved:
+
 ```bash
-scp ~/coolibah-portal/latest/portal-state.json chris-hp:~/attest/deploy/portal/   # from the Mac
-cd ~/attest/deploy
-./backup.sh                                       # if anything in the current database matters
-sed -i 's/^CREWCOMP_DEV_SEED_DATASET=.*/CREWCOMP_DEV_SEED_DATASET=portal/' .env
-./reset.sh                                        # destroys the volume, re-seeds from the snapshot
+ssh chris-hp attest backup                             # if the current database matters
+ssh chris-hp attest dataset portal --refresh --yes      # snapshot, then destroy and re-seed
 ```
 
-Loading a *newer* snapshot is the same procedure from the `scp` line — the seeder refuses a
-populated database, so a refresh is a reset, and whatever anyone entered through the UI since the
-last seed goes with it. The published matrix's label says which revision the box is showing
+`--refresh` runs `scripts/portal-snapshot.sh` on the box first, into `~/coolibah-portal` — outside
+the checkout, where the script itself insists it goes. Drop `--refresh` to re-seed from the
+snapshot already there; `attest snapshot` takes one without touching the database. Loading a
+*newer* snapshot is a reset either way: the seeder refuses a populated database, so whatever
+anyone entered through the UI since the last seed goes with it.
+
+The one thing this cannot do by itself is reach a portal that is offline — Matt's machine is a
+laptop, and `attest snapshot` says so plainly rather than seeding from nothing. The published matrix's label says which revision the box is showing
 (`Coolibah portal rev N`, on the ADM-3 screen). `docs/handoff/coolibah-portal-dataset.md` is the
 map of the source and the mapping decisions.
 
@@ -256,11 +322,48 @@ Two things to do once, in the admin console:
 
 ## Backups
 
-`./backup.sh` writes a `pg_dump -Fc` into `deploy/backups/` and prunes past a fortnight. From cron:
+`attest backup` writes a `pg_dump -Fc` **and** a tarball of the sidecar's tailnet identity into
+`deploy/backups/` (mode 700), pruning both past a fortnight. From cron on the box:
 
 ```
-15 2 * * *  /home/<you>/attest/deploy/backup.sh >/dev/null 2>&1
+15 2 * * *  /home/<you>/bin/attest backup >/dev/null 2>&1
 ```
 
 Worth doing precisely because this box is not the dev stack: the value in it is whatever people
 have done on it since the last seed, and nothing else in this repository is holding a copy.
+
+The identity half matters for a different reason — see below. A database can be re-seeded from a
+dataset; a tailnet identity cannot be re-created at all.
+
+## The tailnet identity
+
+The `attest` device is not configuration, it is state: it lives entirely in the `crewcomp_ts-state`
+volume. Destroy that volume and tailscaled registers a **new** device, which takes the name
+`attest-1` — so `attest.<tailnet>.ts.net` stops resolving, the certificate is for a name nothing
+answers on, and any machine share pointing at the old device is orphaned. It has happened once:
+`reset.sh` used to `docker compose down --volumes`, which took the identity along with the
+database it meant to destroy.
+
+Four things now stand between that and happening again:
+
+- **`reset.sh` removes `crewcomp_db-data` by name**, and nothing in `attest` passes `--volumes`.
+- **`attest backup` saves the identity** as `backups/ts-state-<date>.tar.gz`, and
+  `attest identity --restore <file> --yes` puts it back. That turns the identity from
+  irreplaceable into merely important.
+- **`attest` refuses to start a stack that would rename the node.** If the database volume exists
+  and `ts-state` does not, the identity has already been lost — so it stops and tells you to
+  restore rather than starting a stack that quietly re-registers.
+- **`attest status` asserts the node still calls itself `attest`**, so a broken share is something
+  you find rather than something the person you shared it with finds.
+
+Two properties of the node itself are deliberate, and both were verified in the admin console on
+27 August 2026:
+
+- **Untagged, and key expiry disabled.** Tagging would disable key expiry automatically, but
+  Tailscale is explicit that a tagged machine cannot be shared and that sharing strips tags — and
+  being shareable is the whole reason this app has its own node. So it stays untagged and the
+  expiry is switched off by hand.
+- **A reusable, non-ephemeral auth key.** An ephemeral node is deleted from the tailnet shortly
+  after it goes offline, which would lose the name and the share every time the stack stopped.
+  The key is only read when there is no state to reuse, but a reusable key's ceiling is 90 days —
+  so `.env` records `TS_AUTHKEY_ISSUED` and `attest status` warns past 80.
