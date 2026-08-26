@@ -109,26 +109,33 @@ env_fix() {
 # newest snapshot) and a bind mount pins whatever the path resolved to at container-creation time.
 # Resolving it here means the mount is the snapshot directory itself and `latest` moving under it
 # cannot silently leave the container serving the previous revision.
-load_env() {
-  env_check || die "run: attest env --fix"
-  set -a; . ./.env; set +a
-  # Tells reset.sh not to re-source .env and undo the path resolution below.
-  export ATTEST_ENV_LOADED=1
+# Named separately from load_env because `attest dataset X` must be able to ask "is X's data
+# actually here" BEFORE it writes X into .env — otherwise a mistyped or missing source leaves the
+# file pointing at a dataset that cannot be loaded, and every later command refuses to run.
+resolve_dataset_root() {
   local root
-  case "${CREWCOMP_DEV_SEED_DATASET:-synthetic}" in
+  case "${1:-synthetic}" in
     portal)
       root="$(readlink -f "${CREWCOMP_PORTAL_ROOT:-./portal}" 2>/dev/null || true)"
       [[ -n "$root" && -f "$root/portal-state.json" ]] ||
-        die "dataset is 'portal' but no portal-state.json under ${CREWCOMP_PORTAL_ROOT:-./portal} — run: attest snapshot"
+        die "the 'portal' dataset needs a portal-state.json under ${CREWCOMP_PORTAL_ROOT:-./portal} and there is none — run: attest snapshot"
       export CREWCOMP_PORTAL_ROOT="$root"
       ;;
     extracted)
       root="$(readlink -f "${CREWCOMP_EXTRACT_ROOT:-./extracts}" 2>/dev/null || true)"
       [[ -n "$root" && -d "$root/seed" ]] ||
-        die "dataset is 'extracted' but no seed/ under ${CREWCOMP_EXTRACT_ROOT:-./extracts}"
+        die "the 'extracted' dataset needs a seed/ directory under ${CREWCOMP_EXTRACT_ROOT:-./extracts} and there is none"
       export CREWCOMP_EXTRACT_ROOT="$root"
       ;;
   esac
+}
+
+load_env() {
+  env_check || die "run: attest env --fix"
+  set -a; . ./.env; set +a
+  # Tells reset.sh not to re-source .env and undo the path resolution.
+  export ATTEST_ENV_LOADED=1
+  resolve_dataset_root "${CREWCOMP_DEV_SEED_DATASET:-synthetic}"
 }
 
 # ---------------------------------------------------------------------------- tailnet identity
@@ -316,15 +323,17 @@ v_dataset() {
   case "$want" in synthetic|extracted|portal) ;; *) die "dataset must be synthetic, extracted or portal" ;; esac
   env_check || die "run: attest env --fix"
   assume_yes
+  set -a; . ./.env; set +a
 
   if (( refresh )); then
     [[ "$want" == portal ]] || die "--refresh only means anything for the portal dataset"
     v_snapshot
   fi
 
+  resolve_dataset_root "$want"   # is the data here at all? asked before .env is written
   sed -i "s|^CREWCOMP_DEV_SEED_DATASET=.*|CREWCOMP_DEV_SEED_DATASET=$want|" .env
   say "dataset is now '$want' in deploy/.env"
-  load_env                     # validates the source exists BEFORE the database is destroyed
+  load_env
   identity_preflight
   "$here/reset.sh" --yes
 }
