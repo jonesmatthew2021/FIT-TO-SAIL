@@ -26,6 +26,10 @@ fi
 read -r -p "Type the word 'destroy' to continue: " confirm
 [[ "$confirm" == destroy ]] || { echo "Nothing done."; exit 1; }
 
-docker compose down --volumes
+# Only the database volume. `down --volumes` would also destroy ts-state — the sidecar's tailnet
+# identity — and a re-registered node comes back as `attest-2`, breaking the stable name and any
+# machine share on the old device (this happened; the admin-console cleanup is no fun).
+docker compose down
+docker volume rm crewcomp_db-data
 docker compose up --detach --wait --wait-timeout 300
 docker compose ps
