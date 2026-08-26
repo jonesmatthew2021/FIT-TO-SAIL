@@ -304,6 +304,13 @@ v_dataset() {
 # it here is what makes loading fresh portal data a remote command rather than a copy from a laptop.
 v_snapshot() {
   local root="${COOLIBAH_PORTAL_ROOT:-$HOME/coolibah-portal}"
+  local base="${COOLIBAH_PORTAL_URL:-https://matt.tail029157.ts.net}"
+  # The portal is a laptop, so it is often simply off. The snapshot script's own timeout is 120s
+  # per request, which is a long time to wait to be told that — and over a tailnet the symptom of
+  # an offline peer is a connect that hangs rather than one that is refused. Ask cheaply first.
+  if ! curl -fsS --connect-timeout 10 -m 25 -o /dev/null "$base/portal-state.json"; then
+    die "$base is not answering — Matt's machine is probably off. Nothing was changed; the snapshot already under $root is untouched."
+  fi
   say "Snapshotting the Coolibah portal into $root"
   COOLIBAH_PORTAL_ROOT="$root" "$repo/scripts/portal-snapshot.sh" "$@"
   printf '  latest -> %s\n' "$(readlink -f "$root/latest")"
