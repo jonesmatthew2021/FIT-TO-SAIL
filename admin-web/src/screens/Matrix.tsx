@@ -1545,6 +1545,18 @@ function CrewMatrix(): React.ReactNode {
 
       {rows.length > 0 && (
         <div className="table-block">
+          {/* The legend sits above the grid: the grid's bottom edge is the horizontal scrollbar's
+              home, and anything below it pushes that bar off the screen. */}
+          <p className="matrix-legend matrix-legend--above">
+            A date is banded by distance from today’s business date — and a far-off date stays
+            plain rather than green, because a holding is a record, not a verdict ·{' '}
+            <span className="chip chip--muted chip--small">Held</span> never expires ·{' '}
+            <span className="chip chip--critical chip--small">Not held</span> confirmed missing ·{' '}
+            <span className="chip chip--caution chip--small">?</span> never established (chased on
+            the exceptions worklist) · <span className="level level--none">—</span> nothing
+            recorded · whether a holding <em>suffices</em> for a swing is the engine’s answer on{' '}
+            <strong>Generated per swing</strong>
+          </p>
           <div className="table-scroll table-scroll--fill">
             <table className="table matrix-grid matrix-grid--titled">
               <thead>
@@ -1574,7 +1586,7 @@ function CrewMatrix(): React.ReactNode {
                         <th scope="row">
                           {person.name} <span className="mono muted">{person.sam}</span>
                         </th>
-                        <td>{person.positionName}</td>
+                        <td className="matrix-grid__pos">{person.positionName}</td>
                         {columns.map((requirement) => (
                           <td key={requirement.id}>
                             <HoldingCell holding={holdingFor(person.id, requirement.id)} today={today} />
@@ -1587,17 +1599,6 @@ function CrewMatrix(): React.ReactNode {
               </tbody>
             </table>
           </div>
-
-          <p className="matrix-legend">
-            A date is banded by distance from today’s business date — and a far-off date stays
-            plain rather than green, because a holding is a record, not a verdict ·{' '}
-            <span className="chip chip--muted chip--small">Held</span> never expires ·{' '}
-            <span className="chip chip--critical chip--small">Not held</span> confirmed missing ·{' '}
-            <span className="chip chip--caution chip--small">?</span> never established (chased on
-            the exceptions worklist) · <span className="level level--none">—</span> nothing
-            recorded · whether a holding <em>suffices</em> for a swing is the engine’s answer on{' '}
-            <strong>Generated per swing</strong>
-          </p>
         </div>
       )}
     </section>

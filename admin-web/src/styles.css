@@ -1856,8 +1856,50 @@ select.input option {
    the vertical twin of the sticky row header's reason above. */
 .table-scroll--fill {
   overflow: auto;
-  max-height: calc(100vh - 330px);
+  /* Sized so the box's bottom edge — where its horizontal scrollbar lives — lands on screen:
+     the bar has to be reachable without first scrolling the page to the end of the grid. The
+     500px is everything above the grid (shell header, title, tabs, chips, controls, legend,
+     ~470px measured) plus breathing room; below the min-height the page scrolls instead. */
+  max-height: calc(100vh - 500px);
   min-height: 340px;
+}
+
+/* The scrollbars stay visible rather than appearing on hover: a grid 54 columns wide must
+   *look* scrollable, and the bottom bar is how a reader knows where they are in it. */
+.table-scroll--fill::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.table-scroll--fill::-webkit-scrollbar-track {
+  background: var(--color-neutral-900);
+  border-radius: 6px;
+}
+
+.table-scroll--fill::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-600);
+  border-radius: 6px;
+  border: 2px solid var(--color-neutral-900);
+}
+
+.table-scroll--fill::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-500);
+}
+
+/* Name and rank stay put while the dates scroll: the position column is sticky beside the crew
+   column (whose fixed 300px is what the offset leans on), so every date always has its person. */
+.matrix-grid--titled td.matrix-grid__pos,
+.matrix-grid--titled thead th:nth-child(2) {
+  position: sticky;
+  left: 300px;
+  background: var(--color-surface);
+  z-index: 1;
+  box-shadow: 1px 0 0 var(--color-neutral-900);
+  white-space: nowrap;
+}
+
+.table-scroll--fill thead th:nth-child(2) {
+  z-index: 3;
 }
 
 .table-scroll--fill thead th {
@@ -1987,6 +2029,11 @@ select.input option {
   margin: 12px 0 0;
   font-size: 12px;
   color: var(--color-neutral-600);
+}
+
+/* Above its grid rather than below — see the crew matrix, whose bottom edge is spoken for. */
+.matrix-legend--above {
+  margin: 0 0 10px;
 }
 
 .matrix-legend strong {
