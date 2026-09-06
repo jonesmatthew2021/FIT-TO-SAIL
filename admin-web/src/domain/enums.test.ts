@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
   CELL_STATE_ORDER,
+  EXPIRY_WINDOWS,
   QUEUE_STATUSES,
   REGISTER_OPEN_STATUSES,
   REGISTER_OUTCOMES,
   REQUIREMENT_CATEGORIES,
+  categoryLabel,
   cellState,
   cellStateRank,
   confidenceTone,
+  expiryWindow,
+  expiryWindowTone,
   needsAttention,
   notificationKind,
   registerStatusTone,
@@ -72,6 +76,17 @@ describe('cell state presentation', () => {
 describe('catalogue and register enumerations', () => {
   it('offers exactly the Appendix A requirement categories', () => {
     expect([...REQUIREMENT_CATEGORIES]).toEqual(['QL', 'VS', 'PS', 'MS', 'CS', 'HR', 'PT', 'VI', 'PI'])
+  })
+
+  it('expands every category, in the vocabulary the client portal states', () => {
+    // The expansions come from the Coolibah portal's own matrix filter — client-confirmed, not
+    // guessed. A code the portal never named still renders as itself rather than blanking.
+    for (const code of REQUIREMENT_CATEGORIES) {
+      expect(categoryLabel(code)).not.toBe(code)
+    }
+    expect(categoryLabel('QL')).toBe('Qualification')
+    expect(categoryLabel('HR')).toBe('High Risk Work Licence (HRWL)')
+    expect(categoryLabel('XX')).toBe('XX')
   })
 
   it('never offers a closed status as a transition', () => {
@@ -163,5 +178,33 @@ describe('evidence and notification enumerations', () => {
     // Both revisions are live during an expand/contract deploy, so a newer kind must not blank a row.
     expect(notificationKind('something_new_entirely').label).toBe('something_new_entirely')
     expect(verificationStatus('something_new').label).toBe('something_new')
+  })
+})
+
+/**
+ * The crew matrix's expiry windows. The bounds are inclusive and the bands butt against each other,
+ * so the boundary days are the whole test: a certificate on day 30 exactly must sit in the worst
+ * band, not fall between two.
+ */
+describe('expiry windows', () => {
+  it('bands the boundary days inclusively, worst first', () => {
+    expect(expiryWindow(-500)).toBe('w30') // long expired — the portal groups expired with ≤30
+    expect(expiryWindow(0)).toBe('w30')
+    expect(expiryWindow(30)).toBe('w30')
+    expect(expiryWindow(31)).toBe('w60')
+    expect(expiryWindow(60)).toBe('w60')
+    expect(expiryWindow(61)).toBe('w90')
+    expect(expiryWindow(90)).toBe('w90')
+    expect(expiryWindow(91)).toBe('beyond')
+  })
+
+  it('never tones a far-off date good — a holding is a record, not a verdict', () => {
+    // AUTH-1's line: whether holding something suffices is the engine's answer, and a green cell
+    // in the records view would make that claim for it.
+    for (const band of EXPIRY_WINDOWS) {
+      expect(expiryWindowTone(band.id)).not.toBe('good')
+    }
+    expect(expiryWindowTone(expiryWindow(2000))).toBe('muted')
+    expect(expiryWindowTone(expiryWindow(-1))).toBe('critical')
   })
 })

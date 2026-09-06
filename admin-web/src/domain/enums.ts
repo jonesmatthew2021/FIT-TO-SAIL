@@ -152,6 +152,37 @@ export function holdingStatus(status: string): StateDisplay {
   return HOLDING_STATUSES[status] ?? { label: status, tone: 'neutral', description: status }
 }
 
+/**
+ * The crew matrix's expiry windows — the Coolibah portal's four bands, in Nocturne's tones.
+ *
+ * These are **presentation grouping only**, same as [holdingTone]: they band a held certificate's
+ * date by distance from the business date so a wall of forty crew can be scanned, and they decide
+ * nothing. Note the last band is `muted`, not `good`, and that is the one deliberate departure from
+ * the portal this view is a port of: a date comfortably far away is still a record, not a verdict —
+ * whether holding it *suffices* is the engine's answer on the generated view (AUTH-1), and a green
+ * cell here would make that claim for it.
+ */
+export const EXPIRY_WINDOWS = [
+  { id: 'w30', label: 'Expired or within 30 days', maxDays: 30, tone: 'critical' },
+  { id: 'w60', label: '30–60 days', maxDays: 60, tone: 'warning' },
+  { id: 'w90', label: '60–90 days', maxDays: 90, tone: 'caution' },
+  { id: 'beyond', label: 'Beyond 90 days', maxDays: null, tone: 'muted' },
+] as const satisfies readonly { id: string; label: string; maxDays: number | null; tone: Tone }[]
+
+export type ExpiryWindowId = (typeof EXPIRY_WINDOWS)[number]['id']
+
+/** Which window a held certificate's days-to-expiry falls in. Bounds are inclusive, worst first. */
+export function expiryWindow(daysToExpiry: number): ExpiryWindowId {
+  if (daysToExpiry <= 30) return 'w30'
+  if (daysToExpiry <= 60) return 'w60'
+  if (daysToExpiry <= 90) return 'w90'
+  return 'beyond'
+}
+
+export function expiryWindowTone(id: ExpiryWindowId): Tone {
+  return EXPIRY_WINDOWS.find((window) => window.id === id)?.tone ?? 'muted'
+}
+
 export const HOLDING_STATUS_VALUES: readonly string[] = [
   'held_expiry',
   'held_perpetual',
@@ -198,15 +229,28 @@ export function roleLabel(role: string): string {
 }
 
 /**
- * Requirement categories are shown as their codes.
+ * Requirement category expansions, confirmed from the client's own vocabulary.
  *
- * Appendix A enumerates `QL · VS · PS · MS · CS · HR · PT · VI · PI` but nothing in the spec or
- * the POC says what they expand to. Guessing ("QL = Qualifications & Licences"?) would put an
- * invented label in front of users who know the real one, so the code stands until the client
- * confirms the expansions — a question for the same pass that resolves O-7.
+ * The rule here used to be "show the bare code until the client confirms the expansions" —
+ * guessed labels in front of users who know the real ones being worse than codes. The Coolibah
+ * portal (the `portal` dev dataset's source, maintained by the people who own the data) states
+ * them on its own matrix filter, and these are that list verbatim. An unknown code still shows
+ * as itself.
  */
+const CATEGORY_LABELS: Record<string, string> = {
+  QL: 'Qualification',
+  VS: 'Vessel Specific',
+  PS: 'Project Specific',
+  MS: 'Master Specific',
+  CS: 'Cargo System',
+  HR: 'High Risk Work Licence (HRWL)',
+  PT: 'Permit to Work',
+  VI: 'Vessel Induction',
+  PI: 'Project Induction',
+}
+
 export function categoryLabel(category: string): string {
-  return category
+  return CATEGORY_LABELS[category] ?? category
 }
 
 /**

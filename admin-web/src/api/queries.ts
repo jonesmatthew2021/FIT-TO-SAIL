@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query'
 import {
   api,
   type AcceptEvidenceRequest,
@@ -132,6 +138,39 @@ export function usePerson(personId: number): UseQueryResult<Person> {
 
 export function useHoldings(personId: number): UseQueryResult<Holding[]> {
   return useQuery({ queryKey: keys.holdings(personId), queryFn: () => api.holdings(personId) })
+}
+
+/**
+ * Every listed person's holdings at once, for the crew matrix (ADM-3's crew view).
+ *
+ * One query per person rather than a new bulk endpoint: the per-person query is what ADM-5
+ * already uses, so the keys are shared with it and a holding edit invalidates both screens
+ * through the same cache entry. A bulk endpoint is the right answer if the roster outgrows a
+ * request fan-out of this size — revisit past a few hundred people, not at forty.
+ */
+export function useAllHoldings(personIds: readonly number[]): {
+  byPerson: ReadonlyMap<number, Holding[]>
+  isPending: boolean
+  error: unknown
+} {
+  return useQueries({
+    queries: personIds.map((personId) => ({
+      queryKey: keys.holdings(personId),
+      queryFn: () => api.holdings(personId),
+    })),
+    combine: (results) => {
+      const byPerson = new Map<number, Holding[]>()
+      results.forEach((result, index) => {
+        const personId = personIds[index]
+        if (personId !== undefined && result.data !== undefined) byPerson.set(personId, result.data)
+      })
+      return {
+        byPerson,
+        isPending: results.some((result) => result.isPending),
+        error: results.find((result) => result.error !== null)?.error ?? null,
+      }
+    },
+  })
 }
 
 export function usePersonAssignments(personId: number): UseQueryResult<Assignment[]> {

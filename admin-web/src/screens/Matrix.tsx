@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  useAllHoldings,
   useClearMatrixCell,
   useCreateMatrixDraft,
   useDiscardMatrixDraft,
@@ -7,6 +8,7 @@ import {
   useMatrixVersion,
   useMatrixVersions,
   usePartnerships,
+  usePeople,
   usePositions,
   usePublishMatrixVersion,
   useRequirements,
@@ -15,7 +17,9 @@ import {
 } from '../api/queries'
 import {
   ApiError,
+  type Holding,
   type MatrixVersionSummary,
+  type Person,
   type Position,
   type Requirement,
 } from '../api/client'
@@ -27,8 +31,18 @@ import { Spinner } from '../components/Spinner'
 import { StateChip } from '../components/StateChip'
 import { SwingSelector } from '../components/SwingSelector'
 import { downloadCsv, toCsv } from '../domain/csv'
-import { formatDate } from '../domain/dates'
-import { matrixStatusTone, slotRef } from '../domain/enums'
+import { daysBetween, formatDate } from '../domain/dates'
+import {
+  EXPIRY_LEAD_DAYS_DEFAULT,
+  EXPIRY_WINDOWS,
+  REQUIREMENT_CATEGORIES,
+  categoryLabel,
+  expiryWindow,
+  expiryWindowTone,
+  matrixStatusTone,
+  slotRef,
+  type ExpiryWindowId,
+} from '../domain/enums'
 
 /** §5.5 restricts publication to the Compliance Lead; drafting and editing follow it. */
 const MATRIX_EDITORS = ['compliance_lead', 'system_administrator'] as const
@@ -37,7 +51,7 @@ const MATRIX_PUBLISHERS = ['compliance_lead'] as const
 /** The levels the editor offers. Anything else is a footnote label, typed in. */
 const COMMON_LEVELS = ['M', 'R'] as const
 
-type Tab = 'editor' | 'diff' | 'generated'
+type Tab = 'editor' | 'diff' | 'generated' | 'crew'
 
 /**
  * ADM-3 — the requirements matrix.
@@ -99,16 +113,23 @@ export function Matrix(): React.ReactNode {
         <TabButton current={tab} value="editor" label="Cell editor" onSelect={setTab} />
         <TabButton current={tab} value="diff" label="Diff" onSelect={setTab} />
         <TabButton current={tab} value="generated" label="Generated per swing" onSelect={setTab} />
+        <TabButton current={tab} value="crew" label="Crew matrix" onSelect={setTab} />
       </nav>
 
-      <VersionList
-        rows={rows}
-        selectedId={selected?.version.id ?? null}
-        canEdit={canEdit}
-        onSelect={(id) => setSelectedId(id)}
-      />
+      {/* The crew matrix reads holdings, not a matrix version, so it renders without the version
+          list — a reader arriving for "who holds what" should not scroll past versions to get it. */}
+      {tab === 'crew' && <CrewMatrix />}
 
-      {selected !== null && (
+      {tab !== 'crew' && (
+        <VersionList
+          rows={rows}
+          selectedId={selected?.version.id ?? null}
+          canEdit={canEdit}
+          onSelect={(id) => setSelectedId(id)}
+        />
+      )}
+
+      {tab !== 'crew' && selected !== null && (
         <>
           {tab === 'editor' && (
             <CellEditor summary={selected} versions={rows} canEdit={canEdit} canPublish={canPublish} />
@@ -1359,6 +1380,274 @@ function GeneratedGrid({
       </button>
     </>
   )
+}
+
+// ---------------------------------------------------------------------------
+// The crew matrix — every person's holdings, as the Coolibah portal drew them
+// ---------------------------------------------------------------------------
+
+/**
+ * Crew down, the whole catalogue across, the *holding* in each cell — a port of the Coolibah
+ * portal's CREW MATRIX page (the `portal` dev dataset's source), restyled onto Nocturne.
+ *
+ * This is the **records** view where the generated view is the **verdicts** view, and the split is
+ * AUTH-1's: a date here is banded by distance from the business date so forty crew can be scanned,
+ * but the band decides nothing, a far-away date is deliberately not green, and whether holding
+ * something *suffices* for a swing is only ever the engine's answer one tab over. The portal's
+ * "position differs from ticket" callout is deliberately not ported for the same reason — inferring
+ * it here from rank names would be compliance logic in the client.
+ */
+function CrewMatrix(): React.ReactNode {
+  const people = usePeople()
+  const requirements = useRequirements()
+  const today = useToday()
+  const personIds = (people.data ?? []).map((person) => person.id)
+  const holdings = useAllHoldings(personIds)
+
+  const [category, setCategory] = useState('all')
+  const [search, setSearch] = useState('')
+  const [window, setWindow] = useState<ExpiryWindowId | null>(null)
+  const [attentionOnly, setAttentionOnly] = useState(false)
+
+  if (people.isPending || requirements.isPending) {
+    return <Spinner label="Loading the crew" />
+  }
+  if (people.error !== null) {
+    return <ErrorPanel title="Could not load the crew" error={people.error} />
+  }
+  if (requirements.error !== null) {
+    return <ErrorPanel title="Could not load the catalogue" error={requirements.error} />
+  }
+  if (holdings.error !== null) {
+    return <ErrorPanel title="Could not load the holdings" error={holdings.error} />
+  }
+  if (holdings.isPending) {
+    return <Spinner label="Loading every crew member's holdings" />
+  }
+
+  const columns = [...requirements.data]
+    .filter((requirement) => requirement.status === 'active')
+    .filter((requirement) => category === 'all' || requirement.category === category)
+    .sort((a, b) => a.code.localeCompare(b.code))
+
+  const categories = REQUIREMENT_CATEGORIES.filter((code) =>
+    requirements.data.some((requirement) => requirement.category === code),
+  )
+
+  const holdingFor = (personId: number, requirementId: number): Holding | undefined =>
+    holdings.byPerson.get(personId)?.find((holding) => holding.requirementId === requirementId)
+
+  const cellWindow = (holding: Holding): ExpiryWindowId | null =>
+    holding.status === 'held_expiry' && holding.expiry !== null
+      ? expiryWindow(daysBetween(today, holding.expiry))
+      : null
+
+  /** Attention, in the holdings vocabulary: confirmed missing, never established, or inside the lead window. */
+  const wantsEyes = (holding: Holding): boolean =>
+    holding.status === 'not_held' ||
+    holding.status === 'unknown' ||
+    (holding.status === 'held_expiry' &&
+      holding.expiry !== null &&
+      daysBetween(today, holding.expiry) <= EXPIRY_LEAD_DAYS_DEFAULT)
+
+  const needle = search.trim().toLowerCase()
+  const rows = people.data.filter((person) => {
+    if (needle !== '' && !`${person.name} ${person.sam} ${person.positionName}`.toLowerCase().includes(needle)) {
+      return false
+    }
+    const visible = columns
+      .map((requirement) => holdingFor(person.id, requirement.id))
+      .filter((holding): holding is Holding => holding !== undefined)
+    if (window !== null && !visible.some((holding) => cellWindow(holding) === window)) return false
+    if (attentionOnly && !visible.some(wantsEyes)) return false
+    return true
+  })
+
+  // The four window counts tally what is on screen — same rule as every CSV export (§6): a count
+  // over rows the filters are hiding would disagree with the grid under it.
+  const windowCounts = new Map<ExpiryWindowId, number>()
+  for (const person of rows) {
+    for (const requirement of columns) {
+      const holding = holdingFor(person.id, requirement.id)
+      const id = holding === undefined ? null : cellWindow(holding)
+      if (id !== null) windowCounts.set(id, (windowCounts.get(id) ?? 0) + 1)
+    }
+  }
+
+  return (
+    <section className="section">
+      <div className="counts counts--inline" role="group" aria-label="Expiry windows">
+        {EXPIRY_WINDOWS.map((band) => (
+          <button
+            key={band.id}
+            type="button"
+            className={`chip chip--toggle chip--${band.id === window ? expiryWindowTone(band.id) : 'outline'}`}
+            aria-pressed={band.id === window}
+            title="Show only crew with a certificate in this window"
+            onClick={() => setWindow(window === band.id ? null : band.id)}
+          >
+            {windowCounts.get(band.id) ?? 0} {band.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="selector">
+        <input
+          className="input"
+          style={{ width: 280 }}
+          placeholder="Search crew, Sam # or position"
+          aria-label="Search crew"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+        <label className="check check--box">
+          <input
+            type="checkbox"
+            checked={attentionOnly}
+            onChange={(event) => setAttentionOnly(event.target.checked)}
+          />
+          <span className="dot" />
+          Needs attention
+        </label>
+        <div className="row-actions push">
+          <button
+            type="button"
+            className="button"
+            onClick={() => downloadCsv('crew-matrix.csv', crewMatrixCsv(rows, columns, holdingFor))}
+          >
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="seg" role="radiogroup" aria-label="Category">
+        {['all', ...categories].map((value) => (
+          <label key={value} className="seg__opt">
+            <input
+              type="radio"
+              name="crew-matrix-category"
+              value={value}
+              checked={category === value}
+              onChange={() => setCategory(value)}
+            />
+            {value === 'all' ? 'All' : categoryLabel(value)}
+          </label>
+        ))}
+      </div>
+
+      {rows.length === 0 && <p className="empty">No crew match these filters.</p>}
+
+      {rows.length > 0 && (
+        <div className="table-block">
+          <div className="table-scroll">
+            <table className="table matrix-grid">
+              <thead>
+                <tr>
+                  <th scope="col">Crew</th>
+                  <th scope="col">Position</th>
+                  {columns.map((requirement) => (
+                    <th key={requirement.id} scope="col" title={`${requirement.title} (${categoryLabel(requirement.category)})`}>
+                      <span className="mono">{requirement.code}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((person) => (
+                  <tr key={person.id}>
+                    <th scope="row">
+                      {person.name} <span className="mono muted">{person.sam}</span>
+                    </th>
+                    <td>{person.positionName}</td>
+                    {columns.map((requirement) => (
+                      <td key={requirement.id}>
+                        <HoldingCell holding={holdingFor(person.id, requirement.id)} today={today} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <p className="matrix-legend">
+            A date is banded by distance from today’s business date — and a far-off date stays
+            plain rather than green, because a holding is a record, not a verdict ·{' '}
+            <span className="chip chip--muted chip--small">Held</span> never expires ·{' '}
+            <span className="chip chip--critical chip--small">Not held</span> confirmed missing ·{' '}
+            <span className="chip chip--caution chip--small">?</span> never established (chased on
+            the exceptions worklist) · <span className="level level--none">—</span> nothing
+            recorded · whether a holding <em>suffices</em> for a swing is the engine’s answer on{' '}
+            <strong>Generated per swing</strong>
+          </p>
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** One holding as a grid cell: the date banded by window, or the status it does not have a date for. */
+function HoldingCell({
+  holding,
+  today,
+}: {
+  holding: Holding | undefined
+  today: string
+}): React.ReactNode {
+  if (holding === undefined) return <span className="level level--none">—</span>
+  if (holding.status === 'held_perpetual') {
+    return <span className="chip chip--muted chip--small" title="Held — does not expire">Held</span>
+  }
+  if (holding.status === 'not_held') {
+    return <span className="chip chip--critical chip--small" title="Confirmed not held">Not held</span>
+  }
+  if (holding.status === 'unknown') {
+    return <span className="chip chip--caution chip--small" title="Never established — on the chase list">?</span>
+  }
+  if (holding.expiry === null) {
+    return <span className="chip chip--muted chip--small">Held</span>
+  }
+  const days = daysBetween(today, holding.expiry)
+  const tone = expiryWindowTone(expiryWindow(days))
+  return (
+    <span
+      className={`chip chip--${tone} chip--small`}
+      title={days < 0 ? `Expired ${Math.abs(days)} days ago` : `Expires in ${days} days`}
+    >
+      {formatDate(holding.expiry)}
+    </span>
+  )
+}
+
+/** What is on screen, exactly (§6): the filtered people against the filtered columns. */
+function crewMatrixCsv(
+  people: readonly Person[],
+  columns: readonly Requirement[],
+  holdingFor: (personId: number, requirementId: number) => Holding | undefined,
+): string {
+  const rows = people.flatMap((person) =>
+    columns.map((requirement) => {
+      const holding = holdingFor(person.id, requirement.id)
+      return {
+        sam: person.sam,
+        name: person.name,
+        position: person.positionName,
+        code: requirement.code,
+        title: requirement.title,
+        status: holding?.status ?? '',
+        expiry: holding?.expiry ?? '',
+      }
+    }),
+  )
+  return toCsv(rows, [
+    { header: 'Sam #', value: (row) => row.sam },
+    { header: 'Name', value: (row) => row.name },
+    { header: 'Position', value: (row) => row.position },
+    { header: 'Requirement', value: (row) => row.code },
+    { header: 'Title', value: (row) => row.title },
+    { header: 'Holding', value: (row) => row.status },
+    { header: 'Expiry', value: (row) => row.expiry },
+  ])
 }
 
 function errorText(error: unknown): string {
