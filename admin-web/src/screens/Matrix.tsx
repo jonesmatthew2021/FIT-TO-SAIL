@@ -1546,14 +1546,17 @@ function CrewMatrix(): React.ReactNode {
       {rows.length > 0 && (
         <div className="table-block">
           <div className="table-scroll table-scroll--fill">
-            <table className="table matrix-grid">
+            <table className="table matrix-grid matrix-grid--titled">
               <thead>
                 <tr>
                   <th scope="col">Crew</th>
                   <th scope="col">Position</th>
+                  {/* The code alone is a key only its author can read — the title in words is the
+                      header, the code its handle. */}
                   {columns.map((requirement) => (
-                    <th key={requirement.id} scope="col" title={`${requirement.title} (${categoryLabel(requirement.category)})`}>
+                    <th key={requirement.id} scope="col" title={categoryLabel(requirement.category)}>
                       <span className="mono">{requirement.code}</span>
+                      <span className="th-title">{requirement.title}</span>
                     </th>
                   ))}
                 </tr>

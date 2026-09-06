@@ -1873,6 +1873,26 @@ select.input option {
   z-index: 3;
 }
 
+/* Crew-matrix column headers carry the requirement's title in words under its code — the code
+   alone is a key only its author can read. The width bounds are what keep 54 titled columns
+   scannable: narrower and every title wraps to five lines, wider and the grid doubles in length. */
+.matrix-grid--titled thead th:has(.th-title) {
+  min-width: 108px;
+  max-width: 132px;
+  white-space: normal;
+}
+
+.matrix-grid--titled .th-title {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--color-neutral-500);
+}
+
 /* A rank-group divider row. The label is itself sticky against horizontal scroll for the same
    reason the row headers are: a heading that has scrolled away labels nothing. */
 .matrix-grid__group th {
