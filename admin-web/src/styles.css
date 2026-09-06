@@ -1845,6 +1845,53 @@ select.input option {
   min-width: 820px;
 }
 
+/* The crew matrix is the one screen whose subject is a 40 × 54 grid, so it alone escapes the
+   content column: the shell's max-width would give a third of the viewport to margins. */
+.screen--full {
+  max-width: none;
+}
+
+/* A grid taller than the viewport scrolls inside its own box, with the header row pinned — a
+   date column whose code has scrolled off the top is a column of dates attached to nothing,
+   the vertical twin of the sticky row header's reason above. */
+.table-scroll--fill {
+  overflow: auto;
+  max-height: calc(100vh - 330px);
+  min-height: 340px;
+}
+
+.table-scroll--fill thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  z-index: 2;
+}
+
+/* The corner cell is sticky both ways, or the crew column slides under a floating header. */
+.table-scroll--fill thead th:first-child {
+  left: 0;
+  z-index: 3;
+}
+
+/* A rank-group divider row. The label is itself sticky against horizontal scroll for the same
+   reason the row headers are: a heading that has scrolled away labels nothing. */
+.matrix-grid__group th {
+  text-align: left;
+  padding: 14px 0 6px;
+  background: var(--color-surface);
+}
+
+.matrix-grid__group span {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-neutral-500);
+}
+
 /* The row header is sticky horizontally: the grid scrolls sideways, and a row whose requirement
    code has scrolled away is a row of levels attached to nothing. */
 .matrix-grid th[scope='row'] {

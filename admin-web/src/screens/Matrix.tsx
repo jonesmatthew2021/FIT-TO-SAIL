@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import {
   useAllHoldings,
   useClearMatrixCell,
@@ -98,7 +98,7 @@ export function Matrix(): React.ReactNode {
     null
 
   return (
-    <div className="screen">
+    <div className={tab === 'crew' ? 'screen screen--full' : 'screen'}>
       <header className="screen__header">
         <h1 className="screen__title">Matrix</h1>
         <p className="screen__subtitle">
@@ -1513,7 +1513,13 @@ function CrewMatrix(): React.ReactNode {
           <button
             type="button"
             className="button"
-            onClick={() => downloadCsv('crew-matrix.csv', crewMatrixCsv(rows, columns, holdingFor))}
+            onClick={() =>
+              // The CSV carries the rows in the order the screen shows them — rank order.
+              downloadCsv(
+                'crew-matrix.csv',
+                crewMatrixCsv(groupByRank(rows).flatMap((group) => group.people), columns, holdingFor),
+              )
+            }
           >
             Export CSV
           </button>
@@ -1539,7 +1545,7 @@ function CrewMatrix(): React.ReactNode {
 
       {rows.length > 0 && (
         <div className="table-block">
-          <div className="table-scroll">
+          <div className="table-scroll table-scroll--fill">
             <table className="table matrix-grid">
               <thead>
                 <tr>
@@ -1553,18 +1559,27 @@ function CrewMatrix(): React.ReactNode {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((person) => (
-                  <tr key={person.id}>
-                    <th scope="row">
-                      {person.name} <span className="mono muted">{person.sam}</span>
-                    </th>
-                    <td>{person.positionName}</td>
-                    {columns.map((requirement) => (
-                      <td key={requirement.id}>
-                        <HoldingCell holding={holdingFor(person.id, requirement.id)} today={today} />
-                      </td>
+                {groupByRank(rows).map((group) => (
+                  <Fragment key={group.label}>
+                    <tr className="matrix-grid__group">
+                      <th scope="colgroup" colSpan={columns.length + 2}>
+                        <span>{group.label}</span>
+                      </th>
+                    </tr>
+                    {group.people.map((person) => (
+                      <tr key={person.id}>
+                        <th scope="row">
+                          {person.name} <span className="mono muted">{person.sam}</span>
+                        </th>
+                        <td>{person.positionName}</td>
+                        {columns.map((requirement) => (
+                          <td key={requirement.id}>
+                            <HoldingCell holding={holdingFor(person.id, requirement.id)} today={today} />
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -1584,6 +1599,36 @@ function CrewMatrix(): React.ReactNode {
       )}
     </section>
   )
+}
+
+/**
+ * The rank groups, in sailing order: Master, then Officers, Deck crew, Engineers, Stewards, Cooks.
+ *
+ * Presentation grouping only, matched on the position's *name* because that is all `PersonDto`
+ * carries — a position no pattern recognises lands in a trailing group rather than vanishing,
+ * for the same reason an unknown enum value renders as its wire value. A group with nobody in it
+ * is not rendered at all (there are no stewards on the current roster, and an empty STEWARDS
+ * heading would be a claim about the roster this view has no business making).
+ */
+const RANK_GROUPS: readonly { label: string; matches: (positionName: string) => boolean }[] = [
+  { label: 'Master', matches: (name) => /\bmaster\b/i.test(name) },
+  { label: 'Officers', matches: (name) => /officer|mate/i.test(name) },
+  { label: 'Deck crew', matches: (name) => /gph|deck|rating|seafarer/i.test(name) },
+  { label: 'Engineers', matches: (name) => /engineer/i.test(name) },
+  { label: 'Stewards', matches: (name) => /steward/i.test(name) },
+  { label: 'Cooks', matches: (name) => /cook|chef/i.test(name) },
+]
+
+function rankGroup(positionName: string): string {
+  return RANK_GROUPS.find((group) => group.matches(positionName))?.label ?? 'Other positions'
+}
+
+/** The filtered people, grouped in RANK_GROUPS order; empty groups dropped, unmatched last. */
+function groupByRank(people: readonly Person[]): { label: string; people: Person[] }[] {
+  const order = [...RANK_GROUPS.map((group) => group.label), 'Other positions']
+  return order
+    .map((label) => ({ label, people: people.filter((person) => rankGroup(person.positionName) === label) }))
+    .filter((group) => group.people.length > 0)
 }
 
 /** One holding as a grid cell: the date banded by window, or the status it does not have a date for. */
