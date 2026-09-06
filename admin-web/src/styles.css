@@ -137,9 +137,11 @@
   /* Layout constants the screens share. */
   --shell-header-h: 52px;
   --shell-nav-w: 236px;
-  --content-max: 1180px;
-  --content-max-split: 1320px;
-  --content-max-narrow: 1100px;
+  /* Every screen fills the window (the client's call: the office runs this on wide monitors and
+     the grids are the point). The three caps stay as tokens so a screen can opt back in. */
+  --content-max: none;
+  --content-max-split: none;
+  --content-max-narrow: none;
 }
 
 *,
@@ -478,9 +480,9 @@ a:hover {
   gap: 26px;
 }
 
-/* ADM-8 is one column of cards and reads worse the wider it gets. */
+/* ADM-8 is one column of cards; it fills the window like every other screen. */
 .screen--column {
-  max-width: 900px;
+  max-width: none;
   gap: 20px;
 }
 
@@ -519,7 +521,7 @@ a:hover {
 
 .screen__subtitle {
   margin: 10px 0 0;
-  max-width: 620px;
+  max-width: 960px;
   font-size: 13.5px;
   color: var(--color-neutral-500);
 }
@@ -2646,12 +2648,13 @@ select.input option {
   background: var(--color-surface);
   color: var(--color-text);
   box-shadow: var(--shadow-lg);
-  width: min(720px, calc(100vw - 40px));
-  max-height: calc(100vh - 80px);
+  /* Dialogs fill the window too, bar a margin that keeps the backdrop visible as a backdrop. */
+  width: calc(100vw - 80px);
+  max-height: calc(100vh - 60px);
 }
 
 .modal--wide {
-  width: min(1150px, calc(100vw - 40px));
+  width: calc(100vw - 80px);
 }
 
 .modal::backdrop {
