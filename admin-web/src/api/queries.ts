@@ -668,10 +668,8 @@ export function useExtractEvidence() {
 // ADM-12 — certificates on file
 // ---------------------------------------------------------------------------
 
-/** The read step writes nothing, so nothing is invalidated: the reading lives in the caller's state. */
-export function useOfficeRead() {
-  return useMutation({ mutationFn: (file: File) => api.officeRead(file) })
-}
+// The read step is deliberately not a hook: it writes nothing, must never be retried (a model
+// call with a bill behind it), and the screen drives it as a plain promise — see Certificates.
 
 export function useOfficeFile() {
   return useEvidenceMutation(({ intakeId, body }: { intakeId: string; body: FileIntakeRequest }) =>

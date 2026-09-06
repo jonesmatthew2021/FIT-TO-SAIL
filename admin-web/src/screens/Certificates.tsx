@@ -6,7 +6,6 @@ import {
   useCreatePerson,
   useEvidenceQueue,
   useOfficeFile,
-  useOfficeRead,
   usePartnerships,
   usePeople,
   usePositions,
@@ -520,9 +519,9 @@ function IntakeDialog({
   onDone: () => void
   onCancelAll: () => void
 }): React.ReactNode {
-  const read = useOfficeRead()
   const fileIt = useOfficeFile()
   const [reading, setReading] = useState<IntakeReading | null>(null)
+  const [readError, setReadError] = useState<unknown>(null)
   const [personId, setPersonId] = useState<number | null>(null)
   const [adding, setAdding] = useState(false)
   const [requirementId, setRequirementId] = useState<number | null>(null)
@@ -531,14 +530,15 @@ function IntakeDialog({
   const [issueDate, setIssueDate] = useState('')
   const startedFor = useRef<File | null>(null)
 
-  // One read per file — a mutation rather than a query because it is a model call with a bill
-  // behind it, and React Query must not retry it on its own. The ref keeps StrictMode's doubled
-  // effect from reading (and paying) twice.
+  // One read per file, as a plain promise rather than a React Query mutation: it is a model call
+  // with a bill behind it, so nothing may retry it, and StrictMode's doubled mount detaches a
+  // mutation's listener mid-flight (the reading then never lands). The ref keeps the doubled
+  // effect from reading — and paying — twice.
   useEffect(() => {
     if (startedFor.current === file) return
     startedFor.current = file
-    read.mutate(file, {
-      onSuccess: (result) => {
+    api.officeRead(file).then(
+      (result) => {
         setReading(result)
         const bestPerson = result.people[0]
         setPersonId(bestPerson?.person.id ?? null)
@@ -549,18 +549,18 @@ function IntakeDialog({
         setExpiry(readExpiry !== null && ISO_DATE.test(readExpiry) ? readExpiry : '')
         setIssueDate(readIssue !== null && ISO_DATE.test(readIssue) ? readIssue : '')
       },
-    })
-    // `read` is a fresh object every render; the file is the only real dependency.
+      (error: unknown) => setReadError(error),
+    )
   }, [file])
 
   const note = remaining > 0 ? `${file.name} · ${remaining} more to go` : file.name
 
   return (
     <Modal title="Filing a certificate" note={note} wide onClose={onCancelAll}>
-      {read.isPending && <Spinner label="Reading the certificate" />}
-      {read.error !== null && (
+      {reading === null && readError === null && <Spinner label="Reading the certificate" />}
+      {readError !== null && (
         <>
-          <ErrorPanel title="The certificate could not be read" error={read.error} />
+          <ErrorPanel title="The certificate could not be read" error={readError} />
           <div className="editor__actions">
             <button type="button" className="button" onClick={onDone}>
               Skip this file
