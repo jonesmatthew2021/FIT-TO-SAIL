@@ -246,16 +246,22 @@ function CustomerCard({
                     {partnership.vesselClass !== null && ` · ${partnership.vesselClass}`}
                   </p>
                 </div>
-                {canEdit && (
-                  <button
-                    type="button"
-                    className="button button--quiet"
-                    disabled={detach.isPending}
-                    onClick={() => detach.mutate(partnership.id)}
-                  >
-                    Detach
-                  </button>
-                )}
+                <div className="row-actions">
+                  {/* Every ship carries the whole compliance set from the moment it exists. */}
+                  <Link className="button" to={`/?customer=${customer.id}&operation=${partnership.id}`}>
+                    Open this ship's compliance
+                  </Link>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className="button button--quiet"
+                      disabled={detach.isPending}
+                      onClick={() => detach.mutate(partnership.id)}
+                    >
+                      Detach
+                    </button>
+                  )}
+                </div>
               </div>
               <FleetList partnership={partnership} vessels={ships} canEdit={canEdit} />
               <div className="rule-cards">

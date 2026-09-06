@@ -1,6 +1,13 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../api/session'
-import { useCrewRequestSummary, useCustomerScope, useCustomers, useNotificationSummary } from '../api/queries'
+import {
+  useAllPartnerships,
+  useCrewRequestSummary,
+  useCustomerScope,
+  useCustomers,
+  useNotificationSummary,
+  useVessels,
+} from '../api/queries'
 import { writeDevIdentity } from '../api/client'
 import { formatDate } from '../domain/dates'
 import { roleLabel } from '../domain/enums'
@@ -178,14 +185,70 @@ function CompanyGroup(): React.ReactNode {
         ))}
         <option value={MANAGE}>Manage customers…</option>
       </select>
+      {scope.customer !== null && <ShipBox customerId={scope.customer.id} partnershipIds={scope.customer.partnershipIds} />}
     </>
   )
 }
 
-/** The compliance menu — for the customer in the box, or for everyone. */
+/**
+ * The ship box, under the customer box: that customer's operations, named by the vessels on
+ * them. Choosing one is what gives the ship its own copy of the compliance menu below.
+ */
+function ShipBox({ customerId, partnershipIds }: { customerId: number; partnershipIds: readonly number[] }): React.ReactNode {
+  const partnerships = useAllPartnerships()
+  const vessels = useVessels()
+  const scope = useCustomerScope()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const ships = (partnerships.data ?? []).filter((partnership) => partnershipIds.includes(partnership.id))
+
+  return (
+    <select
+      className="input nav__select"
+      aria-label="Ship"
+      value={scope.operationId ?? ''}
+      onChange={(event) => {
+        const value = event.target.value
+        void navigate(
+          value === ''
+            ? `${location.pathname}?customer=${customerId}`
+            : `${location.pathname}?customer=${customerId}&operation=${value}`,
+        )
+      }}
+    >
+      <option value="">All ships</option>
+      {ships.map((partnership) => (
+        <option key={partnership.id} value={partnership.id}>
+          {shipLabel(partnership.id, partnership.abbrev, partnership.name, vessels.data ?? [])}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+/** "TSV Coolibah" where the operation has vessels; its own name where it has none yet. */
+export function shipLabel(
+  partnershipId: number,
+  abbrev: string,
+  name: string,
+  vessels: readonly { partnershipId: number; name: string }[],
+): string {
+  const own = vessels.filter((vessel) => vessel.partnershipId === partnershipId).map((vessel) => vessel.name)
+  return own.length > 0 ? `${own.join(' + ')} (${abbrev})` : `${name} (${abbrev})`
+}
+
+/** The compliance menu — for the ship in the box, the customer's ships, or everyone's. */
 function ComplianceGroup(): React.ReactNode {
   const scope = useCustomerScope()
-  const label = scope.customer === null ? 'Compliance' : `Compliance · ${scope.customer.shortName ?? scope.customer.name}`
+  const partnerships = useAllPartnerships()
+  const vessels = useVessels()
+  const ship = scope.operationId === null ? undefined : partnerships.data?.find((p) => p.id === scope.operationId)
+  const label =
+    ship !== undefined
+      ? `Compliance · ${shipLabel(ship.id, ship.abbrev, ship.name, vessels.data ?? [])}`
+      : scope.customer === null
+        ? 'Compliance'
+        : `Compliance · ${scope.customer.shortName ?? scope.customer.name}`
   return (
     <NavGroup
       label={label}

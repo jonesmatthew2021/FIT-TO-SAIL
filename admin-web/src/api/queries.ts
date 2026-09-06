@@ -186,10 +186,13 @@ export function useDetachPartnership() {
 }
 
 /**
- * The customer scope: `?customer=<id>` on the URL, set by the rail's per-customer copy of the
- * compliance menu. Under it, [usePartnerships] and [usePeople] return only that customer's
- * operations and crew, so every screen built on them — dashboard, planner, people, register,
- * the crew matrix — becomes that customer's view without knowing it. No scope, every customer.
+ * The scope every compliance screen is viewed under: a customer, and within it a ship.
+ *
+ * `?customer=<id>` narrows to that customer's operations; `?operation=<id>` narrows to one of
+ * them — the ship. Under a scope, [usePartnerships] and [usePeople] return only what is in it, so
+ * every screen built on them — dashboard, planner, people, register, the crew matrix — becomes
+ * that ship's view without knowing it. That is how a new ship carries the whole compliance set the
+ * moment it exists: the screens are views over its data, not things to be set up.
  *
  * Presentation only: the server still scopes by role (AUTH-2); this narrows what one screen shows.
  * `partnershipIds` is null while the customer list is still loading, which means "not yet
@@ -198,25 +201,44 @@ export function useDetachPartnership() {
 export function useCustomerScope(): {
   customerId: number | null
   customer: Customer | null
+  /** The ship (operation) in scope, when one is. */
+  operationId: number | null
   partnershipIds: ReadonlySet<number> | null
-  /** `?customer=<id>` or empty — for links that should stay in the scope. */
+  /** `?customer=<id>[&operation=<id>]` or empty — for links that should stay in the scope. */
   suffix: string
 } {
   const [params] = useSearchParams()
-  const raw = params.get('customer')
-  const customerId = raw === null || raw === '' || Number.isNaN(Number(raw)) ? null : Number(raw)
+  const customerId = numberParam(params.get('customer'))
+  const operationId = numberParam(params.get('operation'))
   const customers = useCustomers()
   const customer = customerId === null ? null : (customers.data?.find((c) => c.id === customerId) ?? null)
-  const partnershipIds =
-    customerId === null ? null : customer === null ? null : new Set(customer.partnershipIds)
-  return {
-    customerId,
-    customer,
-    // A scope that names a customer the list does not carry filters to nothing rather than to
-    // everything: a stale link must not quietly show the wrong company's crew.
-    partnershipIds: customerId !== null && customers.data !== undefined && customer === null ? new Set() : partnershipIds,
-    suffix: customerId === null ? '' : `?customer=${customerId}`,
+
+  let partnershipIds: ReadonlySet<number> | null = null
+  if (customerId !== null) {
+    if (customer !== null) {
+      // A ship the customer does not have filters to nothing, for the same reason as below.
+      partnershipIds =
+        operationId === null
+          ? new Set(customer.partnershipIds)
+          : new Set(customer.partnershipIds.filter((id) => id === operationId))
+    } else if (customers.data !== undefined) {
+      // A scope that names a customer the list does not carry filters to nothing rather than to
+      // everything: a stale link must not quietly show the wrong company's crew.
+      partnershipIds = new Set()
+    }
   }
+
+  const suffix =
+    customerId === null
+      ? ''
+      : operationId === null
+        ? `?customer=${customerId}`
+        : `?customer=${customerId}&operation=${operationId}`
+  return { customerId, customer, operationId, partnershipIds, suffix }
+}
+
+function numberParam(raw: string | null): number | null {
+  return raw === null || raw === '' || Number.isNaN(Number(raw)) ? null : Number(raw)
 }
 
 /** Every partnership, whatever the scope — the company screen's own view. */
