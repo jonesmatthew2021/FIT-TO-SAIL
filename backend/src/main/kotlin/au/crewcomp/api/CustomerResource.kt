@@ -81,7 +81,46 @@ class CustomerResource(private val customers: CustomerService) {
     @Operation(summary = "Detach a partnership from its customer — audited on the partnership")
     fun detach(@PathParam("partnershipId") partnershipId: Long): PartnershipDto =
         customers.attachPartnership(partnershipId, null).toDto()
+
+    // --- The fleet ---------------------------------------------------------------------------
+
+    @POST
+    @Path("/{customerId}/partnerships")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Add an operation (a partnership) for this customer — audited")
+    fun createPartnership(
+        @PathParam("customerId") customerId: Long,
+        request: CreatePartnershipRequest,
+    ): PartnershipDto =
+        customers.createPartnership(customerId, request.abbrev, request.name, request.vesselClass).toDto()
+
+    @GET
+    @Path("/vessels")
+    @Operation(summary = "Every vessel, by operation then name — the fleet view")
+    fun vessels(): List<VesselDto> = customers.listVessels().map { it.toDto() }
+
+    @POST
+    @Path("/partnerships/{partnershipId}/vessels")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Add a vessel to an operation — audited")
+    fun addVessel(@PathParam("partnershipId") partnershipId: Long, request: AddVesselRequest): VesselDto =
+        customers.addVessel(partnershipId, request.name, request.kind).toDto()
+
+    @DELETE
+    @Path("/vessels/{vesselId}")
+    @Operation(summary = "Remove a vessel — audited")
+    fun removeVessel(@PathParam("vesselId") vesselId: Long): Response {
+        customers.removeVessel(vesselId)
+        return Response.noContent().build()
+    }
 }
+
+fun au.crewcomp.reference.Vessel.toDto() = VesselDto(
+    id = requiredId,
+    name = name,
+    kind = kind,
+    partnershipId = partnership.requiredId,
+)
 
 fun Customer.toDto(partnerships: List<au.crewcomp.reference.Partnership>) = CustomerDto(
     id = requiredId,

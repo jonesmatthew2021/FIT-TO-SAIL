@@ -65,6 +65,14 @@ data class CustomerDto(
     val partnershipIds: List<Long>,
 )
 
+/** A vessel in the fleet, on the operation it sails for. */
+data class VesselDto(val id: Long, val name: String, val kind: String, val partnershipId: Long)
+
+data class AddVesselRequest(val name: String, val kind: String)
+
+/** A new operation under a customer: the code the calendar and register key on, its name, its class. */
+data class CreatePartnershipRequest(val abbrev: String, val name: String, val vesselClass: String? = null)
+
 /** Create and update share a body; status is only read on update (a new customer is active). */
 data class SaveCustomerRequest(
     val name: String,

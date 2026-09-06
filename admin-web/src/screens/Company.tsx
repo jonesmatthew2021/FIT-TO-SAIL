@@ -1,17 +1,28 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
+  useAddVessel,
   useAllPartnerships,
   useAttachPartnership,
   useCreateCustomer,
+  useCreatePartnership,
   useCustomerScope,
   useCustomers,
   useDeleteCustomer,
   useDetachPartnership,
+  useRemoveVessel,
   useUnattachedPartnerships,
   useUpdateCustomer,
+  useVessels,
 } from '../api/queries'
-import { ApiError, type Customer, type Partnership, type Person, type SaveCustomerRequest } from '../api/client'
+import {
+  ApiError,
+  type Customer,
+  type Partnership,
+  type Person,
+  type SaveCustomerRequest,
+  type Vessel,
+} from '../api/client'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { keys } from '../api/queries'
@@ -36,15 +47,17 @@ const CUSTOMER_EDITORS = ['compliance_lead', 'system_administrator'] as const
 export function Company(): React.ReactNode {
   const customers = useCustomers()
   const partnerships = useAllPartnerships()
+  const vessels = useVessels()
   // Unscoped on purpose: this screen shows every customer's crew counts, whatever the rail has open.
   const people = useQuery({ queryKey: keys.people, queryFn: api.people })
   const scope = useCustomerScope()
   const canEdit = useHasRole(...CUSTOMER_EDITORS)
   const [adding, setAdding] = useState(false)
 
-  if (customers.isPending || partnerships.isPending || people.isPending) {
+  if (customers.isPending || partnerships.isPending || people.isPending || vessels.isPending) {
     return <Spinner label="Loading the customers" />
   }
+  if (vessels.error !== null) return <ErrorPanel title="Could not load the fleet" error={vessels.error} />
   if (customers.error !== null) return <ErrorPanel title="Could not load the customers" error={customers.error} />
   if (partnerships.error !== null) {
     return <ErrorPanel title="Could not load the partnerships" error={partnerships.error} />
@@ -76,6 +89,9 @@ export function Company(): React.ReactNode {
           {partnerships.data.length === 1 ? 'partnership' : 'partnerships'}
         </span>
         <span className="counts__item">
+          <span className="counts__value">{vessels.data.length}</span> {vessels.data.length === 1 ? 'vessel' : 'vessels'}
+        </span>
+        <span className="counts__item">
           <span className="counts__value">{people.data.length}</span> crew
         </span>
         {canEdit && scope.customerId === null && (
@@ -101,6 +117,7 @@ export function Company(): React.ReactNode {
           partnerships={customer.partnershipIds
             .map((id) => partnershipById.get(id))
             .filter((partnership): partnership is Partnership => partnership !== undefined)}
+          vessels={vessels.data}
           people={people.data}
           canEdit={canEdit}
         />
@@ -114,16 +131,19 @@ export function Company(): React.ReactNode {
 function CustomerCard({
   customer,
   partnerships,
+  vessels,
   people,
   canEdit,
 }: {
   customer: Customer
   partnerships: readonly Partnership[]
+  vessels: readonly Vessel[]
   people: readonly Person[]
   canEdit: boolean
 }): React.ReactNode {
   const [editing, setEditing] = useState(false)
   const [removing, setRemoving] = useState(false)
+  const [addingOperation, setAddingOperation] = useState(false)
   const [attaching, setAttaching] = useState<number | ''>('')
   const unattached = useUnattachedPartnerships()
   const attach = useAttachPartnership()
@@ -131,6 +151,7 @@ function CustomerCard({
   const remove = useDeleteCustomer()
   const partnershipIds = new Set(partnerships.map((partnership) => partnership.id))
   const crew = people.filter((person) => partnershipIds.has(person.partnershipId))
+  const fleet = vessels.filter((vessel) => partnershipIds.has(vessel.partnershipId))
 
   return (
     <section className="section">
@@ -146,7 +167,8 @@ function CustomerCard({
             </span>
           </h2>
           <p className="section__note">
-            {partnerships.length} {partnerships.length === 1 ? 'partnership' : 'partnerships'} · {crew.length} crew
+            {partnerships.length} {partnerships.length === 1 ? 'operation' : 'operations'} · {fleet.length}{' '}
+            {fleet.length === 1 ? 'vessel' : 'vessels'} · {crew.length} crew
             {customer.contactName !== null && ` · ${customer.contactName}`}
             {customer.contactEmail !== null && ` · ${customer.contactEmail}`}
             {customer.contactPhone !== null && ` · ${customer.contactPhone}`}
@@ -156,6 +178,11 @@ function CustomerCard({
           <Link className="button" to={`/?customer=${customer.id}`}>
             Open compliance
           </Link>
+          {canEdit && (
+            <button type="button" className="button" onClick={() => setAddingOperation(true)}>
+              Add operation
+            </button>
+          )}
           {canEdit && (
             <button type="button" className="button button--quiet" onClick={() => setEditing(true)}>
               Edit
@@ -198,10 +225,14 @@ function CustomerCard({
 
       <div className="panel">
         {partnerships.length === 0 && (
-          <p className="section__note">No operations attached yet — nothing to evaluate until one is.</p>
+          <p className="section__note">
+            No operations yet — add one above (a vessel or vessel pairing with its own roster), or attach
+            an existing one below.
+          </p>
         )}
         {partnerships.map((partnership) => {
           const own = people.filter((person) => person.partnershipId === partnership.id)
+          const ships = vessels.filter((vessel) => vessel.partnershipId === partnership.id)
           const groups = groupByRank(own)
           return (
             <div key={partnership.id} className="section">
@@ -211,7 +242,7 @@ function CustomerCard({
                     <span className="mono">{partnership.abbrev}</span> · {partnership.name}
                   </h3>
                   <p className="section__note">
-                    {own.length} crew
+                    {ships.length} {ships.length === 1 ? 'vessel' : 'vessels'} · {own.length} crew
                     {partnership.vesselClass !== null && ` · ${partnership.vesselClass}`}
                   </p>
                 </div>
@@ -226,6 +257,7 @@ function CustomerCard({
                   </button>
                 )}
               </div>
+              <FleetList partnership={partnership} vessels={ships} canEdit={canEdit} />
               <div className="rule-cards">
                 {groups.map((group) => (
                   <div key={group.label}>
@@ -283,7 +315,135 @@ function CustomerCard({
       </div>
 
       {editing && <CustomerForm existing={customer} onClose={() => setEditing(false)} />}
+      {addingOperation && <OperationForm customer={customer} onClose={() => setAddingOperation(false)} />}
     </section>
+  )
+}
+
+/** The vessels on one operation, with add and remove. A customer's fleet is the sum of these. */
+function FleetList({
+  partnership,
+  vessels,
+  canEdit,
+}: {
+  partnership: Partnership
+  vessels: readonly Vessel[]
+  canEdit: boolean
+}): React.ReactNode {
+  const add = useAddVessel()
+  const remove = useRemoveVessel()
+  const [name, setName] = useState('')
+  const [kind, setKind] = useState('tug')
+
+  return (
+    <div className="tint-card">
+      {vessels.length === 0 && <p className="section__note">No vessels recorded on {partnership.abbrev} yet.</p>}
+      {vessels.length > 0 && (
+        <ul className="list-plain list-plain--tight">
+          {vessels.map((vessel) => (
+            <li key={vessel.id} className="tag-row">
+              <span className="chip chip--muted chip--small">{vessel.kind}</span>
+              <span>{vessel.name}</span>
+              {canEdit && (
+                <button
+                  type="button"
+                  className="button button--quiet"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(vessel.id)}
+                >
+                  Remove
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit && (
+        <form
+          className="editor"
+          onSubmit={(event) => {
+            event.preventDefault()
+            add.mutate({ partnershipId: partnership.id, body: { name, kind } }, { onSuccess: () => setName('') })
+          }}
+        >
+          <label className="field field--inline field--grow">
+            <span className="field__label">Add a vessel</span>
+            <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Vessel name" />
+          </label>
+          <label className="field field--inline">
+            <span className="field__label">Kind</span>
+            <select className="input" value={kind} onChange={(event) => setKind(event.target.value)}>
+              {VESSEL_KINDS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="editor__actions">
+            <button type="submit" className="button" disabled={add.isPending || name.trim() === ''}>
+              Add vessel
+            </button>
+          </div>
+          {add.error !== null && <p className="editor__error">{errorText(add.error)}</p>}
+          {remove.error !== null && <p className="editor__error">{errorText(remove.error)}</p>}
+        </form>
+      )}
+    </div>
+  )
+}
+
+/** The kinds the office meets; free text on the wire, so a new kind is a new option here and nothing else. */
+const VESSEL_KINDS = ['tug', 'barge', 'ship', 'ferry', 'workboat', 'other'] as const
+
+/** A new operation under a customer: the code its calendar and register key on, a name, a class. */
+function OperationForm({ customer, onClose }: { customer: Customer; onClose: () => void }): React.ReactNode {
+  const create = useCreatePartnership()
+  const [abbrev, setAbbrev] = useState('')
+  const [name, setName] = useState('')
+  const [vesselClass, setVesselClass] = useState('')
+
+  return (
+    <Modal title={`Add an operation for ${customer.name}`} note="A vessel or vessel pairing with its own roster and swing calendar" onClose={onClose}>
+      <form
+        className="editor"
+        onSubmit={(event) => {
+          event.preventDefault()
+          create.mutate(
+            { customerId: customer.id, body: { abbrev, name, vesselClass: vesselClass === '' ? null : vesselClass } },
+            { onSuccess: onClose },
+          )
+        }}
+      >
+        <label className="field field--inline">
+          <span className="field__label">Code</span>
+          <input
+            className="input input--level"
+            value={abbrev}
+            onChange={(event) => setAbbrev(event.target.value.toUpperCase())}
+            placeholder="COO"
+            maxLength={6}
+          />
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Name</span>
+          <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="TSV Coolibah — MinRes Onslow" />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Vessel class</span>
+          <input className="input" value={vesselClass} onChange={(event) => setVesselClass(event.target.value)} placeholder="optional" />
+        </label>
+        <div className="editor__actions">
+          <button type="submit" className="button button--primary" disabled={create.isPending || abbrev.trim() === '' || name.trim() === ''}>
+            {create.isPending ? 'Adding…' : 'Add operation'}
+          </button>
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {create.error !== null && <p className="editor__error">{errorText(create.error)}</p>}
+      </form>
+    </Modal>
   )
 }
 

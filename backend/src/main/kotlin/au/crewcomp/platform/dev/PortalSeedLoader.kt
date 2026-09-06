@@ -186,21 +186,19 @@ class PortalSeedLoader(
 
     private fun loadPartnership() {
         // The office's customers (COM-1), as names to start from — added at the client's request,
-        // 7 Sep 2026. The portal's own operation is deliberately attached to none of them: which
-        // customer it belongs to is the office's call, made on the company screen.
-        listOf("United Marine", "Sindry", "NORSE", "SHIP MATES").forEach { name ->
-            em.persist(
-                Customer().apply {
-                    this.name = name
-                    notes = "Added as a starting entry; operations, contacts and crew to follow."
-                    stampCreated(actor, now)
-                },
-            )
+        // 7 Sep 2026. The portal's own operation — the Coolibah job for MinRes — is United Marine's.
+        val customers = listOf("United Marine", "Sindry", "NORSE", "SHIP MATES").associateWith { name ->
+            Customer().apply {
+                this.name = name
+                notes = "Added as a starting entry; contacts to follow."
+                stampCreated(actor, now)
+            }.also { em.persist(it) }
         }
         partnership = Partnership().apply {
             abbrev = "COO"
             name = "TSV Coolibah — MinRes Onslow"
             vesselClass = null // "engineer class 3" per the shift sheet; O-3 semantics stay open
+            customer = customers.getValue("United Marine")
             stampCreated(actor, now)
         }
         em.persist(partnership)

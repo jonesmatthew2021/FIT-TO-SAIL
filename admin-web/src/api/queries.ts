@@ -22,6 +22,8 @@ import {
   type CrewChange,
   type CrewRequest,
   type CrewRequestStatus,
+  type AddVesselRequest,
+  type CreatePartnershipRequest,
   type CrewRequestSummary,
   type Customer,
   type EvidenceDocument,
@@ -56,6 +58,7 @@ import {
   type UnknownHolding,
   type UpdateMatrixDraftRequest,
   type UserAccount,
+  type Vessel,
 } from './client'
 
 /**
@@ -76,6 +79,7 @@ export const keys = {
   partnerships: ['partnerships'] as const,
   customers: ['customers'] as const,
   unattachedPartnerships: ['customers', 'unattached-partnerships'] as const,
+  vessels: ['vessels'] as const,
   crewChanges: (partnership: string) => ['crew-changes', partnership] as const,
   requirements: ['requirements'] as const,
   catalogue: ['catalogue'] as const,
@@ -130,8 +134,31 @@ function useCustomerMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Promis
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: keys.customers })
       void client.invalidateQueries({ queryKey: keys.partnerships })
+      void client.invalidateQueries({ queryKey: keys.vessels })
     },
   })
+}
+
+// The fleet: every customer's operations and the vessels on them.
+
+export function useVessels(): UseQueryResult<Vessel[]> {
+  return useQuery({ queryKey: keys.vessels, queryFn: api.vessels, ...REFERENCE_CACHE })
+}
+
+export function useCreatePartnership() {
+  return useCustomerMutation(({ customerId, body }: { customerId: number; body: CreatePartnershipRequest }) =>
+    api.createPartnership(customerId, body),
+  )
+}
+
+export function useAddVessel() {
+  return useCustomerMutation(({ partnershipId, body }: { partnershipId: number; body: AddVesselRequest }) =>
+    api.addVessel(partnershipId, body),
+  )
+}
+
+export function useRemoveVessel() {
+  return useCustomerMutation((vesselId: number) => api.removeVessel(vesselId))
 }
 
 export function useCreateCustomer() {

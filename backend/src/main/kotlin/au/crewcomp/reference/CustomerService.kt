@@ -20,6 +20,7 @@ import jakarta.transaction.Transactional
 class CustomerService(
     private val customers: CustomerRepository,
     private val partnerships: PartnershipRepository,
+    private val vessels: VesselRepository,
     private val policy: AccessPolicy,
     private val audit: AuditWriter,
 ) {
@@ -179,6 +180,103 @@ class CustomerService(
             after = mapOf("customer" to customer?.name),
         )
         return partnership
+    }
+
+    // ------------------------------------------------------------------ the fleet
+
+    /**
+     * Creates an operation (a partnership, §4.1) for a customer. A customer with a large fleet is
+     * many operations — each its own roster, swing calendar and vessel pairing — and this is how
+     * they are added; the seeders were the only way before.
+     */
+    @Transactional
+    fun createPartnership(customerId: Long, abbrev: String, name: String, vesselClass: String?): Partnership {
+        policy.require(Role.COMPLIANCE_LEAD, Role.SYSTEM_ADMINISTRATOR)
+        policy.assertNotReadOnlyActor()
+
+        val customer = get(customerId)
+        val cleanAbbrev = abbrev.trim().uppercase()
+        val cleanName = name.trim()
+        require(Regex("^[A-Z0-9]{2,6}$").matches(cleanAbbrev)) {
+            "An operation's code is 2–6 letters or digits (the swing calendar and the register key on it)"
+        }
+        require(cleanName.isNotEmpty()) { "An operation needs a name" }
+        partnerships.byAbbrev(cleanAbbrev)?.let {
+            throw IllegalArgumentException("Code $cleanAbbrev is already ${it.name}")
+        }
+
+        val partnership = Partnership().apply {
+            this.abbrev = cleanAbbrev
+            this.name = cleanName
+            this.vesselClass = vesselClass?.trim()?.ifEmpty { null }
+            this.customer = customer
+            stampCreated(policy.actor().label)
+        }
+        partnerships.persist(partnership)
+        partnerships.flush()
+
+        audit.record(
+            entityType = "Partnership",
+            event = "partnership.created",
+            entityId = partnership.id,
+            businessKey = partnership.abbrev,
+            after = mapOf("name" to cleanName, "vesselClass" to partnership.vesselClass, "customer" to customer.name),
+        )
+        return partnership
+    }
+
+    /** Every vessel, for the company screen's fleet view. Reference data; readable by any actor. */
+    @Transactional
+    fun listVessels(): List<Vessel> {
+        policy.actor()
+        return vessels.allOrdered()
+    }
+
+    @Transactional
+    fun addVessel(partnershipId: Long, name: String, kind: String): Vessel {
+        policy.require(Role.COMPLIANCE_LEAD, Role.SYSTEM_ADMINISTRATOR)
+        policy.assertNotReadOnlyActor()
+
+        val partnership = partnerships.findById(partnershipId)
+            ?: throw EntityNotFoundException("No partnership $partnershipId")
+        val cleanName = name.trim()
+        val cleanKind = kind.trim().lowercase()
+        require(cleanName.isNotEmpty()) { "A vessel needs a name" }
+        require(cleanKind.isNotEmpty()) { "A vessel needs a kind (tug, barge, ship…)" }
+        vessels.forPartnership(partnershipId).firstOrNull { it.name.equals(cleanName, ignoreCase = true) }?.let {
+            throw IllegalArgumentException("${it.name} is already on ${partnership.abbrev}")
+        }
+
+        val vessel = Vessel().apply {
+            this.name = cleanName
+            this.kind = cleanKind
+            this.partnership = partnership
+            stampCreated(policy.actor().label)
+        }
+        vessels.persist(vessel)
+        vessels.flush()
+
+        audit.record(
+            entityType = "Vessel",
+            event = "vessel.added",
+            entityId = vessel.id,
+            businessKey = "${partnership.abbrev}/${vessel.name}",
+            after = mapOf("kind" to cleanKind, "partnership" to partnership.abbrev),
+        )
+        return vessel
+    }
+
+    @Transactional
+    fun removeVessel(vesselId: Long) {
+        policy.require(Role.COMPLIANCE_LEAD, Role.SYSTEM_ADMINISTRATOR)
+        policy.assertNotReadOnlyActor()
+
+        val vessel = vessels.findById(vesselId) ?: throw EntityNotFoundException("No vessel $vesselId")
+        val key = "${vessel.partnership.abbrev}/${vessel.name}"
+        val before = mapOf("name" to vessel.name, "kind" to vessel.kind, "partnership" to vessel.partnership.abbrev)
+        vessels.delete(vessel)
+
+        audit.record(entityType = "Vessel", event = "vessel.removed", entityId = vesselId, businessKey = key, before = before)
     }
 
     private fun snapshot(customer: Customer): Map<String, Any?> = mapOf(

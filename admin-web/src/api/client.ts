@@ -22,6 +22,9 @@ export type AssistantSource = Schemas['AssistantSourceDto']
 export type Partnership = Schemas['PartnershipDto']
 export type Customer = Schemas['CustomerDto']
 export type SaveCustomerRequest = Schemas['SaveCustomerRequest']
+export type Vessel = Schemas['VesselDto']
+export type AddVesselRequest = Schemas['AddVesselRequest']
+export type CreatePartnershipRequest = Schemas['CreatePartnershipRequest']
 export type CrewChange = Schemas['CrewChangeDto']
 export type Requirement = Schemas['RequirementDto']
 export type Position = Schemas['PositionDto']
@@ -521,6 +524,17 @@ export const api = {
 
   detachPartnership: (partnershipId: number): Promise<Partnership> =>
     request(`/api/v1/customers/partnerships/${partnershipId}/detach`, { method: 'PUT' }),
+
+  createPartnership: (customerId: number, body: CreatePartnershipRequest): Promise<Partnership> =>
+    request(`/api/v1/customers/${customerId}/partnerships`, { method: 'POST', body: JSON.stringify(body) }),
+
+  vessels: (): Promise<Vessel[]> => request('/api/v1/customers/vessels'),
+
+  addVessel: (partnershipId: number, body: AddVesselRequest): Promise<Vessel> =>
+    request(`/api/v1/customers/partnerships/${partnershipId}/vessels`, { method: 'POST', body: JSON.stringify(body) }),
+
+  removeVessel: (vesselId: number): Promise<void> =>
+    request(`/api/v1/customers/vessels/${vesselId}`, { method: 'DELETE' }),
 
   // --- Certificates on file (ADM-5's evidence half) ----------------------------
 

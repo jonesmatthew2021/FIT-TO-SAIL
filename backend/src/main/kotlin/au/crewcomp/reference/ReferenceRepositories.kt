@@ -29,6 +29,8 @@ class CustomerRepository : PanacheRepositoryBase<Customer, Long> {
 @ApplicationScoped
 class VesselRepository : PanacheRepositoryBase<Vessel, Long> {
     fun forPartnership(partnershipId: Long): List<Vessel> = list("partnership.id", partnershipId)
+    fun allOrdered(): List<Vessel> =
+        find("from Vessel v join fetch v.partnership order by v.partnership.abbrev, v.name").list()
 }
 
 @ApplicationScoped
