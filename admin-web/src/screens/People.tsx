@@ -1,9 +1,14 @@
 import { useNavigate } from 'react-router-dom'
 import { usePeople } from '../api/queries'
 import type { Person } from '../api/client'
+import { useHasRole } from '../api/session'
+import { UploadCertificates } from '../components/CertificatesOnFile'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Spinner } from '../components/Spinner'
+
+/** The roles that may file a certificate — the same two that decide on ADM-9. */
+const FILERS = ['data_steward', 'system_administrator'] as const
 
 /**
  * ADM-5 — the crew directory.
@@ -21,6 +26,7 @@ import { Spinner } from '../components/Spinner'
 export function People(): React.ReactNode {
   const people = usePeople()
   const navigate = useNavigate()
+  const canFile = useHasRole(...FILERS)
 
   if (people.isPending) return <Spinner label="Loading people" />
   if (people.error !== null) return <ErrorPanel title="Could not load people" error={people.error} />
@@ -65,9 +71,17 @@ export function People(): React.ReactNode {
         <h1 className="screen__title">People &amp; holdings</h1>
         <p className="screen__subtitle">
           {people.data.length} crew visible to your roles. The directory is the system of record for
-          qualification holdings.
+          qualification holdings; each person's page carries the scans behind them.
         </p>
       </header>
+
+      {/* A batch of certificates from the office: the model reads each one and suggests whose it
+          is; the uploader confirms, or adds the crew member the roster does not have yet. */}
+      {canFile && (
+        <div className="row-actions">
+          <UploadCertificates />
+        </div>
+      )}
 
       <DataTable
         rows={people.data}

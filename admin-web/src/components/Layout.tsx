@@ -30,9 +30,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: 'Dashboard', module: 'ADM-1', built: true },
   { to: '/planner', label: 'Swing planner', module: 'ADM-2', built: true },
   { to: '/people', label: 'People & holdings', module: 'ADM-5', built: true },
-  // The Coolibah portal's certificates-on-file page: every scan, by person, with upload. ADM-12 is
-  // this project's number for it — §6 does not enumerate it, the same way it did not ADM-11.
-  { to: '/certificates', label: 'Certificates', module: 'ADM-12', built: true },
   { to: '/matrix', label: 'Matrix', module: 'ADM-3', built: true },
   { to: '/register', label: 'Register', module: 'ADM-4', built: true },
   { to: '/requirements', label: 'Requirements', module: 'ADM-6', built: true },

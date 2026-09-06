@@ -10,6 +10,7 @@ import {
 } from '../api/queries'
 import { api, ApiError, type Holding, type Requirement, type SetHoldingRequest } from '../api/client'
 import { useHasRole, useSession } from '../api/session'
+import { PersonCertificates } from '../components/CertificatesOnFile'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { RequirementLabel } from '../components/RequirementLabel'
 import { Spinner } from '../components/Spinner'
@@ -91,6 +92,10 @@ export function PersonDetail(): React.ReactNode {
       <PersonEvaluationPanel personId={personId} />
 
       <HoldingsGrid personId={personId} sam={person.data.sam} />
+
+      {/* The scans behind the holdings, on the same page as the holdings — where the portal's
+          users look for them. */}
+      <PersonCertificates person={person.data} />
 
       <section className="section">
         <h2 className="section__title">Assignment history</h2>

@@ -99,6 +99,7 @@ export const keys = {
   notificationSummary: ['notifications', 'summary'] as const,
   evidenceQueue: (statuses: readonly string[]) =>
     ['evidence-queue', [...statuses].sort().join(',')] as const,
+  personEvidence: (personId: number) => ['person-evidence', personId] as const,
   config: ['config'] as const,
   jobs: ['jobs'] as const,
   userAccounts: ['user-accounts'] as const,
@@ -638,6 +639,7 @@ function useEvidenceMutation<TArgs>(mutationFn: (args: TArgs) => Promise<Evidenc
     mutationFn,
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: ['evidence-queue'] })
+      void client.invalidateQueries({ queryKey: ['person-evidence'] })
       void client.invalidateQueries({ queryKey: ['holdings'] })
       void client.invalidateQueries({ queryKey: ['swing'] })
       void client.invalidateQueries({ queryKey: ['gaps'] })
@@ -668,8 +670,13 @@ export function useExtractEvidence() {
 // ADM-12 — certificates on file
 // ---------------------------------------------------------------------------
 
+/** One person's certificates on file, newest first — the same cache the evidence mutations clear. */
+export function usePersonEvidence(personId: number): UseQueryResult<EvidenceDocument[]> {
+  return useQuery({ queryKey: keys.personEvidence(personId), queryFn: () => api.personEvidence(personId) })
+}
+
 // The read step is deliberately not a hook: it writes nothing, must never be retried (a model
-// call with a bill behind it), and the screen drives it as a plain promise — see Certificates.
+// call with a bill behind it), and the dialog drives it as a plain promise — see CertificatesOnFile.
 
 export function useOfficeFile() {
   return useEvidenceMutation(({ intakeId, body }: { intakeId: string; body: FileIntakeRequest }) =>

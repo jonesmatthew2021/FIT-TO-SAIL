@@ -4,7 +4,6 @@ import { ApiError } from './api/client'
 import { SessionProvider } from './api/session'
 import { Layout, NAV_ITEMS } from './components/Layout'
 import { Administration } from './screens/Administration'
-import { Certificates } from './screens/Certificates'
 import { CrewRequests } from './screens/CrewRequests'
 import { Dashboard } from './screens/Dashboard'
 import { Evidence } from './screens/Evidence'
@@ -46,7 +45,6 @@ export function App(): React.ReactNode {
               <Route path="planner" element={<SwingPlanner />} />
               <Route path="people" element={<People />} />
               <Route path="people/:personId" element={<PersonDetail />} />
-              <Route path="certificates" element={<Certificates />} />
               <Route path="requirements" element={<Requirements />} />
               <Route path="exceptions" element={<Exceptions />} />
               <Route path="crew-requests" element={<CrewRequests />} />

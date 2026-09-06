@@ -2509,60 +2509,7 @@ select.input option {
   font-size: 12px;
 }
 
-/* Certificates on file (ADM-12) ------------------------------------------- */
-
-/* A rank-group heading, in the rail's small-caps voice; the count rides along. */
-.cert-group {
-  margin: 0 0 10px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-neutral-500);
-}
-
-.cert-card {
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 10px;
-}
-
-.cert-card__summary {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.cert-card__summary::-webkit-details-marker {
-  display: none;
-}
-
-.cert-card__summary::before {
-  content: '▸';
-  display: inline-block;
-  width: 14px;
-  color: var(--color-neutral-500);
-  font-size: 11px;
-}
-
-.cert-card[open] > .cert-card__summary::before {
-  content: '▾';
-}
-
-.cert-card__name {
-  flex: 1;
-  font-weight: 500;
-}
-
-.cert-card__body {
-  padding: 0 16px 14px;
-  border-top: 1px solid var(--color-neutral-800);
-}
+/* Certificates on file (ADM-5's evidence half) ---------------------------- */
 
 /* The five columns every row shares: file, issue, expiry, validity, actions. */
 .cert-head,

@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import {
-  useAllHoldings,
-  useAmendEvidence,
   useAcceptEvidence,
+  useAmendEvidence,
   useCreatePerson,
-  useEvidenceQueue,
+  useHoldings,
   useOfficeFile,
   usePartnerships,
   usePeople,
+  usePersonEvidence,
   usePositions,
   useRemoveEvidence,
   useRequirements,
@@ -22,9 +22,9 @@ import {
   type Requirement,
 } from '../api/client'
 import { useHasRole, useToday } from '../api/session'
-import { ErrorPanel } from '../components/ErrorPanel'
-import { Modal } from '../components/Modal'
-import { Spinner } from '../components/Spinner'
+import { ErrorPanel } from './ErrorPanel'
+import { Modal } from './Modal'
+import { Spinner } from './Spinner'
 import { daysBetween, formatDate } from '../domain/dates'
 import {
   HOLDING_STATUS_VALUES,
@@ -33,22 +33,20 @@ import {
   expiryWindowTone,
   holdingStatus,
 } from '../domain/enums'
-import { groupByRank } from '../domain/ranks'
 
 /** Roles that may file, amend and remove — the same two that decide on ADM-9. */
 const FILERS = ['data_steward', 'system_administrator'] as const
 
-/** Everything on file plus everything still being filed; removed ones on request. */
-const ON_FILE = ['verified', 'auto_accepted', 'pending_review', 'pending_extraction'] as const
-
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 /**
- * ADM-12 — certificates on file, a port of the Coolibah portal's page of the same name.
+ * Certificates on file — ADM-5's evidence half, a port of the Coolibah portal's page of the same
+ * name onto each crew member's own record.
  *
- * Crew grouped by rank, one card each, and under every code the scans that evidence it with their
- * issue date, expiry and the code's validity period — plus "No scan on file · matrix holds …"
- * where the holding has a date and nothing on file backs it.
+ * Under every code the scans that evidence it, with their issue date, expiry and the code's
+ * validity period — plus "No scan on file · matrix holds …" where the holding has a date and
+ * nothing on file backs it. Lives on the person's page rather than as a screen of its own because
+ * that is where the portal's users look for it: the holding and the scan behind it, together.
  *
  * The upload is the §8 pipeline with a human in the loop *before* ingest rather than after: the
  * model reads the file and suggests, the uploader confirms the person and the code, and the
@@ -57,167 +55,38 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
  * the roster fits, the same dialog adds the crew member, because that is the moment the office
  * knows they exist.
  */
-export function Certificates(): React.ReactNode {
-  const people = usePeople()
+export function PersonCertificates({ person }: { person: Person }): React.ReactNode {
   const requirements = useRequirements()
-  const [showRemoved, setShowRemoved] = useState(false)
-  const documents = useEvidenceQueue(showRemoved ? [...ON_FILE, 'rejected'] : [...ON_FILE])
-  const personIds = (people.data ?? []).map((person) => person.id)
-  const holdings = useAllHoldings(personIds)
+  const holdings = useHoldings(person.id)
+  const documents = usePersonEvidence(person.id)
   const canFile = useHasRole(...FILERS)
-  const [search, setSearch] = useState('')
-  const [queue, setQueue] = useState<File[]>([])
-  const fileInput = useRef<HTMLInputElement>(null)
+  const today = useToday()
+  const [showRemoved, setShowRemoved] = useState(false)
 
-  if (people.isPending || requirements.isPending || documents.isPending) {
+  if (requirements.isPending || holdings.isPending || documents.isPending) {
     return <Spinner label="Loading the certificates on file" />
   }
-  if (people.error !== null) return <ErrorPanel title="Could not load the crew" error={people.error} />
   if (requirements.error !== null) {
     return <ErrorPanel title="Could not load the catalogue" error={requirements.error} />
   }
+  if (holdings.error !== null) return <ErrorPanel title="Could not load holdings" error={holdings.error} />
   if (documents.error !== null) {
     return <ErrorPanel title="Could not load the certificates" error={documents.error} />
   }
-  if (holdings.error !== null) {
-    return <ErrorPanel title="Could not load the holdings" error={holdings.error} />
-  }
 
-  const needle = search.trim().toLowerCase()
-  const rows = people.data.filter(
-    (person) => needle === '' || `${person.name} ${person.sam} ${person.positionName}`.toLowerCase().includes(needle),
-  )
-  const byPerson = new Map<number, EvidenceDocument[]>()
-  for (const document of documents.data) {
-    const list = byPerson.get(document.personId) ?? []
-    list.push(document)
-    byPerson.set(document.personId, list)
-  }
-  const onFile = documents.data.filter((d) => d.verificationStatus === 'verified' || d.verificationStatus === 'auto_accepted')
-  const awaiting = documents.data.filter((d) => d.verificationStatus === 'pending_review' || d.verificationStatus === 'pending_extraction')
-
-  return (
-    <div className="screen">
-      <header className="screen__header">
-        <h1 className="screen__title">Certificates</h1>
-        <p className="screen__subtitle">
-          Every scan on file, by crew member and code. Upload a certificate and the model reads it;
-          you confirm who and what before it is filed — a holding is only ever written by a person.
-        </p>
-      </header>
-
-      <div className="counts counts--inline">
-        <span className="counts__item">
-          <span className="counts__value">{onFile.length}</span> on file
-        </span>
-        <span className="counts__item">
-          <span className="counts__value">{awaiting.length}</span> awaiting filing
-        </span>
-        <span className="counts__item">
-          <span className="counts__value">{people.data.length}</span> crew
-        </span>
-      </div>
-
-      <div className="selector">
-        <input
-          className="input"
-          style={{ width: 280 }}
-          placeholder="Search crew, Sam # or position"
-          aria-label="Search crew"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <label className="check check--box">
-          <input type="checkbox" checked={showRemoved} onChange={(event) => setShowRemoved(event.target.checked)} />
-          <span className="dot" />
-          Show removed
-        </label>
-        {canFile && (
-          <div className="row-actions push">
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              accept="application/pdf,image/jpeg,image/png"
-              hidden
-              onChange={(event) => {
-                const picked = Array.from(event.target.files ?? [])
-                event.target.value = ''
-                if (picked.length > 0) setQueue((current) => [...current, ...picked])
-              }}
-            />
-            <button type="button" className="button button--primary" onClick={() => fileInput.current?.click()}>
-              Upload certificates
-            </button>
-          </div>
-        )}
-      </div>
-
-      {queue[0] !== undefined && (
-        <IntakeDialog
-          file={queue[0]}
-          remaining={queue.length - 1}
-          people={people.data}
-          requirements={requirements.data}
-          onDone={() => setQueue((current) => current.slice(1))}
-          onCancelAll={() => setQueue([])}
-        />
-      )}
-
-      {rows.length === 0 && <p className="empty">No crew match this search.</p>}
-
-      {groupByRank(rows).map((group) => (
-        <section key={group.label} className="section">
-          <h2 className="cert-group">
-            {group.label} · {group.people.length}
-          </h2>
-          {group.people.map((person) => (
-            <PersonCard
-              key={person.id}
-              person={person}
-              holdings={holdings.byPerson.get(person.id) ?? []}
-              documents={byPerson.get(person.id) ?? []}
-              requirements={requirements.data}
-              canFile={canFile}
-            />
-          ))}
-        </section>
-      ))}
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// One crew member's card
-// ---------------------------------------------------------------------------
-
-function PersonCard({
-  person,
-  holdings,
-  documents,
-  requirements,
-  canFile,
-}: {
-  person: Person
-  holdings: readonly Holding[]
-  documents: readonly EvidenceDocument[]
-  requirements: readonly Requirement[]
-  canFile: boolean
-}): React.ReactNode {
-  const today = useToday()
-  const [open, setOpen] = useState(false)
-  const requirementById = new Map(requirements.map((requirement) => [requirement.id, requirement]))
+  const requirementById = new Map(requirements.data.map((requirement) => [requirement.id, requirement]))
+  const visible = documents.data.filter((d) => showRemoved || d.verificationStatus !== 'rejected')
 
   // Every code that has either a held holding or a document, in code order; then the documents
   // that resolved to no code at all, which is where an unfiled import or a mis-read lands.
   const codes = new Map<number, { requirement: Requirement; holding: Holding | undefined; documents: EvidenceDocument[] }>()
-  for (const holding of holdings) {
+  for (const holding of holdings.data) {
     if (holding.status !== 'held_expiry' && holding.status !== 'held_perpetual') continue
     const requirement = requirementById.get(holding.requirementId)
     if (requirement !== undefined) codes.set(requirement.id, { requirement, holding, documents: [] })
   }
   const unfiled: EvidenceDocument[] = []
-  for (const document of documents) {
+  for (const document of visible) {
     const requirement = document.matchedRequirementId === null ? undefined : requirementById.get(document.matchedRequirementId)
     if (requirement === undefined) {
       unfiled.push(document)
@@ -225,101 +94,112 @@ function PersonCard({
     }
     const entry = codes.get(requirement.id) ?? {
       requirement,
-      holding: holdings.find((holding) => holding.requirementId === requirement.id),
+      holding: holdings.data.find((holding) => holding.requirementId === requirement.id),
       documents: [],
     }
     entry.documents.push(document)
     codes.set(requirement.id, entry)
   }
   const ordered = [...codes.values()].sort((a, b) => a.requirement.code.localeCompare(b.requirement.code))
-  const fileCount = documents.filter((d) => d.verificationStatus !== 'rejected').length
+  const fileCount = documents.data.filter((d) => d.verificationStatus !== 'rejected').length
+  const awaiting = documents.data.filter(
+    (d) => d.verificationStatus === 'pending_review' || d.verificationStatus === 'pending_extraction',
+  ).length
 
   return (
-    <details className="cert-card" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="cert-card__summary">
-        <span className="cert-card__name">
-          {person.name} <span className="muted">· {person.positionName}</span>
-        </span>
-        <span className="mono muted">
-          {person.sam} · {fileCount} {fileCount === 1 ? 'file' : 'files'}
-        </span>
-      </summary>
-
-      {open && (
-        <div className="cert-card__body">
-          <div className="cert-head">
-            <span />
-            <span>Issue date</span>
-            <span>Expiry date</span>
-            <span>Validity period</span>
-            <span />
-          </div>
-
-          {ordered.length === 0 && unfiled.length === 0 && (
-            <p className="empty">Nothing held and nothing on file.</p>
-          )}
-
-          {ordered.map(({ requirement, holding, documents: docs }) => (
-            <Fragment key={requirement.id}>
-              <div className="cert-code">
-                <span>
-                  <span className="mono">{requirement.code}</span>
-                  <strong>{requirement.title}</strong>
-                </span>
-                <span />
-                <span />
-                <span />
-                <span>
-                  {docs.length === 0 && holding !== undefined && (
-                    <span className="chip chip--muted chip--small">
-                      No scan on file · matrix holds{' '}
-                      {holding.status === 'held_perpetual' ? 'never expires' : formatDate(holding.expiry)}
-                    </span>
-                  )}
-                </span>
-              </div>
-              {docs.map((document) => (
-                <DocumentRow
-                  key={document.publicId}
-                  document={document}
-                  holding={holding}
-                  requirement={requirement}
-                  requirements={requirements}
-                  today={today}
-                  canFile={canFile}
-                />
-              ))}
-            </Fragment>
-          ))}
-
-          {unfiled.length > 0 && (
-            <>
-              <div className="cert-code">
-                <span>
-                  <span className="mono">—</span>
-                  <strong>No code yet</strong>
-                </span>
-                <span />
-                <span />
-                <span />
-                <span className="dim">file each one to a code</span>
-              </div>
-              {unfiled.map((document) => (
-                <DocumentRow
-                  key={document.publicId}
-                  document={document}
-                  holding={undefined}
-                  requirement={undefined}
-                  requirements={requirements}
-                  today={today}
-                  canFile={canFile}
-                />
-              ))}
-            </>
-          )}
+    <section className="section">
+      <div className="section__header">
+        <div>
+          <h2 className="section__title">Certificates on file</h2>
+          <p className="section__note">
+            {fileCount} {fileCount === 1 ? 'scan' : 'scans'}
+            {awaiting > 0 && ` · ${awaiting} awaiting a code`} · the model reads an upload, you confirm
+            who and what before it is filed
+          </p>
         </div>
-      )}
-    </details>
+        <div className="row-actions">
+          <label className="check check--box">
+            <input type="checkbox" checked={showRemoved} onChange={(event) => setShowRemoved(event.target.checked)} />
+            <span className="dot" />
+            Show removed
+          </label>
+          {canFile && <UploadCertificates defaultPerson={person} />}
+        </div>
+      </div>
+
+      <div className="table-block">
+        <div className="cert-head">
+          <span />
+          <span>Issue date</span>
+          <span>Expiry date</span>
+          <span>Validity period</span>
+          <span />
+        </div>
+
+        {ordered.length === 0 && unfiled.length === 0 && (
+          <p className="empty">Nothing held and nothing on file.</p>
+        )}
+
+        {ordered.map(({ requirement, holding, documents: docs }) => (
+          <Fragment key={requirement.id}>
+            <div className="cert-code">
+              <span>
+                <span className="mono">{requirement.code}</span>
+                <strong>{requirement.title}</strong>
+              </span>
+              <span />
+              <span />
+              <span />
+              <span>
+                {docs.length === 0 && holding !== undefined && (
+                  <span className="chip chip--muted chip--small">
+                    No scan on file · matrix holds{' '}
+                    {holding.status === 'held_perpetual' ? 'never expires' : formatDate(holding.expiry)}
+                  </span>
+                )}
+              </span>
+            </div>
+            {docs.map((document) => (
+              <DocumentRow
+                key={document.publicId}
+                document={document}
+                holding={holding}
+                requirement={requirement}
+                requirements={requirements.data}
+                today={today}
+                canFile={canFile}
+              />
+            ))}
+          </Fragment>
+        ))}
+
+        {unfiled.length > 0 && (
+          <>
+            <div className="cert-code">
+              <span>
+                <span className="mono">—</span>
+                <strong>No code yet</strong>
+              </span>
+              <span />
+              <span />
+              <span />
+              <span className="dim">file each one to a code</span>
+            </div>
+            {unfiled.map((document) => (
+              <DocumentRow
+                key={document.publicId}
+                document={document}
+                holding={undefined}
+                requirement={undefined}
+                requirements={requirements.data}
+                today={today}
+                canFile={canFile}
+              />
+            ))}
+          </>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -361,7 +241,7 @@ function DocumentRow({
           {!filed && !removed && (
             <>
               {' '}
-              · <span className="chip chip--caution chip--small">awaiting filing</span>
+              · <span className="chip chip--caution chip--small">awaiting a code</span>
             </>
           )}
           {removed && (
@@ -408,12 +288,7 @@ function DocumentRow({
           }}
         >
           <span className="dim">Takes the scan off the file; the holding stays as it is.</span>
-          <input
-            className="input"
-            placeholder="Why (shown in its place)"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-          />
+          <input className="input" placeholder="Why (shown in its place)" value={reason} onChange={(event) => setReason(event.target.value)} />
           <button type="submit" className="button" disabled={remove.isPending || reason.trim() === ''}>
             Remove
           </button>
@@ -501,14 +376,58 @@ function EditDialog({
 }
 
 // ---------------------------------------------------------------------------
-// The intake dialog — read, confirm, file
+// Upload — read, confirm, file
 // ---------------------------------------------------------------------------
+
+/**
+ * The upload button and the dialog behind it. On a person's page [defaultPerson] is that person,
+ * pre-selected; on the directory there is none and the model's suggestion leads. Either way the
+ * person is confirmed by a human before anything is filed.
+ */
+export function UploadCertificates({ defaultPerson }: { defaultPerson?: Person }): React.ReactNode {
+  const people = usePeople()
+  const requirements = useRequirements()
+  const [queue, setQueue] = useState<File[]>([])
+  const fileInput = useRef<HTMLInputElement>(null)
+
+  return (
+    <>
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        accept="application/pdf,image/jpeg,image/png"
+        hidden
+        onChange={(event) => {
+          const picked = Array.from(event.target.files ?? [])
+          event.target.value = ''
+          if (picked.length > 0) setQueue((current) => [...current, ...picked])
+        }}
+      />
+      <button type="button" className="button button--primary" onClick={() => fileInput.current?.click()}>
+        Upload certificates
+      </button>
+      {queue[0] !== undefined && people.data !== undefined && requirements.data !== undefined && (
+        <IntakeDialog
+          file={queue[0]}
+          remaining={queue.length - 1}
+          people={people.data}
+          requirements={requirements.data}
+          {...(defaultPerson === undefined ? {} : { defaultPerson })}
+          onDone={() => setQueue((current) => current.slice(1))}
+          onCancelAll={() => setQueue([])}
+        />
+      )}
+    </>
+  )
+}
 
 function IntakeDialog({
   file,
   remaining,
   people,
   requirements,
+  defaultPerson,
   onDone,
   onCancelAll,
 }: {
@@ -516,13 +435,14 @@ function IntakeDialog({
   remaining: number
   people: readonly Person[]
   requirements: readonly Requirement[]
+  defaultPerson?: Person
   onDone: () => void
   onCancelAll: () => void
 }): React.ReactNode {
   const fileIt = useOfficeFile()
   const [reading, setReading] = useState<IntakeReading | null>(null)
   const [readError, setReadError] = useState<unknown>(null)
-  const [personId, setPersonId] = useState<number | null>(null)
+  const [personId, setPersonId] = useState<number | null>(defaultPerson?.id ?? null)
   const [adding, setAdding] = useState(false)
   const [requirementId, setRequirementId] = useState<number | null>(null)
   const [status, setStatus] = useState('held_expiry')
@@ -540,9 +460,10 @@ function IntakeDialog({
     api.officeRead(file).then(
       (result) => {
         setReading(result)
-        const bestPerson = result.people[0]
-        setPersonId(bestPerson?.person.id ?? null)
-        setAdding(result.people.length === 0)
+        if (defaultPerson === undefined) {
+          setPersonId(result.people[0]?.person.id ?? null)
+          setAdding(result.people.length === 0)
+        }
         setRequirementId(result.requirements[0]?.id ?? null)
         const readExpiry = intakeField(result, 'expiryDate')
         const readIssue = intakeField(result, 'issueDate')
@@ -551,9 +472,14 @@ function IntakeDialog({
       },
       (error: unknown) => setReadError(error),
     )
-  }, [file])
+  }, [file, defaultPerson])
 
   const note = remaining > 0 ? `${file.name} · ${remaining} more to go` : file.name
+  // On a person's page, a reading that points at somebody else is worth a sentence — the file
+  // may be in the wrong place, which is how the portal's misfiled scans happened.
+  const bestSuggested = reading?.people[0]?.person
+  const disagrees =
+    defaultPerson !== undefined && bestSuggested !== undefined && bestSuggested.id !== defaultPerson.id
 
   return (
     <Modal title="Filing a certificate" note={note} wide onClose={onCancelAll}>
@@ -587,13 +513,19 @@ function IntakeDialog({
               ))}
             </div>
             <p className="section__note">
-              Read by <span className="mono">{reading.model}</span>. A reading is a suggestion; what you confirm below is what gets filed.
+              Read by <span className="mono">{reading.model}</span>. A reading is a suggestion; what you confirm on the right is what gets filed.
             </p>
           </div>
 
           <div className="intake__form">
             <h3 className="section__title section__title--panel">Who this belongs to</h3>
-            {reading.people.length === 0 && !adding && (
+            {disagrees && (
+              <p className="note">
+                The certificate reads as <strong>{bestSuggested.name}</strong>, not {defaultPerson.name}. Check
+                before filing.
+              </p>
+            )}
+            {reading.people.length === 0 && !adding && defaultPerson === undefined && (
               <p className="note">Nobody on the roster matches the name read from the certificate.</p>
             )}
             {!adding && (
@@ -701,7 +633,7 @@ function NewPersonForm({
   const [name, setName] = useState(rosterForm(suggestedName))
   const [sam, setSam] = useState('')
   const [positionId, setPositionId] = useState<number | null>(null)
-  const [partnershipId, setPartnershipId] = useState<number | null>(partnerships.data?.[0]?.id ?? null)
+  const [partnershipId, setPartnershipId] = useState<number | null>(null)
 
   const partnership = partnershipId ?? partnerships.data?.[0]?.id ?? null
 
@@ -711,10 +643,7 @@ function NewPersonForm({
       onSubmit={(event) => {
         event.preventDefault()
         if (positionId === null || partnership === null) return
-        create.mutate(
-          { name, sam, positionId, partnershipId: partnership, email: null },
-          { onSuccess: onCreated },
-        )
+        create.mutate({ name, sam, positionId, partnershipId: partnership, email: null }, { onSuccess: onCreated })
       }}
     >
       <p className="note">
