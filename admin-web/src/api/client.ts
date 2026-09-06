@@ -528,6 +528,9 @@ export const api = {
   createPartnership: (customerId: number, body: CreatePartnershipRequest): Promise<Partnership> =>
     request(`/api/v1/customers/${customerId}/partnerships`, { method: 'POST', body: JSON.stringify(body) }),
 
+  deletePartnership: (partnershipId: number): Promise<void> =>
+    request(`/api/v1/customers/partnerships/${partnershipId}`, { method: 'DELETE' }),
+
   vessels: (): Promise<Vessel[]> => request('/api/v1/customers/vessels'),
 
   addVessel: (partnershipId: number, body: AddVesselRequest): Promise<Vessel> =>

@@ -151,6 +151,10 @@ export function useCreatePartnership() {
   )
 }
 
+export function useDeletePartnership() {
+  return useCustomerMutation((partnershipId: number) => api.deletePartnership(partnershipId))
+}
+
 export function useAddVessel() {
   return useCustomerMutation(({ partnershipId, body }: { partnershipId: number; body: AddVesselRequest }) =>
     api.addVessel(partnershipId, body),

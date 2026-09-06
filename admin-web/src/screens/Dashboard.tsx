@@ -16,6 +16,7 @@ import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Modal } from '../components/Modal'
 import { RequirementLabel } from '../components/RequirementLabel'
+import { ShipBar } from '../components/ShipBar'
 import { Spinner } from '../components/Spinner'
 import { StateChip } from '../components/StateChip'
 import { Band, Cut, Lead, Ruler, RulerRow } from '../components/Ruler'
@@ -147,16 +148,20 @@ export function Dashboard(): React.ReactNode {
 
   return (
     <div className="screen">
-      <header className="screen__header">
-        <div className="screen__headline">
-          <h1 className="screen__title">{headline(rows, dirty.length)}</h1>
-          {soonest?.swing != null && <CutoffBadge today={session.today} cutoff={soonest.swing.cutoff} />}
+      <header className="screen__header screen__header--bar">
+        <div>
+          <div className="screen__headline">
+            <h1 className="screen__title">{headline(rows, dirty.length)}</h1>
+            {soonest?.swing != null && <CutoffBadge today={session.today} cutoff={soonest.swing.cutoff} />}
+          </div>
+          <p className="screen__subtitle">
+            Every partnership's current or next crew change, on one axis. The dashed line is today —
+            the server's business date in AWST, not this browser's. Cutoffs sit to its left once
+            passed, so the distance is the time you have left.
+          </p>
         </div>
-        <p className="screen__subtitle">
-          Every partnership's current or next crew change, on one axis. The dashed line is today —
-          the server's business date in AWST, not this browser's. Cutoffs sit to its left once
-          passed, so the distance is the time you have left.
-        </p>
+        {/* The ship in view, chosen here as well as in the rail, with add and remove beside it. */}
+        <ShipBar />
       </header>
 
       {list.length === 0 ? (

@@ -225,6 +225,48 @@ class CustomerService(
         return partnership
     }
 
+    /**
+     * Removes an operation. Refused while anything hangs off it — crew, swings, assignments,
+     * register records, matrix overrides, account scopes: a ship with history is retired, not
+     * deleted, and this system has no retirement yet. Its vessels go with it. Audited.
+     */
+    @Transactional
+    fun deletePartnership(partnershipId: Long) {
+        policy.require(Role.COMPLIANCE_LEAD, Role.SYSTEM_ADMINISTRATOR)
+        policy.assertNotReadOnlyActor()
+
+        val partnership = partnerships.findById(partnershipId)
+            ?: throw EntityNotFoundException("No partnership $partnershipId")
+        val em = partnerships.getEntityManager()
+        val inUse = REFERENCING_TABLES.mapNotNull { (table, what) ->
+            val count = (em.createNativeQuery("select count(*) from $table where partnership_id = ?1")
+                .setParameter(1, partnershipId)
+                .singleResult as Number).toLong()
+            if (count > 0) "$count $what" else null
+        }
+        require(inUse.isEmpty()) {
+            "${partnership.name} still has ${inUse.joinToString(", ")} — a ship with history is not removed"
+        }
+
+        val ownVessels = vessels.forPartnership(partnershipId)
+        val before = mapOf(
+            "abbrev" to partnership.abbrev,
+            "name" to partnership.name,
+            "customer" to partnership.customer?.name,
+            "vessels" to ownVessels.map { it.name },
+        )
+        ownVessels.forEach { vessels.delete(it) }
+        partnerships.delete(partnership)
+
+        audit.record(
+            entityType = "Partnership",
+            event = "partnership.deleted",
+            entityId = partnershipId,
+            businessKey = partnership.abbrev,
+            before = before,
+        )
+    }
+
     /** Every vessel, for the company screen's fleet view. Reference data; readable by any actor. */
     @Transactional
     fun listVessels(): List<Vessel> {
@@ -291,5 +333,15 @@ class CustomerService(
 
     companion object {
         val STATUSES = setOf("active", "former")
+
+        /** What hangs off a partnership (V1's foreign keys, bar vessel, which goes with it). */
+        private val REFERENCING_TABLES = listOf(
+            "person" to "crew",
+            "crew_change" to "swings",
+            "assignment" to "assignments",
+            "register_record" to "register records",
+            "requirement_rule" to "matrix overrides",
+            "user_account_partnership_scope" to "account scopes",
+        )
     }
 }

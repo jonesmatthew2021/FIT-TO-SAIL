@@ -94,6 +94,14 @@ class CustomerResource(private val customers: CustomerService) {
     ): PartnershipDto =
         customers.createPartnership(customerId, request.abbrev, request.name, request.vesselClass).toDto()
 
+    @DELETE
+    @Path("/partnerships/{partnershipId}")
+    @Operation(summary = "Remove an operation — refused while crew, swings or records hang off it; audited")
+    fun deletePartnership(@PathParam("partnershipId") partnershipId: Long): Response {
+        customers.deletePartnership(partnershipId)
+        return Response.noContent().build()
+    }
+
     @GET
     @Path("/vessels")
     @Operation(summary = "Every vessel, by operation then name — the fleet view")

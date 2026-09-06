@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { OperationForm } from '../components/ShipBar'
 import {
   useAddVessel,
   useAllPartnerships,
   useAttachPartnership,
   useCreateCustomer,
-  useCreatePartnership,
   useCustomerScope,
   useCustomers,
   useDeleteCustomer,
@@ -180,7 +180,7 @@ function CustomerCard({
           </Link>
           {canEdit && (
             <button type="button" className="button" onClick={() => setAddingOperation(true)}>
-              Add operation
+              Add ship
             </button>
           )}
           {canEdit && (
@@ -321,7 +321,7 @@ function CustomerCard({
       </div>
 
       {editing && <CustomerForm existing={customer} onClose={() => setEditing(false)} />}
-      {addingOperation && <OperationForm customer={customer} onClose={() => setAddingOperation(false)} />}
+      {addingOperation && <OperationForm customer={customer} customers={[]} onClose={() => setAddingOperation(false)} />}
     </section>
   )
 }
@@ -402,56 +402,6 @@ function FleetList({
 /** The kinds the office meets; free text on the wire, so a new kind is a new option here and nothing else. */
 const VESSEL_KINDS = ['tug', 'barge', 'ship', 'ferry', 'workboat', 'other'] as const
 
-/** A new operation under a customer: the code its calendar and register key on, a name, a class. */
-function OperationForm({ customer, onClose }: { customer: Customer; onClose: () => void }): React.ReactNode {
-  const create = useCreatePartnership()
-  const [abbrev, setAbbrev] = useState('')
-  const [name, setName] = useState('')
-  const [vesselClass, setVesselClass] = useState('')
-
-  return (
-    <Modal title={`Add an operation for ${customer.name}`} note="A vessel or vessel pairing with its own roster and swing calendar" onClose={onClose}>
-      <form
-        className="editor"
-        onSubmit={(event) => {
-          event.preventDefault()
-          create.mutate(
-            { customerId: customer.id, body: { abbrev, name, vesselClass: vesselClass === '' ? null : vesselClass } },
-            { onSuccess: onClose },
-          )
-        }}
-      >
-        <label className="field field--inline">
-          <span className="field__label">Code</span>
-          <input
-            className="input input--level"
-            value={abbrev}
-            onChange={(event) => setAbbrev(event.target.value.toUpperCase())}
-            placeholder="COO"
-            maxLength={6}
-          />
-        </label>
-        <label className="field field--inline field--grow">
-          <span className="field__label">Name</span>
-          <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="TSV Coolibah — MinRes Onslow" />
-        </label>
-        <label className="field field--inline">
-          <span className="field__label">Vessel class</span>
-          <input className="input" value={vesselClass} onChange={(event) => setVesselClass(event.target.value)} placeholder="optional" />
-        </label>
-        <div className="editor__actions">
-          <button type="submit" className="button button--primary" disabled={create.isPending || abbrev.trim() === '' || name.trim() === ''}>
-            {create.isPending ? 'Adding…' : 'Add operation'}
-          </button>
-          <button type="button" className="button" onClick={onClose}>
-            Cancel
-          </button>
-        </div>
-        {create.error !== null && <p className="editor__error">{errorText(create.error)}</p>}
-      </form>
-    </Modal>
-  )
-}
 
 /** Add or edit a customer — one form, the server's two doors. */
 function CustomerForm({ existing, onClose }: { existing?: Customer; onClose: () => void }): React.ReactNode {

@@ -1169,6 +1169,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers/partnerships/{partnershipId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an operation — refused while crew, swings or records hang off it; audited */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnershipId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/customers/partnerships/{partnershipId}/detach": {
         parameters: {
             query?: never;
