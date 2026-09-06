@@ -22,6 +22,41 @@ import java.time.LocalDate
  * accessors; the string field is what Hibernate maps, the typed property is what code uses.
  */
 
+/**
+ * A client company the operation works for (COM-1, V13).
+ *
+ * Above the partnership, not part of it: a partnership is one operation, and this is who it is
+ * run for. Nothing in the compliance engine reads a customer — it is the office's directory of
+ * who they work with, and the thing a partnership is attached to.
+ */
+@Entity
+@Table(name = "customer")
+class Customer : AuditedEntity() {
+
+    @Column(name = "name", nullable = false)
+    lateinit var name: String
+
+    /** How the office says it ("MinRes"), where the legal name is longer. */
+    @Column(name = "short_name")
+    var shortName: String? = null
+
+    @Column(name = "contact_name")
+    var contactName: String? = null
+
+    @Column(name = "contact_email")
+    var contactEmail: String? = null
+
+    @Column(name = "contact_phone")
+    var contactPhone: String? = null
+
+    @Column(name = "notes")
+    var notes: String? = null
+
+    /** `active` · `former`. A former customer keeps its partnerships and their history. */
+    @Column(name = "status", nullable = false)
+    var status: String = "active"
+}
+
 @Entity
 @Table(name = "partnership")
 class Partnership : AuditedEntity() {
@@ -35,6 +70,11 @@ class Partnership : AuditedEntity() {
     /** Nullable; drives the tier review rule (§4.1, §5.1 step 3). */
     @Column(name = "vessel_class")
     var vesselClass: String? = null
+
+    /** The client this operation is run for (V13). Null until the office attaches one. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id")
+    var customer: Customer? = null
 }
 
 @Entity

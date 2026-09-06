@@ -1,6 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../api/session'
-import { useCrewRequestSummary, useNotificationSummary } from '../api/queries'
+import { useCrewRequestSummary, useCustomerScope, useCustomers, useNotificationSummary } from '../api/queries'
 import { writeDevIdentity } from '../api/client'
 import { formatDate } from '../domain/dates'
 import { roleLabel } from '../domain/enums'
@@ -29,8 +29,8 @@ interface NavItem {
  * loop links to follow. ADM-5 therefore sits above ADM-3 and ADM-4.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
-  // The company group, above compliance: the operation itself — who the partnership is, what it
-  // runs — as distinct from the daily compliance loop below. COM-1 is this project's number.
+  // The company page (COM-1) is reached from the customer box's "Manage customers…" option, not
+  // from a rail link — the box is the whole of the Company group.
   { to: '/company', label: 'Company', module: 'COM-1', built: true, group: 'company' },
   { to: '/', label: 'Dashboard', module: 'ADM-1', built: true },
   { to: '/planner', label: 'Swing planner', module: 'ADM-2', built: true },
@@ -63,7 +63,7 @@ export function Layout(): React.ReactNode {
     <div className="shell" style={{ '--assistant-push': assistant.pushWidth } as React.CSSProperties}>
       <header className="shell__header">
         <div className="shell__brand">
-          Crewcomp
+          FIT TO SAIL
           <span className="shell__env">Admin</span>
         </div>
 
@@ -102,8 +102,8 @@ export function Layout(): React.ReactNode {
         {/* Grouped rather than interleaved: a reader should be able to see at a glance how much of
             §6 exists, without reading a marker on every row. */}
         <nav className="shell__nav" aria-label="Modules">
-          <NavGroup label="Company" items={NAV_ITEMS.filter((item) => item.built && item.group === 'company')} />
-          <NavGroup label="Compliance" items={NAV_ITEMS.filter((item) => item.built && item.group !== 'company')} />
+          <CompanyGroup />
+          <ComplianceGroup />
           <NavGroup label="Not built" items={NAV_ITEMS.filter((item) => !item.built)} later />
         </nav>
 
@@ -136,14 +136,76 @@ function UnreadBadge(): React.ReactNode {
   )
 }
 
+/**
+ * The Company group: the customer box, and the company page. Picking a customer puts
+ * `?customer=<id>` on the current page — the whole of the scoping mechanism, see
+ * `useCustomerScope` — and the Compliance group below becomes that customer's copy of the menu.
+ * "All customers" is the every-customer view.
+ */
+/** Select-option sentinel for the manage-customers page — never a customer id. */
+const MANAGE = '__manage__'
+
+function CompanyGroup(): React.ReactNode {
+  const customers = useCustomers()
+  const scope = useCustomerScope()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  return (
+    <>
+      <p className="nav__group">Company</p>
+      <select
+        className="input nav__select"
+        aria-label="Customer"
+        value={scope.customerId ?? ''}
+        onChange={(event) => {
+          const value = event.target.value
+          // The last option is the page where customers are added, edited and removed.
+          if (value === MANAGE) {
+            void navigate(`/company${scope.suffix}`)
+            return
+          }
+          // Otherwise stay on the page; change whose it is. A person's page under another customer
+          // simply shows that person still — the scope narrows lists, not records.
+          void navigate(value === '' ? location.pathname : `${location.pathname}?customer=${value}`)
+        }}
+      >
+        <option value="">All customers</option>
+        {(customers.data ?? []).map((customer) => (
+          <option key={customer.id} value={customer.id}>
+            {customer.shortName ?? customer.name}
+          </option>
+        ))}
+        <option value={MANAGE}>Manage customers…</option>
+      </select>
+    </>
+  )
+}
+
+/** The compliance menu — for the customer in the box, or for everyone. */
+function ComplianceGroup(): React.ReactNode {
+  const scope = useCustomerScope()
+  const label = scope.customer === null ? 'Compliance' : `Compliance · ${scope.customer.shortName ?? scope.customer.name}`
+  return (
+    <NavGroup
+      label={label}
+      items={NAV_ITEMS.filter((item) => item.built && item.group !== 'company')}
+      suffix={scope.suffix}
+    />
+  )
+}
+
 function NavGroup({
   label,
   items,
   later = false,
+  suffix = '',
 }: {
   label: string
   items: readonly NavItem[]
   later?: boolean
+  /** `?customer=<id>` when a customer is in the box, so the links keep the scope. */
+  suffix?: string
 }): React.ReactNode {
   // All ten §6 modules are built, so the "Not built" group is empty — and a heading with nothing
   // under it reads as a rendering fault rather than as good news.
@@ -155,7 +217,7 @@ function NavGroup({
       {items.map((item) => (
         <NavLink
           key={item.to}
-          to={item.to}
+          to={`${item.to}${suffix}`}
           end={item.to === '/'}
           className={({ isActive }) =>
             ['nav__item', isActive ? 'nav__item--active' : '', item.built ? '' : 'nav__item--unbuilt']

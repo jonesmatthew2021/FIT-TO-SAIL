@@ -20,6 +20,8 @@ export type AssistantAsk = Schemas['AssistantAskDto']
 export type AssistantAnswer = Schemas['AssistantAnswerDto']
 export type AssistantSource = Schemas['AssistantSourceDto']
 export type Partnership = Schemas['PartnershipDto']
+export type Customer = Schemas['CustomerDto']
+export type SaveCustomerRequest = Schemas['SaveCustomerRequest']
 export type CrewChange = Schemas['CrewChangeDto']
 export type Requirement = Schemas['RequirementDto']
 export type Position = Schemas['PositionDto']
@@ -499,7 +501,28 @@ export const api = {
   extractEvidence: (publicId: string): Promise<EvidenceDocument> =>
     request(`/api/v1/evidence-review/${encodeURIComponent(publicId)}/extract`, { method: 'POST' }),
 
-  // --- ADM-12, certificates on file ------------------------------------------
+  // --- COM-1, customers -------------------------------------------------------
+
+  customers: (): Promise<Customer[]> => request('/api/v1/customers'),
+
+  unattachedPartnerships: (): Promise<Partnership[]> => request('/api/v1/customers/unattached-partnerships'),
+
+  createCustomer: (body: SaveCustomerRequest): Promise<Customer> =>
+    request('/api/v1/customers', { method: 'POST', body: JSON.stringify(body) }),
+
+  updateCustomer: (customerId: number, body: SaveCustomerRequest): Promise<Customer> =>
+    request(`/api/v1/customers/${customerId}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  deleteCustomer: (customerId: number): Promise<void> =>
+    request(`/api/v1/customers/${customerId}`, { method: 'DELETE' }),
+
+  attachPartnership: (customerId: number, partnershipId: number): Promise<Partnership> =>
+    request(`/api/v1/customers/${customerId}/partnerships/${partnershipId}`, { method: 'PUT' }),
+
+  detachPartnership: (partnershipId: number): Promise<Partnership> =>
+    request(`/api/v1/customers/partnerships/${partnershipId}/detach`, { method: 'PUT' }),
+
+  // --- Certificates on file (ADM-5's evidence half) ----------------------------
 
   createPerson: (body: CreatePersonRequest): Promise<Person> =>
     request('/api/v1/people', { method: 'POST', body: JSON.stringify(body) }),

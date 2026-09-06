@@ -18,6 +18,7 @@ import au.crewcomp.platform.security.Role
 import au.crewcomp.platform.time.BusinessClock
 import au.crewcomp.reference.CrewChange
 import au.crewcomp.reference.CrewPosition
+import au.crewcomp.reference.Customer
 import au.crewcomp.reference.Partnership
 import au.crewcomp.reference.PositionSlot
 import au.crewcomp.reference.PositionTier
@@ -184,6 +185,18 @@ class PortalSeedLoader(
     // ------------------------------------------------------------------ reference data
 
     private fun loadPartnership() {
+        // The office's customers (COM-1), as names to start from — added at the client's request,
+        // 7 Sep 2026. The portal's own operation is deliberately attached to none of them: which
+        // customer it belongs to is the office's call, made on the company screen.
+        listOf("United Marine", "Sindry", "NORSE", "SHIP MATES").forEach { name ->
+            em.persist(
+                Customer().apply {
+                    this.name = name
+                    notes = "Added as a starting entry; operations, contacts and crew to follow."
+                    stampCreated(actor, now)
+                },
+            )
+        }
         partnership = Partnership().apply {
             abbrev = "COO"
             name = "TSV Coolibah — MinRes Onslow"

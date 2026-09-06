@@ -47,6 +47,33 @@ data class PartnershipDto(
     val abbrev: String,
     val name: String,
     val vesselClass: String?,
+    /** The customer this operation is run for (COM-1); null until the office attaches one. */
+    val customerId: Long?,
+)
+
+/** COM-1 — a client company, with the partnerships run for it. */
+data class CustomerDto(
+    val id: Long,
+    val name: String,
+    val shortName: String?,
+    val contactName: String?,
+    val contactEmail: String?,
+    val contactPhone: String?,
+    val notes: String?,
+    /** `active` · `former`. */
+    val status: String,
+    val partnershipIds: List<Long>,
+)
+
+/** Create and update share a body; status is only read on update (a new customer is active). */
+data class SaveCustomerRequest(
+    val name: String,
+    val shortName: String? = null,
+    val contactName: String? = null,
+    val contactEmail: String? = null,
+    val contactPhone: String? = null,
+    val notes: String? = null,
+    val status: String = "active",
 )
 
 data class CrewChangeDto(
@@ -196,6 +223,7 @@ fun Partnership.toDto() = PartnershipDto(
     abbrev = abbrev,
     name = name,
     vesselClass = vesselClass,
+    customerId = customer?.requiredId,
 )
 
 fun CrewChange.toDto() = CrewChangeDto(

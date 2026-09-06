@@ -5,6 +5,7 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import {
   api,
   type AcceptEvidenceRequest,
@@ -22,6 +23,7 @@ import {
   type CrewRequest,
   type CrewRequestStatus,
   type CrewRequestSummary,
+  type Customer,
   type EvidenceDocument,
   type ExceptionItem,
   type ExpiryAlert,
@@ -43,6 +45,7 @@ import {
   type RegisterRecordDetail,
   type Requirement,
   type RequirementDetail,
+  type SaveCustomerRequest,
   type SaveRequirementRequest,
   type ScheduledJob,
   type SetHoldingRequest,
@@ -71,6 +74,8 @@ const REFERENCE_CACHE = { staleTime: 60 * 60 * 1000, gcTime: 60 * 60 * 1000 }
 
 export const keys = {
   partnerships: ['partnerships'] as const,
+  customers: ['customers'] as const,
+  unattachedPartnerships: ['customers', 'unattached-partnerships'] as const,
   crewChanges: (partnership: string) => ['crew-changes', partnership] as const,
   requirements: ['requirements'] as const,
   catalogue: ['catalogue'] as const,
@@ -106,8 +111,102 @@ export const keys = {
   identityProviders: ['identity-providers'] as const,
 }
 
-export function usePartnerships(): UseQueryResult<Partnership[]> {
+// ---------------------------------------------------------------------------
+// COM-1 — customers, and the customer scope every compliance screen can be viewed under
+// ---------------------------------------------------------------------------
+
+export function useCustomers(): UseQueryResult<Customer[]> {
+  return useQuery({ queryKey: keys.customers, queryFn: api.customers, ...REFERENCE_CACHE })
+}
+
+export function useUnattachedPartnerships(): UseQueryResult<Partnership[]> {
+  return useQuery({ queryKey: keys.unattachedPartnerships, queryFn: api.unattachedPartnerships })
+}
+
+function useCustomerMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.customers })
+      void client.invalidateQueries({ queryKey: keys.partnerships })
+    },
+  })
+}
+
+export function useCreateCustomer() {
+  return useCustomerMutation((body: SaveCustomerRequest) => api.createCustomer(body))
+}
+
+export function useUpdateCustomer() {
+  return useCustomerMutation(({ customerId, body }: { customerId: number; body: SaveCustomerRequest }) =>
+    api.updateCustomer(customerId, body),
+  )
+}
+
+export function useDeleteCustomer() {
+  return useCustomerMutation((customerId: number) => api.deleteCustomer(customerId))
+}
+
+export function useAttachPartnership() {
+  return useCustomerMutation(({ customerId, partnershipId }: { customerId: number; partnershipId: number }) =>
+    api.attachPartnership(customerId, partnershipId),
+  )
+}
+
+export function useDetachPartnership() {
+  return useCustomerMutation((partnershipId: number) => api.detachPartnership(partnershipId))
+}
+
+/**
+ * The customer scope: `?customer=<id>` on the URL, set by the rail's per-customer copy of the
+ * compliance menu. Under it, [usePartnerships] and [usePeople] return only that customer's
+ * operations and crew, so every screen built on them — dashboard, planner, people, register,
+ * the crew matrix — becomes that customer's view without knowing it. No scope, every customer.
+ *
+ * Presentation only: the server still scopes by role (AUTH-2); this narrows what one screen shows.
+ * `partnershipIds` is null while the customer list is still loading, which means "not yet
+ * filtered" rather than "nothing".
+ */
+export function useCustomerScope(): {
+  customerId: number | null
+  customer: Customer | null
+  partnershipIds: ReadonlySet<number> | null
+  /** `?customer=<id>` or empty — for links that should stay in the scope. */
+  suffix: string
+} {
+  const [params] = useSearchParams()
+  const raw = params.get('customer')
+  const customerId = raw === null || raw === '' || Number.isNaN(Number(raw)) ? null : Number(raw)
+  const customers = useCustomers()
+  const customer = customerId === null ? null : (customers.data?.find((c) => c.id === customerId) ?? null)
+  const partnershipIds =
+    customerId === null ? null : customer === null ? null : new Set(customer.partnershipIds)
+  return {
+    customerId,
+    customer,
+    // A scope that names a customer the list does not carry filters to nothing rather than to
+    // everything: a stale link must not quietly show the wrong company's crew.
+    partnershipIds: customerId !== null && customers.data !== undefined && customer === null ? new Set() : partnershipIds,
+    suffix: customerId === null ? '' : `?customer=${customerId}`,
+  }
+}
+
+/** Every partnership, whatever the scope — the company screen's own view. */
+export function useAllPartnerships(): UseQueryResult<Partnership[]> {
   return useQuery({ queryKey: keys.partnerships, queryFn: api.partnerships, ...REFERENCE_CACHE })
+}
+
+/** The partnerships in the customer scope (all of them when there is none). */
+export function usePartnerships(): UseQueryResult<Partnership[]> {
+  const scope = useCustomerScope()
+  const ids = scope.partnershipIds
+  return useQuery({
+    queryKey: keys.partnerships,
+    queryFn: api.partnerships,
+    ...REFERENCE_CACHE,
+    select: (rows) => (ids === null ? rows : rows.filter((partnership) => ids.has(partnership.id))),
+  })
 }
 
 export function useCrewChanges(partnership: string | null): UseQueryResult<CrewChange[]> {
@@ -131,8 +230,15 @@ export function useSlots(): UseQueryResult<Slot[]> {
   return useQuery({ queryKey: keys.slots, queryFn: api.slots, ...REFERENCE_CACHE })
 }
 
+/** The crew in the customer scope (everyone when there is none) — see [useCustomerScope]. */
 export function usePeople(): UseQueryResult<Person[]> {
-  return useQuery({ queryKey: keys.people, queryFn: api.people })
+  const scope = useCustomerScope()
+  const ids = scope.partnershipIds
+  return useQuery({
+    queryKey: keys.people,
+    queryFn: api.people,
+    select: (rows) => (ids === null ? rows : rows.filter((person) => ids.has(person.partnershipId))),
+  })
 }
 
 export function usePerson(personId: number): UseQueryResult<Person> {

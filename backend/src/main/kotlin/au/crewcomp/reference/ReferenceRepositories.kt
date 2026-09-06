@@ -15,6 +15,15 @@ import jakarta.enterprise.context.ApplicationScoped
 class PartnershipRepository : PanacheRepositoryBase<Partnership, Long> {
     fun byAbbrev(abbrev: String): Partnership? = find("abbrev", abbrev).firstResult()
     fun allOrdered(): List<Partnership> = listAll(io.quarkus.panache.common.Sort.by("abbrev"))
+    fun forCustomer(customerId: Long): List<Partnership> =
+        list("customer.id = ?1 order by abbrev", customerId)
+}
+
+/** COM-1 — the client companies. Reference data like the rest of the file; writes are role-gated in CustomerService. */
+@ApplicationScoped
+class CustomerRepository : PanacheRepositoryBase<Customer, Long> {
+    fun byName(name: String): Customer? = find("lower(name) = lower(?1)", name).firstResult()
+    fun allOrdered(): List<Customer> = listAll(io.quarkus.panache.common.Sort.by("name"))
 }
 
 @ApplicationScoped

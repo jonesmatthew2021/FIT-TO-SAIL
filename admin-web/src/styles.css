@@ -373,6 +373,13 @@ a:hover {
   padding: 32px 40px 80px;
 }
 
+/* The customer box in the rail: pick one and the compliance menu below becomes that customer's. */
+.nav__select {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 2px 8px 10px;
+}
+
 .nav__group {
   font-size: 10px;
   letter-spacing: 0.12em;

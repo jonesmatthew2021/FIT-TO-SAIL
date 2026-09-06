@@ -96,7 +96,7 @@ export function contextForPath(pathname: string): AssistantContext {
   const match = NAV_ITEMS
     .filter((item) => (item.to === '/' ? pathname === '/' : pathname === item.to || pathname.startsWith(`${item.to}/`)))
     .sort((a, b) => b.to.length - a.to.length)[0]
-  const label = match === undefined ? 'Crewcomp Admin' : `${match.module} ${match.label}`
+  const label = match === undefined ? 'Fit to Sail Admin' : `${match.module} ${match.label}`
   return { chip: label, mono: false, screen: label }
 }
 

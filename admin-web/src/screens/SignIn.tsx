@@ -18,7 +18,7 @@ import { ALL_ROLES, roleLabel } from '../domain/enums'
 export function SignIn(): React.ReactNode {
   return (
     <main className="signin">
-      <h1 className="signin__title">CREWCOMP</h1>
+      <h1 className="signin__title">FIT TO SAIL</h1>
       <p className="signin__lede">Crew compliance administration</p>
 
       <a className="button button--primary" href={BFF_LOGIN_PATH}>
