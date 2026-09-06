@@ -19,6 +19,8 @@ interface NavItem {
   readonly label: string
   readonly module: string
   readonly built: boolean
+  /** Which rail group the item sits in. Compliance is §6's ten modules; Company sits above it. */
+  readonly group?: 'company' | 'compliance'
 }
 
 /**
@@ -27,6 +29,9 @@ interface NavItem {
  * loop links to follow. ADM-5 therefore sits above ADM-3 and ADM-4.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
+  // The company group, above compliance: the operation itself — who the partnership is, what it
+  // runs — as distinct from the daily compliance loop below. COM-1 is this project's number.
+  { to: '/company', label: 'Company', module: 'COM-1', built: true, group: 'company' },
   { to: '/', label: 'Dashboard', module: 'ADM-1', built: true },
   { to: '/planner', label: 'Swing planner', module: 'ADM-2', built: true },
   { to: '/people', label: 'People & holdings', module: 'ADM-5', built: true },
@@ -97,7 +102,8 @@ export function Layout(): React.ReactNode {
         {/* Grouped rather than interleaved: a reader should be able to see at a glance how much of
             §6 exists, without reading a marker on every row. */}
         <nav className="shell__nav" aria-label="Modules">
-          <NavGroup label="Compliance" items={NAV_ITEMS.filter((item) => item.built)} />
+          <NavGroup label="Company" items={NAV_ITEMS.filter((item) => item.built && item.group === 'company')} />
+          <NavGroup label="Compliance" items={NAV_ITEMS.filter((item) => item.built && item.group !== 'company')} />
           <NavGroup label="Not built" items={NAV_ITEMS.filter((item) => !item.built)} later />
         </nav>
 
