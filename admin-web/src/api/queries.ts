@@ -15,6 +15,7 @@ import {
   type ConfigSetting,
   type CreateIdentityProviderRequest,
   type CreateMatrixDraftRequest,
+  type CreatePersonRequest,
   type CreateRegisterRecordRequest,
   type CreateTransitionalAccountRequest,
   type CrewChange,
@@ -24,6 +25,7 @@ import {
   type EvidenceDocument,
   type ExceptionItem,
   type ExpiryAlert,
+  type FileIntakeRequest,
   type GapReportRow,
   type Holding,
   type IdentityProvider,
@@ -660,6 +662,44 @@ export function useRejectEvidence() {
 
 export function useExtractEvidence() {
   return useEvidenceMutation((publicId: string) => api.extractEvidence(publicId))
+}
+
+// ---------------------------------------------------------------------------
+// ADM-12 — certificates on file
+// ---------------------------------------------------------------------------
+
+/** The read step writes nothing, so nothing is invalidated: the reading lives in the caller's state. */
+export function useOfficeRead() {
+  return useMutation({ mutationFn: (file: File) => api.officeRead(file) })
+}
+
+export function useOfficeFile() {
+  return useEvidenceMutation(({ intakeId, body }: { intakeId: string; body: FileIntakeRequest }) =>
+    api.officeFile(intakeId, body),
+  )
+}
+
+export function useAmendEvidence() {
+  return useEvidenceMutation(
+    ({ publicId, body }: { publicId: string; body: AcceptEvidenceRequest }) =>
+      api.amendEvidence(publicId, body),
+  )
+}
+
+export function useRemoveEvidence() {
+  return useEvidenceMutation(({ publicId, reason }: { publicId: string; reason: string }) =>
+    api.removeEvidence(publicId, reason),
+  )
+}
+
+export function useCreatePerson() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (body: CreatePersonRequest) => api.createPerson(body),
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.people })
+    },
+  })
 }
 
 // ---------------------------------------------------------------------------

@@ -2,11 +2,13 @@ package au.crewcomp.api
 
 import au.crewcomp.compliance.ComplianceService
 import au.crewcomp.engine.HoldingStatus
+import au.crewcomp.evidence.EvidenceReviewService
 import au.crewcomp.people.HoldingService
 import au.crewcomp.people.PersonDirectoryService
 import io.quarkus.security.Authenticated
 import jakarta.ws.rs.Consumes
 import jakarta.ws.rs.GET
+import jakarta.ws.rs.POST
 import jakarta.ws.rs.PUT
 import jakarta.ws.rs.Path
 import jakarta.ws.rs.PathParam
@@ -35,11 +37,29 @@ class PeopleResource(
     private val directory: PersonDirectoryService,
     private val holdings: HoldingService,
     private val compliance: ComplianceService,
+    private val evidence: EvidenceReviewService,
 ) {
 
     @GET
     @Operation(summary = "People visible to the caller (§3 scoping)")
     fun list(): List<PersonDto> = directory.list().map { it.toDto() }
+
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Add a crew member — audited; refuses a re-used employee id")
+    fun create(request: CreatePersonRequest): PersonDto = directory.create(
+        name = request.name,
+        sam = request.sam,
+        positionId = request.positionId,
+        partnershipId = request.partnershipId,
+        email = request.email,
+    ).toDto()
+
+    @GET
+    @Path("/{personId}/evidence")
+    @Operation(summary = "A person's evidence documents — the certificates on file, newest first")
+    fun evidence(@PathParam("personId") personId: Long): List<EvidenceDocumentDto> =
+        evidence.forPerson(personId).map { it.toReviewDto() }
 
     @GET
     @Path("/{personId}")

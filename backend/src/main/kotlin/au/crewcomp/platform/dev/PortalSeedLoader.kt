@@ -5,11 +5,15 @@ import au.crewcomp.engine.PersonStatus
 import au.crewcomp.engine.QuotaScope
 import au.crewcomp.engine.RuleLevel
 import au.crewcomp.engine.Shift
+import au.crewcomp.evidence.EvidenceDocument
+import au.crewcomp.evidence.EvidenceSource
+import au.crewcomp.evidence.VerificationStatus
 import au.crewcomp.people.Assignment
 import au.crewcomp.people.Person
 import au.crewcomp.people.QualificationHolding
 import au.crewcomp.people.UserAccount
 import au.crewcomp.people.UserAccountKind
+import au.crewcomp.platform.adapters.ObjectStorage
 import au.crewcomp.platform.security.Role
 import au.crewcomp.platform.time.BusinessClock
 import au.crewcomp.reference.CrewChange
@@ -36,6 +40,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Instant
 import java.time.LocalDate
+import java.util.UUID
 
 /**
  * Loads a snapshot of the Coolibah crew portal — the collaborator-maintained proof-of-concept
@@ -73,6 +78,10 @@ class PortalSeedLoader(
     private val em: EntityManager,
     private val clock: BusinessClock,
     private val root: Path,
+    /** Where certificate bytes go. Null (the fixture ITs) means the files are not imported. */
+    private val storage: ObjectStorage? = null,
+    /** The mirrored `documents/` tree the index's paths are relative to. Null: not imported. */
+    private val documentsRoot: Path? = null,
 ) {
     private val log = Logger.getLogger(PortalSeedLoader::class.java)
 
@@ -136,6 +145,8 @@ class PortalSeedLoader(
     private val tiersSeen = mutableSetOf<Pair<String, String>>()
     private val requirementsByCode = mutableMapOf<String, Requirement>()
     private val personsByNormName = mutableMapOf<String, Person>()
+    /** `normName::CODE` → the holding, so an imported certificate can link to what it evidences. */
+    private val holdingsByKey = mutableMapOf<String, QualificationHolding>()
     private val counts = mutableMapOf<String, Int>()
 
     fun load() {
@@ -156,16 +167,17 @@ class PortalSeedLoader(
         loadPersons(data, certDates)
         val swing = loadSwing(data)
         loadMatrix(data, rev, savedAt)
+        loadDocuments(certDates)
         seedAccounts()
         writeWorklist()
 
         em.flush()
         log.infof(
             "Portal dataset loaded from %s (rev %d, saved %s): %d requirements, %d people, " +
-                "%d holdings, swing %s, %d quota rules, %d worklist items",
+                "%d holdings, swing %s, %d quota rules, %d certificates on file, %d worklist items",
             root, rev, savedAt, requirementsByCode.size, personsByNormName.size,
             counts["holdings"] ?: 0, swing?.ccId ?: "(none)", counts["quotas"] ?: 0,
-            counts["worklist"] ?: 0,
+            counts["documents"] ?: 0, counts["worklist"] ?: 0,
         )
     }
 
@@ -238,8 +250,12 @@ class PortalSeedLoader(
                     ?: "QL"
                 title = col[1].asText().trim()
                 status = "active"
-                // The schema has no validity column yet (§4.1 open); the portal's validity list
-                // informs the notes and the Y-cell cross-check below, and nothing else.
+                // The validity period (V12): the months where the portal gives a number, its own
+                // words where it does not ("1 or 2 years — as printed on the certificate").
+                validityMonths = months
+                validityText = period?.path("validFor")?.takeUnless { it.isNull || it.isMissingNode }
+                    ?.asText()?.trim()?.ifEmpty { null }
+                    ?: if (neverExpires) "Never expires" else null
                 notes = when {
                     neverExpires -> "Never expires (portal validity list)."
                     months != null -> "Valid ${period.path("validFor").asText(months.toString() + " months")} (portal validity list)."
@@ -273,7 +289,8 @@ class PortalSeedLoader(
     /** Join key across the portal's name spellings: case- and punctuation-insensitive. */
     private fun normName(name: String) = name.lowercase().replace(Regex("[\\s.]"), "")
 
-    private data class CertDate(val issued: LocalDate?, val expires: LocalDate?)
+    /** [fileId] is the portal's file id from the linkage's `/api/files/<id>` url — the join to the documents index. */
+    private data class CertDate(val issued: LocalDate?, val expires: LocalDate?, val fileId: String?)
 
     private fun certDateIndex(data: JsonNode): Map<String, CertDate> {
         val index = mutableMapOf<String, CertDate>()
@@ -282,6 +299,7 @@ class PortalSeedLoader(
             index["${normName(person)}::${code.trim()}"] = CertDate(
                 issued = node.path("issued").asText("").takeIf { ISO_DATE.matches(it) }?.let(LocalDate::parse),
                 expires = node.path("expires").asText("").takeIf { ISO_DATE.matches(it) }?.let(LocalDate::parse),
+                fileId = node.path("url").asText("").substringAfterLast('/').ifEmpty { null },
             )
         }
         return index
@@ -366,7 +384,11 @@ class PortalSeedLoader(
                     this.requirement = requirement
                     if (status.isHeld) issueDate = cert?.issued
                     stampCreated(actor, now)
-                }?.also { em.persist(it); holdings++ }
+                }?.also {
+                    em.persist(it)
+                    holdings++
+                    holdingsByKey["${normName(name)}::$code"] = it
+                }
             }
         }
         counts["holdings"] = holdings
@@ -654,6 +676,130 @@ class PortalSeedLoader(
                 )
                 cell(positions.single(), code, label)
             }
+        }
+    }
+
+    // ------------------------------------------------------------------ certificates on file
+
+    /**
+     * The portal's certificate files, attached to the people and codes the portal itself linked
+     * them to — the handoff's "deferred half", no longer deferred.
+     *
+     * Who a file belongs to is read in this order, and the order is the point: the portal's own
+     * certificate linkage first (it is the matrix's join, made by the people who know the data),
+     * then the filename's "SURNAME_ First - CODE …" convention, and only then the folder the file
+     * sits in — because the folder is exactly where the misfiled ones are wrong. A file with a code
+     * lands **verified** and linked to the holding it evidences, since the portal's matrix *is* the
+     * accepted record; one with no code lands in the review queue and says why. Nothing is
+     * re-extracted: the model has no say over a record a human already made.
+     *
+     * The portal's file id becomes the document's public id, so a re-import is idempotent and a
+     * document can be traced back to the portal row it came from.
+     */
+    private fun loadDocuments(certDates: Map<String, CertDate>) {
+        val indexFile = root.resolve("documents-index.json")
+        val docsRoot = documentsRoot
+        if (storage == null || docsRoot == null || !Files.isRegularFile(indexFile) || !Files.isDirectory(docsRoot)) {
+            log.infof(
+                "Portal certificates not imported: needs documents-index.json beside portal-state.json " +
+                    "and a documents directory (looked at %s)",
+                docsRoot ?: "(none)",
+            )
+            return
+        }
+        // portal file id → "normName::CODE", from the linkage's url.
+        val linkByFileId = certDates.entries.mapNotNull { (key, cert) -> cert.fileId?.let { it to key } }.toMap()
+
+        var imported = 0
+        var unfiled = 0
+        var missing = 0
+        var misfiled = 0
+        var unknownPerson = 0
+        ObjectMapper().readTree(Files.readString(indexFile)).forEach { entry ->
+            if (entry.path("category").asText() != "certificate") return@forEach
+            if (entry.path("removedAt").asText("").isNotEmpty()) return@forEach
+            val fileId = entry.path("id").asText()
+            val filename = entry.path("filename").asText()
+
+            val link = linkByFileId[fileId]?.split("::")
+            val fromFilename = normName(filename.substringBefore(" - ").replace('_', ','))
+            val folderPerson = normName(entry.path("person").asText(""))
+            val personKey = link?.get(0)
+                ?: fromFilename.takeIf { it in personsByNormName }
+                ?: folderPerson
+            val person = personsByNormName[personKey]
+            if (person == null) {
+                unknownPerson++
+                return@forEach
+            }
+            if (personKey != folderPerson && folderPerson in personsByNormName) misfiled++
+
+            val code = link?.get(1) ?: CODE.find(filename)?.value
+            val requirement = code?.let { requirementsByCode[it] }
+            val path = docsRoot.resolve(entry.path("path").asText())
+            if (!Files.isRegularFile(path)) {
+                missing++
+                return@forEach
+            }
+            val bytes = Files.readAllBytes(path)
+            val contentType = entry.path("contentType").asText("application/pdf")
+            val publicId = try {
+                UUID.fromString(fileId)
+            } catch (_: IllegalArgumentException) {
+                UUID.randomUUID()
+            }
+            val key = "evidence/$publicId/original"
+            storage.put(key, bytes, contentType)
+
+            em.persist(
+                EvidenceDocument().apply {
+                    this.publicId = publicId
+                    this.person = person
+                    source = EvidenceSource.ADMIN_UPLOAD
+                    this.contentType = contentType
+                    byteSize = bytes.size.toLong()
+                    fileName = filename
+                    objectKey = key
+                    uploadOffset = bytes.size.toLong()
+                    uploadComplete = true
+                    declaredSize = bytes.size.toLong()
+                    declaredSha256 = entry.path("checksum").asText("").lowercase().ifEmpty { null }
+                    submittedBy = entry.path("uploadedBy").asText("").ifEmpty { actor }
+                    submittedAt = runCatching { Instant.parse(entry.path("createdAt").asText("")) }.getOrNull() ?: now
+                    matchedRequirement = requirement
+                    linkedHolding = requirement?.let { holdingsByKey["$personKey::${it.code}"] }
+                    if (requirement != null) {
+                        verificationStatus = VerificationStatus.VERIFIED
+                    } else {
+                        verificationStatus = VerificationStatus.PENDING_REVIEW
+                        reviewReason = "Imported from the portal without a matrix code — file it by hand."
+                    }
+                    stampCreated(actor, now)
+                },
+            )
+            if (requirement != null) imported++ else unfiled++
+        }
+        counts["documents"] = imported + unfiled
+
+        if (misfiled > 0) {
+            flag(
+                "REVIEW", "evidence", "$misfiled certificates",
+                "Filed in another crew member's folder on the portal — attached here to the person " +
+                    "the file names; refile at source.",
+            )
+        }
+        if (unfiled > 0) {
+            flag(
+                "INFO", "evidence", "$unfiled certificates",
+                "Carry no matrix code in the portal's linkage or their filename — in the evidence " +
+                    "queue to file by hand.",
+            )
+        }
+        if (missing > 0) {
+            flag("DATAERR", "evidence", "$missing certificates", "Listed in the portal's index but absent from the documents directory — not imported.")
+        }
+        if (unknownPerson > 0) {
+            flag("DATAERR", "evidence", "$unknownPerson certificates", "Name someone the qualification matrix does not carry — not imported.")
         }
     }
 

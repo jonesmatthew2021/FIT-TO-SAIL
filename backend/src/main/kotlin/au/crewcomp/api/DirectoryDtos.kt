@@ -65,6 +65,19 @@ data class RequirementDto(
     val title: String,
     val status: String,
     val issuingAuthority: String?,
+    /** The validity period (V12): months where plain, the client's words where not. Presentation only. */
+    val validityMonths: Int?,
+    val validityText: String?,
+)
+
+/** The office's "add a crew member" (see PersonDirectoryService.create). */
+data class CreatePersonRequest(
+    /** `SURNAME, Given names` — the form every other crew record uses. */
+    val name: String,
+    val sam: String,
+    val positionId: Long,
+    val partnershipId: Long,
+    val email: String? = null,
 )
 
 /**
@@ -201,6 +214,8 @@ fun Requirement.toDto() = RequirementDto(
     title = title,
     status = status,
     issuingAuthority = issuingAuthority,
+    validityMonths = validityMonths,
+    validityText = validityText,
 )
 
 fun Requirement.toDetailDto(usage: RequirementUsage?) = RequirementDetailDto(

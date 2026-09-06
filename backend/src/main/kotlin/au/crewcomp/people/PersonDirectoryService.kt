@@ -1,7 +1,12 @@
 package au.crewcomp.people
 
+import au.crewcomp.engine.PersonStatus
+import au.crewcomp.platform.audit.AuditWriter
 import au.crewcomp.platform.persistence.EntityNotFoundException
 import au.crewcomp.platform.security.AccessPolicy
+import au.crewcomp.platform.security.Role
+import au.crewcomp.reference.CrewPositionRepository
+import au.crewcomp.reference.PartnershipRepository
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.transaction.Transactional
 
@@ -21,13 +26,70 @@ class PersonDirectoryService(
     private val holdings: QualificationHoldingRepository,
     private val assignments: AssignmentRepository,
     private val leave: LeaveRecordRepository,
+    private val positions: CrewPositionRepository,
+    private val partnerships: PartnershipRepository,
     private val policy: AccessPolicy,
+    private val audit: AuditWriter,
 ) {
 
     @Transactional
     fun list(): List<Person> {
         policy.actor()
         return people.listScoped()
+    }
+
+    /**
+     * Creates a person — the office's "add a new crew member", reached from the certificate
+     * intake when a document names someone the roster does not carry.
+     *
+     * The one thing it refuses is a **re-used employee id**. `Person.sam` is deliberately not
+     * unique in the schema (the source data carries one historical duplicate, preserved as an
+     * exception item), but a *new* row reusing a number is how the source data got that duplicate
+     * in the first place, and the person adding a crew member is the right person to notice.
+     */
+    @Transactional
+    fun create(name: String, sam: String, positionId: Long, partnershipId: Long, email: String?): Person {
+        policy.require(Role.CREW_COORDINATOR, Role.DATA_STEWARD, Role.SYSTEM_ADMINISTRATOR)
+        policy.assertNotReadOnlyActor()
+
+        val cleanName = name.trim()
+        val cleanSam = sam.trim()
+        require(cleanName.contains(',')) { "Name must be 'SURNAME, Given names' — the form every other crew record uses" }
+        require(cleanSam.isNotEmpty()) { "An employee id (Sam #) is required" }
+        people.bySam(cleanSam).firstOrNull()?.let {
+            throw IllegalArgumentException("Employee id $cleanSam already belongs to ${it.name} — check the number")
+        }
+        val position = positions.findById(positionId) ?: throw EntityNotFoundException("No position $positionId")
+        val partnership = partnerships.findById(partnershipId)
+            ?: throw EntityNotFoundException("No partnership $partnershipId")
+        policy.assertCanSeePartnership(partnershipId)
+
+        val actor = policy.actor()
+        val person = Person().apply {
+            this.sam = cleanSam
+            this.name = cleanName
+            this.position = position
+            this.partnership = partnership
+            this.email = email?.trim()?.ifEmpty { null }
+            status = PersonStatus.ACTIVE
+            stampCreated(actor.label)
+        }
+        people.persist(person)
+        people.flush()
+
+        audit.record(
+            entityType = "Person",
+            event = "person.created",
+            entityId = person.id,
+            businessKey = person.sam,
+            after = mapOf(
+                "name" to person.name,
+                "position" to position.name,
+                "partnership" to partnership.abbrev,
+                "email" to person.email,
+            ),
+        )
+        return person
     }
 
     /**

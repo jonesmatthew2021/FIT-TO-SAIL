@@ -62,6 +62,8 @@ data class EvidenceDocumentDto(
     val verificationStatus: String,
     val contentType: String?,
     val byteSize: Long?,
+    /** The name the file arrived with — display only (V12). */
+    val fileName: String?,
     val uploadComplete: Boolean,
     /** True once bytes exist to show in the side-by-side view. */
     val hasContent: Boolean,
@@ -87,6 +89,34 @@ data class AcceptEvidenceRequest(
 )
 
 data class RejectEvidenceRequest(val reason: String)
+
+// The office intake — certificates on file (see OfficeEvidenceService).
+
+data class PersonSuggestionDto(val person: PersonDto, val score: Int, val why: String)
+
+/** The model's reading of one uploaded file, with suggestions. Nothing has been filed yet. */
+data class IntakeReadingDto(
+    val intakeId: String,
+    val fileName: String?,
+    val contentType: String,
+    val byteSize: Long,
+    val model: String,
+    val extraction: List<ExtractedFieldDto>,
+    /** Crew whose name the holder's name (or the filename) looks like, best first. Never a decision. */
+    val people: List<PersonSuggestionDto>,
+    /** Catalogue entries the title (or a code in the filename) looks like, best first. */
+    val requirements: List<RequirementDto>,
+)
+
+/** What the **uploader** confirmed — the person is always an explicit choice, never inferred. */
+data class FileIntakeRequest(
+    val personId: Long,
+    val requirementId: Long,
+    val status: String,
+    val expiry: LocalDate? = null,
+    val issueDate: LocalDate? = null,
+    val note: String? = null,
+)
 
 // ---------------------------------------------------------------------------
 // ADM-10 — administration
@@ -205,6 +235,7 @@ fun EvidenceDocument.toReviewDto() = EvidenceDocumentDto(
     verificationStatus = verificationStatusValue,
     contentType = contentType,
     byteSize = byteSize,
+    fileName = fileName,
     uploadComplete = uploadComplete,
     hasContent = objectKey != null,
     requirementHintId = requirementHint?.requiredId,

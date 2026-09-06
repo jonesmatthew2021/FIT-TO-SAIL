@@ -93,6 +93,9 @@ class DevDataSeeder(
     private val extractRoot: Optional<String>,
     @ConfigProperty(name = "crewcomp.dev-seed.portal-root")
     private val portalRoot: Optional<String>,
+    @ConfigProperty(name = "crewcomp.dev-seed.portal-documents")
+    private val portalDocuments: Optional<String>,
+    private val storage: au.crewcomp.platform.adapters.ObjectStorage,
 ) {
     private val log = Logger.getLogger(DevDataSeeder::class.java)
 
@@ -162,7 +165,12 @@ class DevDataSeeder(
                             "and lives outside this repository.",
                     )
                 }
-                PortalSeedLoader(em, clock, Path.of(root)).load()
+                val rootPath = Path.of(root).toAbsolutePath()
+                // scripts/portal-snapshot.sh keeps the bytes at $root/documents, two levels above a
+                // snapshot directory; a different layout says so through the property.
+                val documents = portalDocuments.map(String::trim).filter(String::isNotEmpty).map(Path::of)
+                    .orElseGet { rootPath.parent?.parent?.resolve("documents") }
+                PortalSeedLoader(em, clock, rootPath, storage, documents).load()
                 log.warn(
                     "Portal seed applied: REAL crew names, employee ids and certification data " +
                         "from $root. Do not expose this environment beyond the demonstration.",

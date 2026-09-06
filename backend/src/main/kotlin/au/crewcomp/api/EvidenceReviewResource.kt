@@ -117,6 +117,44 @@ class EvidenceReviewResource(
         review.reject(java.util.UUID.fromString(publicId), request.reason).toReviewDto()
 
     /**
+     * Corrects a filed document's code or dates — the certificates-on-file "Edit".
+     *
+     * Writes the holding through the same door every holding edit uses and re-links the document,
+     * audited as an amendment. Distinct from accept: accept decides an open document; this
+     * corrects a decided one without rewriting the history of the decision.
+     */
+    @POST
+    @Path("/{publicId}/amend")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Correct a filed document's code or dates — writes the holding, audited")
+    fun amend(
+        @PathParam("publicId") publicId: String,
+        request: AcceptEvidenceRequest,
+    ): EvidenceDocumentDto = review.amend(
+        publicId = java.util.UUID.fromString(publicId),
+        requirementId = request.requirementId,
+        status = HoldingStatus.fromWire(request.status),
+        expiry = request.expiry,
+        issueDate = request.issueDate,
+        note = request.note,
+    ).toReviewDto()
+
+    /**
+     * Takes a document off the file — the certificates-on-file "Delete". Nothing is destroyed:
+     * the bytes and the audit trail stay, the document reads as removed, and the holding it wrote
+     * is left exactly as it is (correct that on the person's holdings if it was wrong).
+     */
+    @POST
+    @Path("/{publicId}/remove")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "Remove a document from the file with a reason — the holding is untouched")
+    fun remove(
+        @PathParam("publicId") publicId: String,
+        request: RejectEvidenceRequest,
+    ): EvidenceDocumentDto =
+        review.remove(java.util.UUID.fromString(publicId), request.reason).toReviewDto()
+
+    /**
      * Re-runs extraction for one document.
      *
      * Only useful for a document still in `pending_extraction` — the pipeline is idempotent by

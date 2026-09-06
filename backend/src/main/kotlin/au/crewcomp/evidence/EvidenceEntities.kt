@@ -54,6 +54,10 @@ class EvidenceDocument : AuditedEntity() {
     @Column(name = "byte_size")
     var byteSize: Long? = null
 
+    /** The name the file arrived with — display only (V12). The object is keyed by [publicId]. */
+    @Column(name = "file_name")
+    var fileName: String? = null
+
     @Column(name = "source", nullable = false)
     var sourceValue: String = EvidenceSource.MOBILE_CAMERA.wire
 

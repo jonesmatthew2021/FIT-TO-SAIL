@@ -207,6 +207,111 @@ class EvidenceReviewService(
         return document
     }
 
+    /** One person's documents, newest first — the certificates-on-file card. */
+    @Transactional
+    fun forPerson(personId: Long): List<EvidenceDocument> {
+        policy.require(
+            Role.DATA_STEWARD, Role.CREW_COORDINATOR, Role.COMPLIANCE_LEAD,
+            Role.WORKFLOW_MANAGER, Role.SYSTEM_ADMINISTRATOR,
+        )
+        return documents.forPersonForReview(personId)
+    }
+
+    /**
+     * Corrects a **filed** document — the certificates-on-file "Edit".
+     *
+     * [accept] decides an open document and [openDocument] refuses a decided one, on purpose: a
+     * decision's history is not rewritten. This is the other operation: the document stays decided,
+     * the holding it evidences is written again through [HoldingService] with the corrected values,
+     * the document is re-linked, and the event says "amended" so an auditor can find every
+     * after-the-fact correction in one search.
+     */
+    @Transactional
+    fun amend(
+        publicId: UUID,
+        requirementId: Long,
+        status: HoldingStatus,
+        expiry: LocalDate? = null,
+        issueDate: LocalDate? = null,
+        note: String? = null,
+    ): EvidenceDocument {
+        policy.require(Role.DATA_STEWARD, Role.SYSTEM_ADMINISTRATOR)
+
+        val document = documents.byPublicIdForReview(publicId)
+            ?: throw EntityNotFoundException("No evidence document $publicId")
+        require(document.verificationStatus in FILED_STATUSES) {
+            "Only a filed (verified or auto-accepted) document can be amended; this one is " +
+                "${document.verificationStatus.wire} — decide it on the evidence queue instead"
+        }
+        val requirement = requirements.findById(requirementId)
+            ?: throw EntityNotFoundException("No requirement $requirementId")
+
+        val before = mapOf(
+            "requirement" to document.matchedRequirement?.code,
+            "holdingId" to document.linkedHolding?.requiredId,
+        )
+        val holding = holdingService.setHolding(
+            personId = document.person.requiredId,
+            requirementId = requirementId,
+            status = status,
+            expiry = expiry,
+            issueDate = issueDate,
+            note = note ?: "Amended from evidence $publicId",
+            evidenceDocumentId = document.id,
+        )
+        document.matchedRequirement = requirement
+        document.linkedHolding = holding
+        document.stampUpdated(policy.actor().label)
+
+        audit.record(
+            entityType = "EvidenceDocument",
+            event = "evidence.amended",
+            entityId = document.id,
+            businessKey = publicId.toString(),
+            before = before,
+            after = mapOf(
+                "requirement" to requirement.code,
+                "status" to status.wire,
+                "expiry" to expiry?.toString(),
+                "issueDate" to issueDate?.toString(),
+                "holdingId" to holding.requiredId,
+            ),
+        )
+        return document
+    }
+
+    /**
+     * Takes a document off the file — the certificates-on-file "Delete", which is a withdrawal and
+     * not a deletion: the bytes stay, the audit trail stays, and **the holding is untouched**. A
+     * document that was wrong about a date is corrected with [amend]; a holding that should not
+     * exist is corrected on the person's holdings. Removing a scan changes what is on file, not
+     * what is true.
+     */
+    @Transactional
+    fun remove(publicId: UUID, reason: String): EvidenceDocument {
+        policy.require(Role.DATA_STEWARD, Role.SYSTEM_ADMINISTRATOR)
+        val cleanReason = reason.trim()
+        require(cleanReason.isNotEmpty()) { "Removing a document needs a reason — it is what the file will say in its place" }
+
+        val document = documents.byPublicIdForReview(publicId)
+            ?: throw EntityNotFoundException("No evidence document $publicId")
+        val previousStatus = document.verificationStatus
+        document.verificationStatus = VerificationStatus.REJECTED
+        document.rejectionReason = "Removed from file: $cleanReason"
+        document.reviewReason = null
+        document.stampUpdated(policy.actor().label)
+
+        audit.record(
+            entityType = "EvidenceDocument",
+            event = "evidence.removed",
+            entityId = document.id,
+            businessKey = publicId.toString(),
+            before = mapOf("status" to previousStatus.wire, "fileName" to document.fileName),
+            after = mapOf("status" to VerificationStatus.REJECTED.wire, "reason" to cleanReason),
+        )
+        return document
+    }
+
     // -----------------------------------------------------------------------
     // Internals
     // -----------------------------------------------------------------------
@@ -287,6 +392,9 @@ class EvidenceReviewService(
         )
 
         private val TERMINAL_STATUSES = setOf(VerificationStatus.VERIFIED, VerificationStatus.REJECTED)
+
+        /** A document that has written a holding — the only kind [amend] applies to. */
+        private val FILED_STATUSES = setOf(VerificationStatus.VERIFIED, VerificationStatus.AUTO_ACCEPTED)
     }
 }
 

@@ -151,6 +151,16 @@ class Requirement : AuditedEntity() {
     @Column(name = "notes")
     var notes: String? = null
 
+    /**
+     * The validity period (V12): months where it is a plain number, the client's own words where it
+     * is not. Presentation and a cross-check input — a holding's expiry is what the holding says.
+     */
+    @Column(name = "validity_months")
+    var validityMonths: Int? = null
+
+    @Column(name = "validity_text")
+    var validityText: String? = null
+
     /** Legacy free-text titles, for mapping register history (§4.1). */
     @OneToMany(mappedBy = "requirement", cascade = [CascadeType.ALL], orphanRemoval = true)
     var aliases: MutableList<RequirementAlias> = mutableListOf()

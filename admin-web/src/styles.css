@@ -2509,6 +2509,181 @@ select.input option {
   font-size: 12px;
 }
 
+/* Certificates on file (ADM-12) ------------------------------------------- */
+
+/* A rank-group heading, in the rail's small-caps voice; the count rides along. */
+.cert-group {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-neutral-500);
+}
+
+.cert-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 10px;
+}
+
+.cert-card__summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.cert-card__summary::-webkit-details-marker {
+  display: none;
+}
+
+.cert-card__summary::before {
+  content: '▸';
+  display: inline-block;
+  width: 14px;
+  color: var(--color-neutral-500);
+  font-size: 11px;
+}
+
+.cert-card[open] > .cert-card__summary::before {
+  content: '▾';
+}
+
+.cert-card__name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.cert-card__body {
+  padding: 0 16px 14px;
+  border-top: 1px solid var(--color-neutral-800);
+}
+
+/* The five columns every row shares: file, issue, expiry, validity, actions. */
+.cert-head,
+.cert-code,
+.cert-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px 130px 170px 180px;
+  gap: 12px;
+  align-items: center;
+}
+
+.cert-head {
+  padding: 10px 0 6px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-neutral-600);
+}
+
+.cert-code {
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--color-neutral-800);
+}
+
+.cert-code .mono {
+  margin-right: 12px;
+  color: var(--color-neutral-500);
+  font-size: 12.5px;
+}
+
+.cert-code strong {
+  font-weight: 500;
+}
+
+.cert-row {
+  padding: 8px 0 8px 22px;
+  font-size: 13.5px;
+}
+
+.cert-row--removed .cert-row__file a {
+  text-decoration: line-through;
+  color: var(--color-neutral-500);
+}
+
+.cert-row__file {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cert-row__file a {
+  color: var(--color-text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cert-row__file a:hover {
+  text-decoration: underline;
+}
+
+.cert-row__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+/* The remove confirmation spans the row beneath the file it is about. */
+.cert-row__confirm {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0 2px;
+  font-size: 12.5px;
+}
+
+.cert-row__confirm .input {
+  width: 280px;
+}
+
+/* The intake dialog: what was read on the left, what is being filed on the right. */
+.intake {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.intake__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .intake {
+    grid-template-columns: 1fr;
+  }
+
+  .cert-head,
+  .cert-code,
+  .cert-row {
+    grid-template-columns: minmax(0, 1fr) 110px 120px;
+  }
+
+  .cert-head > :nth-child(4),
+  .cert-code > :nth-child(4),
+  .cert-row > :nth-child(4),
+  .cert-head > :nth-child(5),
+  .cert-code > :nth-child(5) {
+    display: none;
+  }
+
+  .cert-row__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
 /* Modals ----------------------------------------------------------------- */
 
 /*

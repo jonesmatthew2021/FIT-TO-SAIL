@@ -72,6 +72,12 @@ class EvidenceDocumentRepository(private val scopeGuard: ScopeGuard) :
     fun byPublicIdForReview(publicId: UUID): EvidenceDocument? =
         find("$QUEUE_SELECT where d.publicId = ?1", publicId).firstResult()
 
+    /** One person's documents with the review fetch set — the certificates-on-file card. Scoped. */
+    fun forPersonForReview(personId: Long): List<EvidenceDocument> {
+        scopeGuard.assertVisible(personId)
+        return find("$QUEUE_SELECT where p.id = ?1 order by d.submittedAt desc", personId).list()
+    }
+
     private companion object {
         /**
          * Shared so the list query and the detail query cannot drift apart — the register module

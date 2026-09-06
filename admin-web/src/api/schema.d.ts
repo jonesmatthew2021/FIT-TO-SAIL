@@ -1241,6 +1241,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/evidence-review/{publicId}/amend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Correct a filed document's code or dates — writes the holding, audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    publicId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AcceptEvidenceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/evidence-review/{publicId}/content": {
         parameters: {
             query?: never;
@@ -1367,6 +1430,188 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["RejectEvidenceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence-review/{publicId}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove a document from the file with a reason — the holding is untouched */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    publicId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RejectEvidenceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence/office/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read a certificate with the model; suggest the person and code — nothing is filed yet */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-File-Name": string | null;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "*/*": string;
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IntakeReadingDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/evidence/office/{intakeId}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** File a read certificate to a confirmed person and code — writes the holding, audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    intakeId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FileIntakeRequest"];
                 };
             };
             responses: {
@@ -2664,7 +2909,52 @@ export interface paths {
             };
         };
         put?: never;
-        post?: never;
+        /** Add a crew member — audited; refuses a re-used employee id */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreatePersonRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PersonDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2805,6 +3095,58 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["PersonEvaluationDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/people/{personId}/evidence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A person's evidence documents — the certificates on file, newest first */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    personId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["EvidenceDocumentDto"][];
                     };
                 };
                 /** @description Not Authorized */
@@ -4534,6 +4876,15 @@ export interface components {
             copyFromVersionId?: number | null;
             notes?: string | null;
         };
+        CreatePersonRequest: {
+            name: string;
+            sam: string;
+            /** Format: int64 */
+            positionId: number;
+            /** Format: int64 */
+            partnershipId: number;
+            email?: string | null;
+        };
         CreateRegisterRecordRequest: {
             type: string;
             partnership: string;
@@ -4623,6 +4974,7 @@ export interface components {
             contentType: string | null;
             /** Format: int64 */
             byteSize: number | null;
+            fileName: string | null;
             uploadComplete: boolean;
             hasContent: boolean;
             /** Format: int64 */
@@ -4694,6 +5046,16 @@ export interface components {
             /** Format: double */
             confidence: number;
         };
+        FileIntakeRequest: {
+            /** Format: int64 */
+            personId: number;
+            /** Format: int64 */
+            requirementId: number;
+            status: string;
+            expiry?: components["schemas"]["LocalDate"] | null;
+            issueDate?: components["schemas"]["LocalDate"] | null;
+            note?: string | null;
+        };
         GapReportRowDto: {
             /** Format: int64 */
             personId: number;
@@ -4737,6 +5099,17 @@ export interface components {
          * @example 2022-03-10T16:15:50Z
          */
         Instant: string;
+        IntakeReadingDto: {
+            intakeId: string;
+            fileName: string | null;
+            contentType: string;
+            /** Format: int64 */
+            byteSize: number;
+            model: string;
+            extraction: components["schemas"]["ExtractedFieldDto"][];
+            people: components["schemas"]["PersonSuggestionDto"][];
+            requirements: components["schemas"]["RequirementDto"][];
+        };
         JobRunDto: {
             startedAt: components["schemas"]["Instant"];
             finishedAt: components["schemas"]["Instant"] | null;
@@ -4887,6 +5260,12 @@ export interface components {
             rollUp: string;
             cells: components["schemas"]["CellDto"][];
         };
+        PersonSuggestionDto: {
+            person: components["schemas"]["PersonDto"];
+            /** Format: int32 */
+            score: number;
+            why: string;
+        };
         PositionDto: {
             /** Format: int64 */
             id: number;
@@ -5005,6 +5384,9 @@ export interface components {
             title: string;
             status: string;
             issuingAuthority: string | null;
+            /** Format: int32 */
+            validityMonths: number | null;
+            validityText: string | null;
         };
         RequirementUsageDto: {
             /** Format: int64 */

@@ -82,6 +82,12 @@ export type EvidenceDocument = Schemas['EvidenceDocumentDto']
 export type ExtractedField = Schemas['ExtractedFieldDto']
 export type AcceptEvidenceRequest = Schemas['AcceptEvidenceRequest']
 
+// ADM-12 — certificates on file (the office intake)
+export type IntakeReading = Schemas['IntakeReadingDto']
+export type PersonSuggestion = Schemas['PersonSuggestionDto']
+export type FileIntakeRequest = Schemas['FileIntakeRequest']
+export type CreatePersonRequest = Schemas['CreatePersonRequest']
+
 // ADM-10 — administration
 export type ConfigSetting = Schemas['ConfigSettingDto']
 export type ScheduledJob = Schemas['ScheduledJobDto']
@@ -492,6 +498,46 @@ export const api = {
 
   extractEvidence: (publicId: string): Promise<EvidenceDocument> =>
     request(`/api/v1/evidence-review/${encodeURIComponent(publicId)}/extract`, { method: 'POST' }),
+
+  // --- ADM-12, certificates on file ------------------------------------------
+
+  createPerson: (body: CreatePersonRequest): Promise<Person> =>
+    request('/api/v1/people', { method: 'POST', body: JSON.stringify(body) }),
+
+  personEvidence: (personId: number): Promise<EvidenceDocument[]> =>
+    request(`/api/v1/people/${personId}/evidence`),
+
+  /**
+   * The model reads one file and suggests; nothing is filed. Raw bytes, like the chunk upload —
+   * the filename travels URL-encoded in a header because a header cannot carry what a name can.
+   */
+  officeRead: (file: File): Promise<IntakeReading> =>
+    request('/api/v1/evidence/office/read', {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type === '' ? 'application/pdf' : file.type,
+        'X-File-Name': encodeURIComponent(file.name),
+      },
+      body: file,
+    }),
+
+  officeFile: (intakeId: string, body: FileIntakeRequest): Promise<EvidenceDocument> =>
+    request(`/api/v1/evidence/office/${encodeURIComponent(intakeId)}/file`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  amendEvidence: (publicId: string, body: AcceptEvidenceRequest): Promise<EvidenceDocument> =>
+    request(`/api/v1/evidence-review/${encodeURIComponent(publicId)}/amend`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  removeEvidence: (publicId: string, reason: string): Promise<EvidenceDocument> =>
+    request(`/api/v1/evidence-review/${encodeURIComponent(publicId)}/remove`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
 
   // --- ADM-10, administration ---------------------------------------------
 
