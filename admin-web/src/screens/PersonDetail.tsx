@@ -5,12 +5,13 @@ import {
   useHoldings,
   usePerson,
   usePersonAssignments,
+  usePersonEvidence,
   useRequirements,
   useSetHolding,
 } from '../api/queries'
-import { api, ApiError, type Holding, type Requirement, type SetHoldingRequest } from '../api/client'
+import { api, ApiError, type EvidenceDocument, type Holding, type Requirement, type SetHoldingRequest } from '../api/client'
 import { useHasRole, useSession } from '../api/session'
-import { PersonCertificates } from '../components/CertificatesOnFile'
+import { PersonCertificates, validityLabel } from '../components/CertificatesOnFile'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { RequirementLabel } from '../components/RequirementLabel'
 import { Spinner } from '../components/Spinner'
@@ -210,6 +211,7 @@ function PersonEvaluationPanel({ personId }: { personId: number }): React.ReactN
 function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): React.ReactNode {
   const holdings = useHoldings(personId)
   const requirements = useRequirements()
+  const documents = usePersonEvidence(personId)
   const canEdit = useHasRole(...HOLDING_EDITORS)
   const today = useSession().today
   const [editing, setEditing] = useState<number | null>(null)
@@ -220,6 +222,17 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
 
   const byId = new Map((requirements.data ?? []).map((requirement) => [requirement.id, requirement]))
   const held = new Set(holdings.data.map((holding) => holding.requirementId))
+  // The scans filed against each code, newest first — the certificate behind the holding.
+  const scans = new Map<number, EvidenceDocument[]>()
+  for (const document of documents.data ?? []) {
+    if (document.matchedRequirementId === null) continue
+    if (document.verificationStatus !== 'verified' && document.verificationStatus !== 'auto_accepted') continue
+    const list = scans.get(document.matchedRequirementId) ?? []
+    list.push(document)
+    scans.set(document.matchedRequirementId, list)
+  }
+  for (const list of scans.values()) list.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+  const columns = canEdit ? 8 : 7
 
   const grouped = new Map<string, Holding[]>()
   for (const holding of holdings.data) {
@@ -253,6 +266,8 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
                 { header: 'Status', value: (row) => row.status },
                 { header: 'Expiry', value: (row) => row.expiry },
                 { header: 'Issued', value: (row) => row.issueDate },
+                { header: 'Validity', value: (row) => validityLabel(byId.get(row.requirementId)) },
+                { header: 'Certificate', value: (row) => scans.get(row.requirementId)?.[0]?.fileName ?? '' },
                 { header: 'Note', value: (row) => row.note },
               ]),
             )
@@ -294,8 +309,10 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
               <tr>
                 <th scope="col">Requirement</th>
                 <th scope="col">Status</th>
-                <th scope="col">Expiry</th>
                 <th scope="col">Issued</th>
+                <th scope="col">Expiry</th>
+                <th scope="col">Validity period</th>
+                <th scope="col">Certificate</th>
                 <th scope="col">Note</th>
                 {canEdit && <th scope="col" />}
               </tr>
@@ -306,15 +323,16 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
                 .map(([category, rows]) => (
                   <Fragment key={category}>
                     <tr className="table__group">
-                      <td colSpan={canEdit ? 6 : 5}>{categoryLabel(category)}</td>
+                      <td colSpan={columns}>{categoryLabel(category)}</td>
                     </tr>
                     {rows.map((holding) => {
                       const requirement = byId.get(holding.requirementId)
+                      const filed = scans.get(holding.requirementId) ?? []
                       const days =
                         holding.expiry === null ? null : daysBetween(today, holding.expiry)
                       return editing === holding.requirementId ? (
                         <tr key={holding.id}>
-                          <td colSpan={canEdit ? 6 : 5}>
+                          <td colSpan={columns}>
                             <HoldingEditor
                               personId={personId}
                               existing={holding}
@@ -338,6 +356,7 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
                               tone={holdingTone(holding.status, days)}
                             />
                           </td>
+                          <td>{formatDate(holding.issueDate)}</td>
                           <td>
                             {holding.status === 'held_perpetual' ? (
                               <span className="dim">perpetual</span>
@@ -364,7 +383,21 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
                               </>
                             )}
                           </td>
-                          <td>{formatDate(holding.issueDate)}</td>
+                          <td className="muted">{validityLabel(requirement)}</td>
+                          <td className="table__wrap">
+                            {filed.length === 0 ? (
+                              <span className="dim">no scan on file</span>
+                            ) : (
+                              filed.map((document, index) => (
+                                <span key={document.publicId}>
+                                  {index > 0 && ' · '}
+                                  <a href={api.evidenceContentUrl(document.publicId)} target="_blank" rel="noreferrer" title={document.fileName ?? undefined}>
+                                    {index === 0 ? 'Open' : `Open ${index + 1}`}
+                                  </a>
+                                </span>
+                              ))
+                            )}
+                          </td>
                           <td className="table__wrap">
                             {holding.note ?? <span className="dim">—</span>}
                           </td>

@@ -859,7 +859,8 @@ function rosterForm(name: string | null): string {
   return `${surname.toUpperCase()}, ${parts.join(' ')}`.trim()
 }
 
-function validityLabel(requirement: Requirement | undefined): string {
+/** "5 years", "18 months", or the catalogue's own words ("1 or 2 years — as printed on the certificate"). */
+export function validityLabel(requirement: Requirement | undefined): string {
   if (requirement === undefined) return '—'
   if (requirement.validityText !== null) return requirement.validityText
   if (requirement.validityMonths !== null) {
