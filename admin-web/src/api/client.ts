@@ -575,7 +575,7 @@ export const api = {
 
   /** Idempotent: creates and rosters only the swings the pattern says are missing. */
   ensureUpcomingSwings: (partnership: string): Promise<UpcomingSwings> =>
-    request(`/api/v1/swings/${encodeURIComponent(partnership)}/ensure-upcoming`, { method: 'POST' }),
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/ensure-upcoming?lookahead=5`, { method: 'POST' }),
 
   setSwingDates: (partnership: string, cc: string, body: SetSwingDatesRequest): Promise<CrewChange> =>
     request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/dates`, {

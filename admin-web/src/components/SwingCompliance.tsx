@@ -65,7 +65,8 @@ export function SwingCompliance({ ship }: { ship: Partnership }): React.ReactNod
 
   const now = epochDay(today)
   const onNow = swings.find((s) => epochDay(s.from) <= now && epochDay(s.to) >= now) ?? swings.find((s) => epochDay(s.from) > now) ?? swings[0]
-  const coming = swings.filter((s) => s !== onNow && epochDay(s.to) >= now).slice(0, 3)
+  // The swing on now and the five after it — a renewal's lead time and a bit, as the office asked.
+  const coming = swings.filter((s) => s !== onNow && epochDay(s.to) >= now).slice(0, 5)
   const here = swings.find((s) => s.ccId === picked) ?? onNow
   const evaluationOf = (swing: CrewChange | undefined) =>
     swing === undefined ? undefined : evaluations[swings.indexOf(swing)]?.data
