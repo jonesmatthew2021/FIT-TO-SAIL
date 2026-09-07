@@ -197,7 +197,19 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
        */}
       {holdings.data.length > 0 && (
         <div className="table-block table-block--plain">
-          <table className="table">
+          {/* Fixed column widths: the requirement gets the room its title needs, the dates and the
+              certificate link sit right beside it, and the note takes what is left. */}
+          <table className="table table--holdings">
+            <colgroup>
+              <col className="col-requirement" />
+              <col className="col-status" />
+              <col className="col-date" />
+              <col className="col-expiry" />
+              <col className="col-validity" />
+              <col className="col-certificate" />
+              <col className="col-note" />
+              {canEdit && <col className="col-edit" />}
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Requirement</th>

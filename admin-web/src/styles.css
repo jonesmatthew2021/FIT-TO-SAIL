@@ -3957,3 +3957,28 @@ a.assistant__source:hover {
   padding-top: 0 !important;
   border-bottom: 1px solid var(--color-neutral-800);
 }
+
+/* The holdings table on a person's page: fixed columns, the requirement title on one line where
+   it fits and wrapped inside its own column where it does not, everything else close beside it. */
+.table--holdings {
+  table-layout: fixed;
+}
+
+.table--holdings .col-requirement { width: 34%; }
+.table--holdings .col-status { width: 9%; }
+.table--holdings .col-date { width: 8%; }
+.table--holdings .col-expiry { width: 14%; }
+.table--holdings .col-validity { width: 10%; }
+.table--holdings .col-certificate { width: 8%; }
+.table--holdings .col-note { width: auto; }
+.table--holdings .col-edit { width: 44px; }
+
+.table--holdings td,
+.table--holdings th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.table--holdings .table__wrap {
+  min-width: 0;
+}
