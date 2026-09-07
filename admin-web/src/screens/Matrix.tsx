@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   useAllHoldings,
   useClearMatrixCell,
@@ -1422,6 +1422,22 @@ function CrewMatrix(): React.ReactNode {
     return () => globalThis.removeEventListener('keydown', onKey)
   }, [maximised])
 
+  // The grid box and the scrollbar that mirrors it at the bottom of the window (not maximised).
+  // The mirror's inner spacer is kept as wide as the grid scrolls, so the two bars agree.
+  const gridRef = useRef<HTMLDivElement>(null)
+  const mirrorRef = useRef<HTMLDivElement>(null)
+  const [gridWidth, setGridWidth] = useState(0)
+  useEffect(() => {
+    const grid = gridRef.current
+    if (grid === null) return
+    const measure = () => setGridWidth(grid.scrollWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(grid)
+    for (const child of grid.children) observer.observe(child)
+    return () => observer.disconnect()
+  })
+
   if (people.isPending || requirements.isPending) {
     return <Spinner label="Loading the crew" />
   }
@@ -1578,7 +1594,13 @@ function CrewMatrix(): React.ReactNode {
             recorded · whether a holding <em>suffices</em> for a swing is the engine’s answer on{' '}
             <strong>Generated per swing</strong>
           </p>
-          <div className="table-scroll table-scroll--fill">
+          <div
+            className="table-scroll table-scroll--fill"
+            ref={gridRef}
+            onScroll={(event) => {
+              if (mirrorRef.current !== null) mirrorRef.current.scrollLeft = event.currentTarget.scrollLeft
+            }}
+          >
             <table className="table matrix-grid matrix-grid--titled">
               <thead>
                 <tr>
@@ -1620,6 +1642,21 @@ function CrewMatrix(): React.ReactNode {
               </tbody>
             </table>
           </div>
+          {/* Not maximised, the grid runs down the page rather than scrolling inside a box, so its
+              own horizontal scrollbar would sit at the bottom of the grid — off screen for most of
+              the read. This bar sticks to the bottom of the window and drives the grid sideways. */}
+          {!maximised && (
+            <div
+              className="scroll-mirror"
+              ref={mirrorRef}
+              aria-hidden="true"
+              onScroll={(event) => {
+                if (gridRef.current !== null) gridRef.current.scrollLeft = event.currentTarget.scrollLeft
+              }}
+            >
+              <div style={{ width: gridWidth, height: 1 }} />
+            </div>
+          )}
         </div>
       )}
     </section>
