@@ -4014,3 +4014,13 @@ a.assistant__source:hover {
   border-radius: 6px;
   border: 2px solid var(--color-neutral-900);
 }
+
+/* The expiry-window chips wear the colour they mean all the time; the one pressed as a filter
+   is picked out with a ring rather than by being the only one in colour. */
+.chip--toggle:not(.chip--pressed) {
+  opacity: 0.8;
+}
+
+.chip--toggle.chip--pressed {
+  box-shadow: 0 0 0 2px var(--color-bg, #14151f), 0 0 0 4px currentColor;
+}

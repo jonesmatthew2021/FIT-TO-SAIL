@@ -1510,7 +1510,9 @@ function CrewMatrix(): React.ReactNode {
           <button
             key={band.id}
             type="button"
-            className={`chip chip--toggle chip--${band.id === window ? expiryWindowTone(band.id) : 'outline'}`}
+            // The band's own colour; "beyond 90 days" is green here because the chip is a filter
+            // for the office's eye, not a verdict on a holding (the cells stay plain).
+            className={`chip chip--toggle chip--${band.id === 'beyond' ? 'good' : expiryWindowTone(band.id)}${band.id === window ? ' chip--pressed' : ''}`}
             aria-pressed={band.id === window}
             title="Show only crew with a certificate in this window"
             onClick={() => setWindow(window === band.id ? null : band.id)}
