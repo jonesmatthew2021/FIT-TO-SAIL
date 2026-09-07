@@ -82,7 +82,8 @@ export function Matrix(): React.ReactNode {
   const canEdit = useHasRole(...MATRIX_EDITORS)
   const canPublish = useHasRole(...MATRIX_PUBLISHERS)
   const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [tab, setTab] = useState<Tab>('editor')
+  // The crew matrix opens first: it is the view the office lives on; the rules are one tab away.
+  const [tab, setTab] = useState<Tab>('crew')
 
   if (versions.isPending) return <Spinner label="Loading matrix versions" />
   if (versions.error !== null) {
