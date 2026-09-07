@@ -1896,6 +1896,25 @@ select.input option {
   min-height: 340px;
 }
 
+/*
+ * The crew matrix, maximised: the section leaves the shell and takes the window, and the grid
+ * box grows to what is left under its own controls. The page behind it stays where it was, so
+ * Esc returns to the same scroll position.
+ */
+.crew-matrix--max {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  padding: 16px 24px 12px;
+  background: var(--color-bg, #14151f);
+  overflow: hidden;
+}
+
+.crew-matrix--max .table-scroll--fill {
+  max-height: calc(100vh - 262px);
+  min-height: 0;
+}
+
 /* The scrollbars stay visible rather than appearing on hover: a grid 54 columns wide must
    *look* scrollable, and the bottom bar is how a reader knows where they are in it. */
 .table-scroll--fill::-webkit-scrollbar {

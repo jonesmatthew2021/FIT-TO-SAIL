@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import {
   useAllHoldings,
   useClearMatrixCell,
@@ -1410,6 +1410,17 @@ function CrewMatrix(): React.ReactNode {
   const [search, setSearch] = useState('')
   const [window, setWindow] = useState<ExpiryWindowId | null>(null)
   const [attentionOnly, setAttentionOnly] = useState(false)
+  // Maximised, the matrix takes the whole window: the grid is the point, and forty crew by
+  // fifty-four codes wants every pixel. Esc brings the shell back.
+  const [maximised, setMaximised] = useState(false)
+  useEffect(() => {
+    if (!maximised) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMaximised(false)
+    }
+    globalThis.addEventListener('keydown', onKey)
+    return () => globalThis.removeEventListener('keydown', onKey)
+  }, [maximised])
 
   if (people.isPending || requirements.isPending) {
     return <Spinner label="Loading the crew" />
@@ -1477,7 +1488,7 @@ function CrewMatrix(): React.ReactNode {
   }
 
   return (
-    <section className="section">
+    <section className={maximised ? 'section crew-matrix crew-matrix--max' : 'section crew-matrix'}>
       <div className="counts counts--inline" role="group" aria-label="Expiry windows">
         {EXPIRY_WINDOWS.map((band) => (
           <button
@@ -1524,6 +1535,14 @@ function CrewMatrix(): React.ReactNode {
             }
           >
             Export CSV
+          </button>
+          <button
+            type="button"
+            className={maximised ? 'button' : 'button button--primary'}
+            aria-pressed={maximised}
+            onClick={() => setMaximised((current) => !current)}
+          >
+            {maximised ? 'Exit full screen (Esc)' : 'Maximise'}
           </button>
         </div>
       </div>
