@@ -3906,3 +3906,54 @@ a.assistant__source:hover {
 .daygrid-part {
   margin-top: 16px;
 }
+
+/* Bulk certificate intake — one row per file picked */
+.bulk td {
+  vertical-align: top;
+}
+
+.bulk__file {
+  max-width: 220px;
+}
+
+.bulk__name {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.bulk__read {
+  max-width: 260px;
+}
+
+.bulk__field {
+  display: block;
+}
+
+.bulk__warn {
+  display: block;
+  font-size: 11.5px;
+  margin-top: 4px;
+}
+
+.bulk .input {
+  min-width: 150px;
+}
+
+.bulk .input--tight {
+  padding: 3px 6px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.bulk__actions {
+  white-space: nowrap;
+}
+
+.bulk__row--filed td {
+  opacity: 0.75;
+}
+
+.bulk__detail td {
+  padding-top: 0 !important;
+  border-bottom: 1px solid var(--color-neutral-800);
+}

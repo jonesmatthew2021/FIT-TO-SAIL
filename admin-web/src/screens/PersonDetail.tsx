@@ -1,6 +1,5 @@
 import { Fragment, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { Link, useParams } from 'react-router-dom'
 import {
   useHoldings,
   usePerson,
@@ -16,26 +15,24 @@ import { ErrorPanel } from '../components/ErrorPanel'
 import { RequirementLabel } from '../components/RequirementLabel'
 import { Spinner } from '../components/Spinner'
 import { StateChip } from '../components/StateChip'
-import { SwingSelector } from '../components/SwingSelector'
 import { daysBetween, formatDate, formatDateRange, relativeDays } from '../domain/dates'
 import {
   EXPIRY_LEAD_DAYS_DEFAULT,
   categoryLabel,
-  cellStateRank,
   HOLDING_STATUS_VALUES,
   holdingStatus,
   holdingTone,
   slotRef,
 } from '../domain/enums'
-import { requirementParts } from '../domain/requirements'
 import { downloadCsv, toCsv } from '../domain/csv'
 
 /** The roles the server accepts for a holding write — mirrored here to hide the controls. */
 const HOLDING_EDITORS = ['data_steward', 'crew_coordinator', 'system_administrator'] as const
 
 /**
- * ADM-5 person detail: holdings by category with inline editing, assignment history, and the
- * §5.2 evaluation against a chosen swing.
+ * ADM-5 person detail — Crew and certification: the holdings by category with inline editing,
+ * the scans behind them, and the assignment history. Compliance against a swing is not here; it
+ * is the swing's business (Swing and shift compliance), and this page is the person's papers.
  */
 export function PersonDetail(): React.ReactNode {
   const { personId: raw } = useParams()
@@ -90,8 +87,6 @@ export function PersonDetail(): React.ReactNode {
         </dl>
       </header>
 
-      <PersonEvaluationPanel personId={personId} />
-
       <HoldingsGrid personId={personId} sam={person.data.sam} />
 
       {/* The scans behind the holdings, on the same page as the holdings — where the portal's
@@ -103,108 +98,6 @@ export function PersonDetail(): React.ReactNode {
         <AssignmentHistory personId={personId} />
       </section>
     </div>
-  )
-}
-
-function PersonEvaluationPanel({ personId }: { personId: number }): React.ReactNode {
-  const [params, setParams] = useSearchParams()
-  const partnership = params.get('partnership')
-  const cc = params.get('cc')
-  const requirements = useRequirements()
-
-  const evaluation = useQuery({
-    queryKey: ['person-evaluation', personId, partnership ?? '', cc ?? ''],
-    queryFn: () => api.personEvaluation(personId, partnership as string, cc as string),
-    enabled: partnership !== null && cc !== null,
-  })
-
-  const partsFor = requirementParts(requirements.data)
-
-  return (
-    <section className="section">
-      <div className="section__header">
-        <div>
-          <h2 className="section__title">Compliance against a swing</h2>
-          <p className="section__note">Roll-up is the worst cell on the swing.</p>
-        </div>
-        <SwingSelector
-          partnership={partnership}
-          cc={cc}
-          onChange={(nextPartnership, nextCc) => {
-            const next = new URLSearchParams()
-            if (nextPartnership !== null) next.set('partnership', nextPartnership)
-            if (nextCc !== null) next.set('cc', nextCc)
-            setParams(next)
-          }}
-        />
-        {evaluation.data !== undefined && (
-          <p className="rollup">
-            Roll-up: <StateChip state={evaluation.data.rollUp} />
-          </p>
-        )}
-      </div>
-
-      {(partnership === null || cc === null) && (
-        <p className="note">
-          A compliance roll-up is defined against a swing (§5.2), so pick one to evaluate this
-          person.
-        </p>
-      )}
-      {evaluation.isPending && partnership !== null && cc !== null && <Spinner label="Evaluating" />}
-      {evaluation.error !== null && (
-        <ErrorPanel title="Could not evaluate this person" error={evaluation.error} />
-      )}
-
-      {evaluation.data !== undefined && (
-        <div className="table-block table-block--plain">
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">State</th>
-                <th scope="col">Requirement</th>
-                <th scope="col">Level</th>
-                <th scope="col">Expiry</th>
-                <th scope="col">Register</th>
-                <th scope="col">Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...evaluation.data.cells]
-                .sort(
-                  (a, b) =>
-                    cellStateRank(a.state) - cellStateRank(b.state) ||
-                    partsFor(a.requirementId).code.localeCompare(partsFor(b.requirementId).code),
-                )
-                .map((cell) => (
-                  <tr key={cell.requirementId}>
-                    <td>
-                      <StateChip state={cell.state} />
-                    </td>
-                    <td>
-                      <RequirementLabel {...partsFor(cell.requirementId)} />
-                    </td>
-                    <td className="mono">{cell.level}</td>
-                    <td>{formatDate(cell.expiry)}</td>
-                    <td>
-                      {cell.registerRecordId === null ? (
-                        <span className="dim">—</span>
-                      ) : (
-                        <Link
-                          className="mono"
-                          to={`/register/${encodeURIComponent(cell.registerRecordId)}`}
-                        >
-                          {cell.registerRecordId}
-                        </Link>
-                      )}
-                    </td>
-                    <td className="table__wrap">{cell.notes.join(' · ')}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
   )
 }
 

@@ -234,6 +234,10 @@ class OfficeIntakeStages(
         val key = "evidence/$publicId/original"
         storage.put(key, bytes, meta.contentType)
 
+        // Filed under the office's naming rule — "SURNAME, Given - Certificate - issue date.pdf" —
+        // whatever the scan was called when it arrived; the arrival name goes in the audit event.
+        val storedName = storedFileName(person.name, requirement.title, issueDate, meta.contentType)
+
         val actor = policy.actor()
         val document = EvidenceDocument().apply {
             this.publicId = publicId
@@ -241,7 +245,7 @@ class OfficeIntakeStages(
             source = EvidenceSource.ADMIN_UPLOAD
             contentType = meta.contentType
             byteSize = bytes.size.toLong()
-            fileName = meta.fileName
+            fileName = storedName
             objectKey = key
             uploadOffset = bytes.size.toLong()
             uploadComplete = true
@@ -270,7 +274,8 @@ class OfficeIntakeStages(
                 "personSam" to person.sam,
                 "source" to EvidenceSource.ADMIN_UPLOAD.wire,
                 "contentType" to meta.contentType,
-                "fileName" to meta.fileName,
+                "fileName" to storedName,
+                "uploadedAs" to meta.fileName,
                 "intakeId" to meta.intakeId,
             ),
         )
@@ -287,6 +292,20 @@ class OfficeIntakeStages(
 
     private companion object {
         val CODE = Regex("\\b(QL|VS|PS|MS|CS|HR|PT|VI|PI)-\\d{2}\\b")
+        private val UNSAFE = Regex("[\\\\/:*?\"<>|\\p{Cntrl}]")
+        private val SPACES = Regex("\\s+")
+
+        /** `EVANS, Brenton - GMDSS General Operator - 2026-05-27.pdf`; anything a file system refuses becomes a space. */
+        fun storedFileName(personName: String, certificate: String, issueDate: LocalDate?, contentType: String): String {
+            val clean = { s: String -> s.replace(UNSAFE, " ").replace(SPACES, " ").trim() }
+            val extension = when (contentType) {
+                "application/pdf" -> "pdf"
+                "image/jpeg" -> "jpg"
+                "image/png" -> "png"
+                else -> "bin"
+            }
+            return "${clean(personName)} - ${clean(certificate)} - ${issueDate?.toString() ?: "undated"}.$extension"
+        }
         val HONORIFICS = setOf("mr", "mrs", "ms", "miss", "dr", "capt", "captain", "master", "chief", "officer", "engineer")
     }
 }

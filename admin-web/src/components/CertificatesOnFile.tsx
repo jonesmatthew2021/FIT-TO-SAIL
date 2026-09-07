@@ -26,6 +26,7 @@ import { ErrorPanel } from './ErrorPanel'
 import { Modal } from './Modal'
 import { Spinner } from './Spinner'
 import { daysBetween, formatDate } from '../domain/dates'
+import { asPdf } from '../domain/pdf'
 import {
   HOLDING_STATUS_VALUES,
   confidenceTone,
@@ -388,6 +389,8 @@ export function UploadCertificates({ defaultPerson }: { defaultPerson?: Person }
   const people = usePeople()
   const requirements = useRequirements()
   const [queue, setQueue] = useState<File[]>([])
+  // Counts the picks, so each one opens a fresh dialog rather than reusing the last one's rows.
+  const [batch, setBatch] = useState(0)
   const fileInput = useRef<HTMLInputElement>(null)
 
   return (
@@ -396,223 +399,393 @@ export function UploadCertificates({ defaultPerson }: { defaultPerson?: Person }
         ref={fileInput}
         type="file"
         multiple
-        accept="application/pdf,image/jpeg,image/png"
+        accept="application/pdf,image/*"
         hidden
         onChange={(event) => {
           const picked = Array.from(event.target.files ?? [])
           event.target.value = ''
-          if (picked.length > 0) setQueue((current) => [...current, ...picked])
+          if (picked.length > 0) {
+            setQueue(picked)
+            setBatch((current) => current + 1)
+          }
         }}
       />
       <button type="button" className="button button--primary" onClick={() => fileInput.current?.click()}>
         Upload certificates
       </button>
-      {queue[0] !== undefined && people.data !== undefined && requirements.data !== undefined && (
-        <IntakeDialog
-          file={queue[0]}
-          remaining={queue.length - 1}
+      {queue.length > 0 && people.data !== undefined && requirements.data !== undefined && (
+        <BulkIntake
+          key={batch}
+          files={queue}
           people={people.data}
           requirements={requirements.data}
           {...(defaultPerson === undefined ? {} : { defaultPerson })}
-          onDone={() => setQueue((current) => current.slice(1))}
-          onCancelAll={() => setQueue([])}
+          onClose={() => setQueue([])}
         />
       )}
     </>
   )
 }
 
-function IntakeDialog({
-  file,
-  remaining,
+type Stage = 'converting' | 'reading' | 'ready' | 'filing' | 'filed' | 'failed'
+
+interface Item {
+  id: number
+  original: File
+  pdf: File | null
+  stage: Stage
+  error: string | null
+  reading: IntakeReading | null
+  personId: number | null
+  adding: boolean
+  requirementId: number | null
+  expires: boolean
+  expiry: string
+  issueDate: string
+  filedAs: string | null
+}
+
+/**
+ * Bulk intake — every file picked, in one table.
+ *
+ * Each file is turned into a PDF in the browser if it is a picture, read by the model, and laid
+ * out as a row with what was read and the model's suggestions for who it belongs to and what it
+ * evidences. Nothing is filed until a person presses File on the row (or File all, for every row
+ * whose suggestions they are happy with): the person is always a human's choice, never inferred
+ * from a name on a certificate. On filing, the server stores the scan as
+ * "SURNAME, Given - Certificate - issue date.pdf", and the row says so.
+ *
+ * Reads run one after another rather than all at once — each is a model call with a bill behind
+ * it, and a queue of forty should not become forty simultaneous requests.
+ */
+function BulkIntake({
+  files,
   people,
   requirements,
   defaultPerson,
-  onDone,
-  onCancelAll,
+  onClose,
 }: {
-  file: File
-  remaining: number
+  files: readonly File[]
   people: readonly Person[]
   requirements: readonly Requirement[]
   defaultPerson?: Person
-  onDone: () => void
-  onCancelAll: () => void
+  onClose: () => void
 }): React.ReactNode {
   const fileIt = useOfficeFile()
-  const [reading, setReading] = useState<IntakeReading | null>(null)
-  const [readError, setReadError] = useState<unknown>(null)
-  const [personId, setPersonId] = useState<number | null>(defaultPerson?.id ?? null)
-  const [adding, setAdding] = useState(false)
-  const [requirementId, setRequirementId] = useState<number | null>(null)
-  const [status, setStatus] = useState('held_expiry')
-  const [expiry, setExpiry] = useState('')
-  const [issueDate, setIssueDate] = useState('')
-  const startedFor = useRef<File | null>(null)
+  const [items, setItems] = useState<Item[]>(() =>
+    files.map((original, id) => ({
+      id,
+      original,
+      pdf: null,
+      stage: 'converting',
+      error: null,
+      reading: null,
+      personId: defaultPerson?.id ?? null,
+      adding: false,
+      requirementId: null,
+      expires: true,
+      expiry: '',
+      issueDate: '',
+      filedAs: null,
+    })),
+  )
+  const [filingAll, setFilingAll] = useState(false)
+  const started = useRef(false)
 
-  // One read per file, as a plain promise rather than a React Query mutation: it is a model call
-  // with a bill behind it, so nothing may retry it, and StrictMode's doubled mount detaches a
-  // mutation's listener mid-flight (the reading then never lands). The ref keeps the doubled
-  // effect from reading — and paying — twice.
+  const patch = (id: number, change: Partial<Item>) =>
+    setItems((current) => current.map((item) => (item.id === id ? { ...item, ...change } : item)))
+
+  // One pass over the queue: convert, then read, one file at a time. The ref keeps StrictMode's
+  // doubled effect from reading — and paying — twice.
   useEffect(() => {
-    if (startedFor.current === file) return
-    startedFor.current = file
-    api.officeRead(file).then(
-      (result) => {
-        setReading(result)
-        if (defaultPerson === undefined) {
-          setPersonId(result.people[0]?.person.id ?? null)
-          setAdding(result.people.length === 0)
+    if (started.current) return
+    started.current = true
+    void (async () => {
+      for (const item of items) {
+        let pdf: File
+        try {
+          pdf = await asPdf(item.original)
+          patch(item.id, { pdf, stage: 'reading' })
+        } catch (error) {
+          patch(item.id, { stage: 'failed', error: errorText(error) })
+          continue
         }
-        setRequirementId(result.requirements[0]?.id ?? null)
-        const readExpiry = intakeField(result, 'expiryDate')
-        const readIssue = intakeField(result, 'issueDate')
-        setExpiry(readExpiry !== null && ISO_DATE.test(readExpiry) ? readExpiry : '')
-        setIssueDate(readIssue !== null && ISO_DATE.test(readIssue) ? readIssue : '')
-      },
-      (error: unknown) => setReadError(error),
-    )
-  }, [file, defaultPerson])
+        try {
+          const reading = await api.officeRead(pdf)
+          const readExpiry = intakeField(reading, 'expiryDate')
+          const readIssue = intakeField(reading, 'issueDate')
+          const expiry = readExpiry !== null && ISO_DATE.test(readExpiry) ? readExpiry : ''
+          patch(item.id, {
+            reading,
+            stage: 'ready',
+            personId: defaultPerson?.id ?? reading.people[0]?.person.id ?? null,
+            requirementId: reading.requirements[0]?.id ?? null,
+            expiry,
+            expires: expiry !== '' || readExpiry === null,
+            issueDate: readIssue !== null && ISO_DATE.test(readIssue) ? readIssue : '',
+          })
+        } catch (error) {
+          patch(item.id, { stage: 'failed', error: errorText(error) })
+        }
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const note = remaining > 0 ? `${file.name} · ${remaining} more to go` : file.name
-  // On a person's page, a reading that points at somebody else is worth a sentence — the file
-  // may be in the wrong place, which is how the portal's misfiled scans happened.
-  const bestSuggested = reading?.people[0]?.person
-  const disagrees =
-    defaultPerson !== undefined && bestSuggested !== undefined && bestSuggested.id !== defaultPerson.id
+  // What the server will accept: a person, a code, and — for a certificate that expires — the
+  // date it expires, since a holding without one is a holding the engine cannot read.
+  const ready = (item: Item) =>
+    item.stage === 'ready' &&
+    item.reading !== null &&
+    item.personId !== null &&
+    item.requirementId !== null &&
+    !item.adding &&
+    (!item.expires || item.expiry !== '')
+
+  const fileOne = async (item: Item) => {
+    if (!ready(item) || item.reading === null || item.personId === null || item.requirementId === null) return
+    patch(item.id, { stage: 'filing', error: null })
+    try {
+      const document = await fileIt.mutateAsync({
+        intakeId: item.reading.intakeId,
+        body: {
+          personId: item.personId,
+          requirementId: item.requirementId,
+          status: item.expires ? 'held_expiry' : 'held_perpetual',
+          expiry: item.expires && item.expiry !== '' ? item.expiry : null,
+          issueDate: item.issueDate === '' ? null : item.issueDate,
+          note: null,
+        },
+      })
+      patch(item.id, { stage: 'filed', filedAs: document.fileName })
+    } catch (error) {
+      patch(item.id, { stage: 'ready', error: errorText(error) })
+    }
+  }
+
+  const fileAll = async () => {
+    setFilingAll(true)
+    for (const item of items) if (ready(item)) await fileOne(item)
+    setFilingAll(false)
+  }
+
+  const counts = {
+    waiting: items.filter((i) => i.stage === 'converting' || i.stage === 'reading').length,
+    ready: items.filter(ready).length,
+    filed: items.filter((i) => i.stage === 'filed').length,
+    failed: items.filter((i) => i.stage === 'failed').length,
+  }
+  const personById = new Map(people.map((p) => [p.id, p]))
 
   return (
-    <Modal title="Filing a certificate" note={note} wide onClose={onCancelAll}>
-      {reading === null && readError === null && <Spinner label="Reading the certificate" />}
-      {readError !== null && (
-        <>
-          <ErrorPanel title="The certificate could not be read" error={readError} />
-          <div className="editor__actions">
-            <button type="button" className="button" onClick={onDone}>
-              Skip this file
-            </button>
-          </div>
-        </>
-      )}
+    <Modal
+      title={files.length === 1 ? 'Filing a certificate' : `Filing ${files.length} certificates`}
+      note={[
+        counts.waiting > 0 ? `${counts.waiting} being read` : null,
+        `${counts.ready} ready to file`,
+        counts.filed > 0 ? `${counts.filed} filed` : null,
+        counts.failed > 0 ? `${counts.failed} could not be read` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
+      wide
+      onClose={onClose}
+    >
+      <p className="note">
+        Pictures are turned into PDFs here before they are read. The model's reading fills each row; check who it
+        belongs to and what it evidences, then press File — or File all once every row reads right. Each scan is stored
+        as <span className="mono">SURNAME, Given - Certificate - issue date.pdf</span>.
+      </p>
 
-      {reading !== null && (
-        <div className="intake">
-          <div className="intake__reading">
-            <h3 className="section__title section__title--panel">What the model read</h3>
-            <div className="field-rows">
-              {reading.extraction.map((field) => (
-                <div key={field.name} className="field">
-                  <span className="field__label">{fieldLabel(field.name)}</span>
-                  <span className="field-with-chip">
-                    <input className="input" readOnly value={field.value ?? ''} placeholder="not read" aria-label={fieldLabel(field.name)} />
-                    <span className={`chip chip--${confidenceTone(field.confidence)} chip--small`}>
-                      {Math.round(field.confidence * 100)}%
+      <div className="table-scroll">
+        <table className="table bulk">
+          <thead>
+            <tr>
+              <th scope="col">File</th>
+              <th scope="col">Read</th>
+              <th scope="col">Crew member</th>
+              <th scope="col">Certificate</th>
+              <th scope="col">Issued</th>
+              <th scope="col">Expiry</th>
+              <th scope="col" />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <Fragment key={item.id}>
+                <tr className={item.stage === 'filed' ? 'bulk__row bulk__row--filed' : 'bulk__row'}>
+                  <td className="bulk__file">
+                    <span className="bulk__name">{item.original.name}</span>
+                    <span className="meta">
+                      {formatSize(item.original.size)}
+                      {item.pdf !== null && item.pdf !== item.original && ' · converted to PDF'}
                     </span>
-                  </span>
-                </div>
-              ))}
-            </div>
-            <p className="section__note">
-              Read by <span className="mono">{reading.model}</span>. A reading is a suggestion; what you confirm on the right is what gets filed.
-            </p>
-          </div>
+                  </td>
+                  <td className="bulk__read">
+                    {item.stage === 'converting' && <span className="chip chip--muted chip--small">converting…</span>}
+                    {item.stage === 'reading' && <span className="chip chip--muted chip--small">reading…</span>}
+                    {item.stage === 'failed' && <span className="chip chip--critical chip--small">could not read</span>}
+                    {item.reading !== null && (
+                      <span className="meta">
+                        {(['holderName', 'documentType', 'certificateNumber'] as const).map((name) => {
+                          const field = item.reading?.extraction.find((f) => f.name === name)
+                          return field === undefined || field.value === null ? null : (
+                            <span key={name} className="bulk__field" title={fieldLabel(name)}>
+                              {field.value}{' '}
+                              <span className={`chip chip--${confidenceTone(field.confidence)} chip--small`}>
+                                {Math.round(field.confidence * 100)}%
+                              </span>
+                            </span>
+                          )
+                        })}
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    {item.stage === 'filed' ? (
+                      personById.get(item.personId ?? -1)?.name
+                    ) : (
+                      <select
+                        className="input"
+                        value={item.adding ? '__new__' : (item.personId ?? '')}
+                        disabled={item.reading === null || item.stage === 'filing'}
+                        onChange={(event) => {
+                          if (event.target.value === '__new__') patch(item.id, { adding: true, personId: null })
+                          else patch(item.id, { adding: false, personId: event.target.value === '' ? null : Number(event.target.value) })
+                        }}
+                      >
+                        <option value="">Choose…</option>
+                        {item.reading !== null && item.reading.people.length > 0 && (
+                          <optgroup label="Suggested">
+                            {item.reading.people.map((suggestion) => (
+                              <option key={suggestion.person.id} value={suggestion.person.id}>
+                                {suggestion.person.name} · {suggestion.person.positionName} — {suggestion.why}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Everyone">
+                          {people.map((person) => (
+                            <option key={person.id} value={person.id}>
+                              {person.name} · {person.positionName}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <option value="__new__">＋ Add a new crew member…</option>
+                      </select>
+                    )}
+                    {item.stage !== 'filed' && defaultPerson !== undefined && item.reading?.people[0] !== undefined && item.reading.people[0].person.id !== defaultPerson.id && (
+                      <span className="editor__error bulk__warn">Reads as {item.reading.people[0].person.name} — check.</span>
+                    )}
+                  </td>
+                  <td>
+                    {item.stage === 'filed' ? (
+                      requirements.find((r) => r.id === item.requirementId)?.code
+                    ) : (
+                      <select
+                        className="input"
+                        value={item.requirementId ?? ''}
+                        disabled={item.reading === null || item.stage === 'filing'}
+                        onChange={(event) => patch(item.id, { requirementId: event.target.value === '' ? null : Number(event.target.value) })}
+                      >
+                        <option value="">Choose…</option>
+                        {item.reading !== null && item.reading.requirements.length > 0 && (
+                          <optgroup label="Suggested">
+                            {item.reading.requirements.map((requirement) => (
+                              <option key={requirement.id} value={requirement.id}>
+                                {requirement.code} {requirement.title}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <optgroup label="Every code">
+                          {requirements.map((requirement) => (
+                            <option key={requirement.id} value={requirement.id}>
+                              {requirement.code} {requirement.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    )}
+                  </td>
+                  <td>
+                    {item.stage === 'filed' ? (
+                      formatDate(item.issueDate === '' ? null : item.issueDate)
+                    ) : (
+                      <input className="input input--tight" type="date" value={item.issueDate} disabled={item.reading === null || item.stage === 'filing'} onChange={(event) => patch(item.id, { issueDate: event.target.value })} />
+                    )}
+                  </td>
+                  <td>
+                    {item.stage === 'filed' ? (
+                      item.expires ? formatDate(item.expiry === '' ? null : item.expiry) : 'never expires'
+                    ) : (
+                      <span className="row-actions">
+                        <select className="input input--tight" value={item.expires ? 'expires' : 'never'} disabled={item.reading === null || item.stage === 'filing'} onChange={(event) => patch(item.id, { expires: event.target.value === 'expires' })}>
+                          <option value="expires">Expires</option>
+                          <option value="never">Never expires</option>
+                        </select>
+                        {item.expires && (
+                          <input className="input input--tight" type="date" value={item.expiry} disabled={item.reading === null || item.stage === 'filing'} onChange={(event) => patch(item.id, { expiry: event.target.value })} />
+                        )}
+                      </span>
+                    )}
+                  </td>
+                  <td className="bulk__actions">
+                    {item.stage === 'filed' && <span className="chip chip--good chip--small">filed</span>}
+                    {item.stage === 'filing' && <span className="chip chip--muted chip--small">filing…</span>}
+                    {(item.stage === 'ready' || item.stage === 'reading' || item.stage === 'converting') && (
+                      <button type="button" className="button button--primary button--quiet" disabled={!ready(item) || filingAll} onClick={() => void fileOne(item)}>
+                        File
+                      </button>
+                    )}
+                    {item.stage !== 'filed' && item.stage !== 'filing' && (
+                      <button type="button" className="button button--quiet" onClick={() => setItems((current) => current.filter((i) => i.id !== item.id))}>
+                        Skip
+                      </button>
+                    )}
+                  </td>
+                </tr>
+                {(item.error !== null || item.filedAs !== null || item.adding) && (
+                  <tr className="bulk__detail">
+                    <td colSpan={7}>
+                      {item.error !== null && <span className="editor__error">{item.error}</span>}
+                      {item.filedAs !== null && (
+                        <span className="muted">
+                          Stored as <span className="mono">{item.filedAs}</span>
+                        </span>
+                      )}
+                      {item.adding && item.reading !== null && (
+                        <NewPersonForm
+                          suggestedName={intakeField(item.reading, 'holderName')}
+                          {...(defaultPerson === undefined ? {} : { shipId: defaultPerson.partnershipId })}
+                          onCreated={(person) => patch(item.id, { personId: person.id, adding: false })}
+                          onCancel={() => patch(item.id, { adding: false })}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={7} className="empty">
+                  Nothing left to file.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-          <div className="intake__form">
-            <h3 className="section__title section__title--panel">Who this belongs to</h3>
-            {disagrees && (
-              <p className="note">
-                The certificate reads as <strong>{bestSuggested.name}</strong>, not {defaultPerson.name}. Check
-                before filing.
-              </p>
-            )}
-            {reading.people.length === 0 && !adding && defaultPerson === undefined && (
-              <p className="note">Nobody on the roster matches the name read from the certificate.</p>
-            )}
-            {!adding && (
-              <label className="field field--inline field--grow">
-                <span className="field__label">Crew member</span>
-                <select
-                  className="input"
-                  value={personId ?? ''}
-                  onChange={(event) => {
-                    if (event.target.value === '__new__') {
-                      setAdding(true)
-                      setPersonId(null)
-                    } else {
-                      setPersonId(event.target.value === '' ? null : Number(event.target.value))
-                    }
-                  }}
-                >
-                  <option value="">Choose…</option>
-                  {reading.people.length > 0 && (
-                    <optgroup label="Suggested">
-                      {reading.people.map((suggestion) => (
-                        <option key={suggestion.person.id} value={suggestion.person.id}>
-                          {suggestion.person.name} · {suggestion.person.positionName} — {suggestion.why}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  <optgroup label="Everyone">
-                    {people.map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.name} · {person.positionName}
-                      </option>
-                    ))}
-                  </optgroup>
-                  <option value="__new__">＋ Add a new crew member…</option>
-                </select>
-              </label>
-            )}
-            {adding && (
-              <NewPersonForm
-                suggestedName={intakeField(reading, 'holderName')}
-                onCreated={(person) => {
-                  setPersonId(person.id)
-                  setAdding(false)
-                }}
-                onCancel={() => setAdding(false)}
-              />
-            )}
-
-            <h3 className="section__title section__title--panel">What it evidences</h3>
-            <HoldingForm
-              requirements={requirements}
-              suggested={reading.requirements}
-              requirementId={requirementId}
-              status={status}
-              expiry={expiry}
-              issueDate={issueDate}
-              onRequirement={setRequirementId}
-              onStatus={setStatus}
-              onExpiry={setExpiry}
-              onIssueDate={setIssueDate}
-              submitLabel="File it"
-              pending={fileIt.isPending}
-              error={fileIt.error}
-              disabled={personId === null || adding}
-              secondary={{ label: 'Skip this file', onClick: onDone }}
-              onSubmit={() => {
-                if (personId === null || requirementId === null) return
-                fileIt.mutate(
-                  {
-                    intakeId: reading.intakeId,
-                    body: {
-                      personId,
-                      requirementId,
-                      status,
-                      expiry: status === 'held_expiry' && expiry !== '' ? expiry : null,
-                      issueDate: issueDate === '' ? null : issueDate,
-                      note: null,
-                    },
-                  },
-                  { onSuccess: onDone },
-                )
-              }}
-            />
-          </div>
-        </div>
-      )}
+      <div className="editor__actions">
+        <button type="button" className="button button--primary" disabled={counts.ready === 0 || filingAll} onClick={() => void fileAll()}>
+          {filingAll ? 'Filing…' : counts.ready === 1 ? 'File the ready one' : `File all ${counts.ready} ready`}
+        </button>
+        <button type="button" className="button" onClick={onClose}>
+          {counts.filed === items.length && items.length > 0 ? 'Done' : 'Close'}
+        </button>
+      </div>
     </Modal>
   )
 }
