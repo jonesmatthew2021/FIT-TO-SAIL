@@ -125,7 +125,7 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
     scans.set(document.matchedRequirementId, list)
   }
   for (const list of scans.values()) list.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
-  const columns = canEdit ? 8 : 7
+  const columns = canEdit ? 7 : 6
 
   const grouped = new Map<string, Holding[]>()
   for (const holding of holdings.data) {
@@ -207,7 +207,6 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
               <col className="col-expiry" />
               <col className="col-validity" />
               <col className="col-certificate" />
-              <col className="col-note" />
               {canEdit && <col className="col-edit" />}
             </colgroup>
             <thead>
@@ -218,7 +217,6 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
                 <th scope="col">Expiry</th>
                 <th scope="col">Validity period</th>
                 <th scope="col">Certificate</th>
-                <th scope="col">Note</th>
                 {canEdit && <th scope="col" />}
               </tr>
             </thead>
@@ -302,9 +300,6 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
                                 </span>
                               ))
                             )}
-                          </td>
-                          <td className="table__wrap">
-                            {holding.note ?? <span className="dim">—</span>}
                           </td>
                           {canEdit && (
                             <td>

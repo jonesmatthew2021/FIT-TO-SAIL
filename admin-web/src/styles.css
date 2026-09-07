@@ -3966,11 +3966,10 @@ a.assistant__source:hover {
 
 .table--holdings .col-requirement { width: auto; }
 .table--holdings .col-status { width: 112px; }
-.table--holdings .col-date { width: 92px; }
+.table--holdings .col-date { width: 104px; }
 .table--holdings .col-expiry { width: 150px; }
 .table--holdings .col-validity { width: 112px; }
-.table--holdings .col-certificate { width: 84px; }
-.table--holdings .col-note { width: 96px; }
+.table--holdings .col-certificate { width: 104px; }
 .table--holdings .col-edit { width: 40px; }
 
 .table--holdings td,
