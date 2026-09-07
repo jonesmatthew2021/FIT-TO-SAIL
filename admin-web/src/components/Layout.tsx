@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSession } from '../api/session'
 import {
+  rememberScope,
   useAllPartnerships,
   useCrewRequestSummary,
   useCustomerScope,
@@ -115,7 +116,7 @@ export function Layout(): React.ReactNode {
         </nav>
 
         <main className="shell__main">
-          <Outlet />
+          <ShipGate />
         </main>
       </div>
 
@@ -172,9 +173,15 @@ function CompanyGroup(): React.ReactNode {
             void navigate(`/company${scope.suffix}`)
             return
           }
-          // Otherwise stay on the page; change whose it is. A person's page under another customer
-          // simply shows that person still — the scope narrows lists, not records.
-          void navigate(value === '' ? location.pathname : `${location.pathname}?customer=${value}`)
+          // Otherwise stay on the page; change whose it is. "All customers" is the one thing that
+          // clears the remembered scope — every link in the app otherwise keeps it.
+          if (value === '') {
+            rememberScope(null, null)
+            void navigate(location.pathname)
+            return
+          }
+          rememberScope(Number(value), null)
+          void navigate(`${location.pathname}?customer=${value}`)
         }}
       >
         <option value="">All customers</option>
@@ -209,6 +216,7 @@ function ShipBox({ customerId, partnershipIds }: { customerId: number; partnersh
       value={scope.operationId ?? ''}
       onChange={(event) => {
         const value = event.target.value
+        rememberScope(customerId, value === '' ? null : Number(value))
         void navigate(
           value === ''
             ? `${location.pathname}?customer=${customerId}`
@@ -237,24 +245,80 @@ export function shipLabel(
   return own.length > 0 ? `${own.join(' + ')} (${abbrev})` : `${name} (${abbrev})`
 }
 
-/** The compliance menu — for the ship in the box, the customer's ships, or everyone's. */
+/**
+ * The compliance menu — the ship's, and only once a ship is chosen. Every screen on it is a view
+ * over one ship's roster, swings and records; with no ship there is nothing for them to show, and
+ * a menu that led to empty screens would read as a fault rather than as a question.
+ */
 function ComplianceGroup(): React.ReactNode {
   const scope = useCustomerScope()
   const partnerships = useAllPartnerships()
   const vessels = useVessels()
   const ship = scope.operationId === null ? undefined : partnerships.data?.find((p) => p.id === scope.operationId)
-  const label =
-    ship !== undefined
-      ? `Compliance · ${shipLabel(ship.id, ship.abbrev, ship.name, vessels.data ?? [])}`
-      : scope.customer === null
-        ? 'Compliance'
-        : `Compliance · ${scope.customer.shortName ?? scope.customer.name}`
+  if (ship === undefined) return null
   return (
     <NavGroup
-      label={label}
+      label={`Compliance · ${shipLabel(ship.id, ship.abbrev, ship.name, vessels.data ?? [])}`}
       items={NAV_ITEMS.filter((item) => item.built && item.group !== 'company')}
       suffix={scope.suffix}
     />
+  )
+}
+
+/**
+ * The gate in front of the compliance screens: with no ship chosen, the page asks for one rather
+ * than rendering a screen with nothing in it. The company page is the exception — it is where
+ * customers and ships are made, so it must be reachable before any exist.
+ */
+function ShipGate(): React.ReactNode {
+  const scope = useCustomerScope()
+  const location = useLocation()
+  const customers = useCustomers()
+  const partnerships = useAllPartnerships()
+  const vessels = useVessels()
+
+  if (scope.operationId !== null || location.pathname === '/company') return <Outlet />
+
+  const list = customers.data ?? []
+  return (
+    <div className="screen">
+      <header className="screen__header">
+        <h1 className="screen__title">Choose a ship</h1>
+        <p className="screen__subtitle">
+          Every compliance screen belongs to one ship — its crew, its swings, its certificates. Pick
+          the customer and then the ship in the rail, or straight from the list here.
+        </p>
+      </header>
+      {list.length === 0 && (
+        <p className="empty">
+          No customers yet. <NavLink to="/company">Add one</NavLink>, then add its ships.
+        </p>
+      )}
+      {list.map((customer) => {
+        const ships = (partnerships.data ?? []).filter((p) => customer.partnershipIds.includes(p.id))
+        return (
+          <section key={customer.id} className="panel">
+            <p className="panel__title">{customer.name}</p>
+            {ships.length === 0 && (
+              <p className="panel__detail">
+                No ships yet — <NavLink to={`/company?customer=${customer.id}`}>add one</NavLink>.
+              </p>
+            )}
+            {ships.length > 0 && (
+              <ul className="list-plain list-plain--tight">
+                {ships.map((ship) => (
+                  <li key={ship.id}>
+                    <NavLink to={`/?customer=${customer.id}&operation=${ship.id}`}>
+                      {shipLabel(ship.id, ship.abbrev, ship.name, vessels.data ?? [])}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )
+      })}
+    </div>
   )
 }
 

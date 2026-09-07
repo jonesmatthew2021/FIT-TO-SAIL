@@ -5,6 +5,7 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   api,
@@ -212,8 +213,19 @@ export function useCustomerScope(): {
   suffix: string
 } {
   const [params] = useSearchParams()
-  const customerId = numberParam(params.get('customer'))
-  const operationId = numberParam(params.get('operation'))
+  // The URL is the scope when it names one; otherwise the last scope chosen in this tab. Every
+  // in-app link would otherwise have to carry the ship, and one that forgot would drop the reader
+  // at the "choose a ship" gate mid-task. The boxes in the rail are the only things that clear it.
+  const remembered = recallScope()
+  const urlCustomer = numberParam(params.get('customer'))
+  const urlOperation = numberParam(params.get('operation'))
+  const customerId = urlCustomer ?? remembered.customerId
+  const operationId =
+    urlOperation ??
+    (urlCustomer === null || urlCustomer === remembered.customerId ? remembered.operationId : null)
+  useEffect(() => {
+    if (urlCustomer !== null) rememberScope(urlCustomer, urlOperation ?? (urlCustomer === remembered.customerId ? remembered.operationId : null))
+  }, [urlCustomer, urlOperation, remembered.customerId, remembered.operationId])
   const customers = useCustomers()
   const customer = customerId === null ? null : (customers.data?.find((c) => c.id === customerId) ?? null)
 
@@ -243,6 +255,32 @@ export function useCustomerScope(): {
 
 function numberParam(raw: string | null): number | null {
   return raw === null || raw === '' || Number.isNaN(Number(raw)) ? null : Number(raw)
+}
+
+const SCOPE_KEY = 'fit-to-sail.scope'
+
+/** The scope this tab last worked in. Session storage: a new tab starts at the gate. */
+function recallScope(): { customerId: number | null; operationId: number | null } {
+  try {
+    const raw = sessionStorage.getItem(SCOPE_KEY)
+    if (raw === null) return { customerId: null, operationId: null }
+    const parsed = JSON.parse(raw) as { customerId?: unknown; operationId?: unknown }
+    return {
+      customerId: typeof parsed.customerId === 'number' ? parsed.customerId : null,
+      operationId: typeof parsed.operationId === 'number' ? parsed.operationId : null,
+    }
+  } catch {
+    return { customerId: null, operationId: null }
+  }
+}
+
+export function rememberScope(customerId: number | null, operationId: number | null): void {
+  try {
+    if (customerId === null) sessionStorage.removeItem(SCOPE_KEY)
+    else sessionStorage.setItem(SCOPE_KEY, JSON.stringify({ customerId, operationId }))
+  } catch {
+    // Storage blocked: the URL still carries the scope for this page.
+  }
 }
 
 /** Every partnership, whatever the scope — the company screen's own view. */

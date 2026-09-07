@@ -1,14 +1,20 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { usePeople } from '../api/queries'
+import { useQueryClient } from '@tanstack/react-query'
+import { keys, useAllPartnerships, useCustomerScope, usePeople } from '../api/queries'
 import type { Person } from '../api/client'
 import { useHasRole } from '../api/session'
 import { UploadCertificates } from '../components/CertificatesOnFile'
+import { AddCrewMember, UploadCrewList } from '../components/CrewUpload'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Spinner } from '../components/Spinner'
 
 /** The roles that may file a certificate — the same two that decide on ADM-9. */
 const FILERS = ['data_steward', 'system_administrator'] as const
+
+/** The roles the server accepts for creating a person — mirrored to hide the controls. */
+const CREW_EDITORS = ['crew_coordinator', 'data_steward', 'system_administrator'] as const
 
 /**
  * ADM-5 — the crew directory.
@@ -27,6 +33,13 @@ export function People(): React.ReactNode {
   const people = usePeople()
   const navigate = useNavigate()
   const canFile = useHasRole(...FILERS)
+  const canEditCrew = useHasRole(...CREW_EDITORS)
+  const scope = useCustomerScope()
+  const partnerships = useAllPartnerships()
+  const client = useQueryClient()
+  const [addingOne, setAddingOne] = useState(false)
+  const [uploadingList, setUploadingList] = useState(false)
+  const ship = scope.operationId === null ? undefined : partnerships.data?.find((p) => p.id === scope.operationId)
 
   if (people.isPending) return <Spinner label="Loading people" />
   if (people.error !== null) return <ErrorPanel title="Could not load people" error={people.error} />
@@ -77,17 +90,35 @@ export function People(): React.ReactNode {
 
       {/* A batch of certificates from the office: the model reads each one and suggests whose it
           is; the uploader confirms, or adds the crew member the roster does not have yet. */}
-      {canFile && (
-        <div className="row-actions">
-          <UploadCertificates />
-        </div>
+      {/* A ship's crew is its own: the two doors for loading it are fixed to the ship in view. */}
+      <div className="row-actions">
+        {canEditCrew && ship !== undefined && (
+          <>
+            <button type="button" className="button button--primary" onClick={() => setAddingOne(true)}>
+              Add crew member
+            </button>
+            <button type="button" className="button" onClick={() => setUploadingList(true)}>
+              Upload crew list
+            </button>
+          </>
+        )}
+        {canFile && <UploadCertificates />}
+      </div>
+
+      {addingOne && ship !== undefined && <AddCrewMember ship={ship} onClose={() => setAddingOne(false)} />}
+      {uploadingList && ship !== undefined && (
+        <UploadCrewList
+          ship={ship}
+          onClose={() => setUploadingList(false)}
+          onDone={() => void client.invalidateQueries({ queryKey: keys.people })}
+        />
       )}
 
       <DataTable
         rows={people.data}
         columns={columns}
         filterPlaceholder="Filter by name, Sam #, position…"
-        onRowClick={(person) => void navigate(`/people/${person.id}`)}
+        onRowClick={(person) => void navigate(`/people/${person.id}${scope.suffix}`)}
         csv={{
           filename: 'people.csv',
           columns: [
