@@ -180,7 +180,7 @@ export function SwingRoster({
           <NewPersonForm
             suggestedName={null}
             shipId={ship.id}
-            note={`Added to this ship's crew and to People & holdings, and brought onto ${swingLabelShort(swing)} straight away.`}
+            note={`Added to this ship's crew and to Crew and certification, and brought onto ${swingLabelShort(swing)} straight away.`}
             onCreated={(person) => {
               setAdding(false)
               // Somebody added while a swing is on screen was added for that swing.

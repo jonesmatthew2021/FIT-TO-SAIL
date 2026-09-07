@@ -81,7 +81,7 @@ export function People(): React.ReactNode {
   return (
     <div className="screen">
       <header className="screen__header">
-        <h1 className="screen__title">People &amp; holdings</h1>
+        <h1 className="screen__title">Crew and certification</h1>
         <p className="screen__subtitle">
           {people.data.length} crew visible to your roles. The directory is the system of record for
           qualification holdings; each person's page carries the scans behind them.

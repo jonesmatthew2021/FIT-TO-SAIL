@@ -33,7 +33,7 @@ interface NavItem {
 
 /**
  * The rail's order is the *working* order, not the numeric one: the dashboard and the planner are
- * the daily loop, People & holdings is where the loop's answers are corrected, and the records the
+ * the daily loop, Crew and certification is where the loop's answers are corrected, and the records the
  * loop links to follow. ADM-5 therefore sits above ADM-3 and ADM-4.
  */
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -44,7 +44,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   // office works; the §6 modules follow.
   { to: '/admin', label: 'Admin', module: 'POR-1', built: true },
   { to: '/', label: 'Dashboard', module: 'ADM-1', built: true },
-  { to: '/people', label: 'People & holdings', module: 'ADM-5', built: true },
+  { to: '/people', label: 'Crew and certification', module: 'ADM-5', built: true },
   { to: '/planner', label: 'Crew and shift distribution', module: 'ADM-2', built: true },
   { to: '/swing-compliance', label: 'Swing and shift compliance', module: 'POR-2', built: true },
   { to: '/matrix', label: 'Matrix', module: 'ADM-3', built: true },

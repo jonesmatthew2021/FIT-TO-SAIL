@@ -48,7 +48,7 @@ export function PersonDetail(): React.ReactNode {
   return (
     <div className="screen">
       <p className="screen__breadcrumb">
-        <Link to="/people">People &amp; holdings</Link> ·{' '}
+        <Link to="/people">Crew and certification</Link> ·{' '}
         <span>{person.data.partnershipAbbrev}</span>
       </p>
 

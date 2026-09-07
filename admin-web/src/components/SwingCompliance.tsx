@@ -143,7 +143,7 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
       {rotationless.length > 0 && (
         <p className="note">
           {rotationless.length} crew on this ship are on neither crew A nor B, so the pattern cannot roster them —{' '}
-          <Link to={`/people${suffix}`}>set their rotation</Link> in People &amp; holdings.
+          <Link to={`/people${suffix}`}>set their rotation</Link> in Crew and certification.
         </p>
       )}
 

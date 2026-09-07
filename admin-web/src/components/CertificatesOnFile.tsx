@@ -658,7 +658,7 @@ export function NewPersonForm({
       }}
     >
       <p className="note">
-        {note ?? 'This crew member is not on the roster. Adding them here also adds them to People & holdings.'}
+        {note ?? 'This crew member is not on the roster. Adding them here also adds them to Crew and certification.'}
       </p>
       <label className="field field--inline field--grow">
         <span className="field__label">Name (SURNAME, Given)</span>

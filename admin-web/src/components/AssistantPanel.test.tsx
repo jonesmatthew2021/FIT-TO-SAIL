@@ -23,7 +23,7 @@ describe('route context', () => {
   it('names the screen by module code and label', () => {
     expect(contextForPath('/')).toEqual({ chip: 'ADM-1 Dashboard', mono: false, screen: 'ADM-1 Dashboard' })
     expect(contextForPath('/planner').chip).toBe('ADM-2 Crew and shift distribution')
-    expect(contextForPath('/people/12').chip).toBe('ADM-5 People & holdings')
+    expect(contextForPath('/people/12').chip).toBe('ADM-5 Crew and certification')
     expect(contextForPath('/evidence/3f6a').chip).toBe('ADM-9 Evidence queue')
   })
 
