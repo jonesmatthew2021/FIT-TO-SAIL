@@ -1517,7 +1517,7 @@ function CrewMatrix(): React.ReactNode {
             title="Show only crew with a certificate in this window"
             onClick={() => setWindow(window === band.id ? null : band.id)}
           >
-            {windowCounts.get(band.id) ?? 0} {band.label}
+            {band.label} ({windowCounts.get(band.id) ?? 0})
           </button>
         ))}
       </div>
