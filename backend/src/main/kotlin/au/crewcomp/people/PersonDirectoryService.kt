@@ -5,6 +5,7 @@ import au.crewcomp.platform.audit.AuditWriter
 import au.crewcomp.platform.persistence.EntityNotFoundException
 import au.crewcomp.platform.security.AccessPolicy
 import au.crewcomp.platform.security.Role
+import au.crewcomp.platform.time.BusinessClock
 import au.crewcomp.reference.CrewPositionRepository
 import au.crewcomp.reference.PartnershipRepository
 import jakarta.enterprise.context.ApplicationScoped
@@ -28,6 +29,8 @@ class PersonDirectoryService(
     private val leave: LeaveRecordRepository,
     private val positions: CrewPositionRepository,
     private val partnerships: PartnershipRepository,
+    private val assignmentService: AssignmentService,
+    private val clock: BusinessClock,
     private val policy: AccessPolicy,
     private val audit: AuditWriter,
 ) {
@@ -65,6 +68,35 @@ class PersonDirectoryService(
             businessKey = person.sam,
             before = mapOf("rotation" to before),
             after = mapOf("rotation" to clean),
+        )
+        return person
+    }
+
+    /**
+     * On or off the crew. Off (`inactive`) is the portal's "remove from the roster": the person and
+     * everything recorded about them stay — holdings, scans, history — and they are taken off every
+     * swing still to sail, through the same door the planner uses, so the crew app is told. Back on
+     * puts them where they were on the list; the swings are re-rostered by hand or by the pattern.
+     */
+    @Transactional
+    fun setActive(personId: Long, active: Boolean): Person {
+        policy.require(Role.CREW_COORDINATOR, Role.DATA_STEWARD, Role.SYSTEM_ADMINISTRATOR)
+        policy.assertNotReadOnlyActor()
+        val person = get(personId)
+        val before = person.status
+        val after = if (active) PersonStatus.ACTIVE else PersonStatus.INACTIVE
+        if (before == after) return person
+        val removed = if (active) emptyList() else assignments.upcomingUnscoped(clock.today()).filter { it.person.requiredId == personId }
+        removed.forEach { assignmentService.unassign(it.requiredId) }
+        person.status = after
+        person.stampUpdated(policy.actor().label)
+        audit.record(
+            entityType = "Person",
+            event = if (active) "person.reinstated" else "person.removed",
+            entityId = person.id,
+            businessKey = person.sam,
+            before = mapOf("status" to before.wire),
+            after = mapOf("status" to after.wire, "assignmentsRemoved" to removed.size),
         )
         return person
     }

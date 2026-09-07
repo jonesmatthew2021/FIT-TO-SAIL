@@ -589,6 +589,30 @@ export const api = {
   rosterFromRotation: (partnership: string, cc: string): Promise<UpcomingSwings> =>
     request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster-from-rotation`, { method: 'POST' }),
 
+  /** The roster board: a free slot for the person's position, or a new one. A clash is a 409 `assignment_clash`. */
+  bringOnboard: (partnership: string, cc: string, personId: number, acknowledgeClash = false): Promise<void> =>
+    request(
+      `/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster/${personId}/onboard` +
+        (acknowledgeClash ? '?acknowledgeClash=true' : ''),
+      { method: 'POST' },
+    ),
+
+  sendAshore: (partnership: string, cc: string, personId: number): Promise<void> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster/${personId}/ashore`, { method: 'POST' }),
+
+  setWatch: (partnership: string, cc: string, personId: number, watch: 'day' | 'night' | 'none'): Promise<void> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster/${personId}/watch`, {
+      method: 'PUT',
+      body: JSON.stringify({ watch }),
+    }),
+
+  switchCrew: (partnership: string, cc: string): Promise<UpcomingSwings> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/switch-crew`, { method: 'POST' }),
+
+  /** Off the crew (`false`) keeps the record and takes them off every swing still to sail. */
+  setActive: (personId: number, active: boolean): Promise<Person> =>
+    request(`/api/v1/people/${personId}/active`, { method: 'PUT', body: JSON.stringify({ active }) }),
+
   setRotation: (personId: number, rotation: string | null): Promise<Person> =>
     request(`/api/v1/people/${personId}/rotation`, { method: 'PUT', body: JSON.stringify({ rotation }) }),
 

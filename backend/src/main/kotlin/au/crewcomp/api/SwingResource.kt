@@ -1,6 +1,7 @@
 package au.crewcomp.api
 
 import au.crewcomp.platform.time.BusinessClock
+import au.crewcomp.reference.SwingRosterService
 import au.crewcomp.reference.SwingService
 import io.quarkus.security.Authenticated
 import jakarta.ws.rs.Consumes
@@ -26,7 +27,11 @@ import java.time.LocalDate
 @Authenticated
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Swings", description = "The swing pattern: rotation, upcoming swings, the office's dates")
-class SwingResource(private val swings: SwingService, private val clock: BusinessClock) {
+class SwingResource(
+    private val swings: SwingService,
+    private val roster: SwingRosterService,
+    private val clock: BusinessClock,
+) {
 
     @GET
     @Path("/swings/{partnership}/pattern")
@@ -92,7 +97,57 @@ class SwingResource(private val swings: SwingService, private val clock: Busines
             swings = emptyList(),
             unrostered = swings.rosterFromRotation(partnership, cc).map { it.toDto() },
         )
+
+    // ------------------------------------------------------------ the roster board
+
+    @POST
+    @Path("/swings/{partnership}/{cc}/roster/{personId}/onboard")
+    @Operation(summary = "Bring a person onto the swing — a free slot for their position, or a new one; a clash is a 409 unless acknowledged")
+    fun bringOnboard(
+        @PathParam("partnership") partnership: String,
+        @PathParam("cc") cc: String,
+        @PathParam("personId") personId: Long,
+        @QueryParam("acknowledgeClash") @DefaultValue("false") acknowledgeClash: Boolean,
+    ) = roster.bringOnboard(partnership, cc, personId, acknowledgeClash)
+
+    @POST
+    @Path("/swings/{partnership}/{cc}/roster/{personId}/ashore")
+    @Operation(summary = "Send a person off the swing — their assignments on it are removed")
+    fun sendAshore(
+        @PathParam("partnership") partnership: String,
+        @PathParam("cc") cc: String,
+        @PathParam("personId") personId: Long,
+    ) = roster.sendAshore(partnership, cc, personId)
+
+    @PUT
+    @Path("/swings/{partnership}/{cc}/roster/{personId}/watch")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "The watch a person keeps on the swing: day (Shift 1), night (Shift 2) or none")
+    fun setWatch(
+        @PathParam("partnership") partnership: String,
+        @PathParam("cc") cc: String,
+        @PathParam("personId") personId: Long,
+        request: SetWatchRequest,
+    ) = roster.setWatch(partnership, cc, personId, request.watch)
+
+    @POST
+    @Path("/swings/{partnership}/{cc}/switch-crew")
+    @Operation(summary = "The crew change: the swing carries the other crew, rostered from the rotation")
+    fun switchCrew(@PathParam("partnership") partnership: String, @PathParam("cc") cc: String): UpcomingSwingsDto {
+        // Two transactions, as ensure-upcoming: the switch commits, then the incoming crew is
+        // rostered, so a roster that cannot be completed never undoes the switch.
+        val switched = roster.switchCrew(partnership, cc)
+        return UpcomingSwingsDto(
+            swings = listOf(switched.toDto()),
+            unrostered = swings.rosterFromRotation(partnership, cc).map { it.toDto() },
+        )
+    }
 }
+
+data class SetWatchRequest(
+    /** `day`, `night` or `none`. */
+    val watch: String,
+)
 
 data class PatternDto(
     val rosterAnchor: LocalDate?,

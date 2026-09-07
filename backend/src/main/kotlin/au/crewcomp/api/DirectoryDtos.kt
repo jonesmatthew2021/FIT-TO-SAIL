@@ -68,6 +68,9 @@ data class SetSwingDatesRequest(val from: LocalDate, val to: LocalDate)
 /** Which crew a person sails with; null takes them off the rotation. */
 data class SetRotationRequest(val rotation: String? = null)
 
+/** `true` puts the person on the crew, `false` takes them off it (status `inactive`). */
+data class SetActiveRequest(val active: Boolean)
+
 /** What ensure-upcoming did: the swings now on the calendar, and who could not be rostered. */
 data class UpcomingSwingsDto(
     val swings: List<CrewChangeDto>,

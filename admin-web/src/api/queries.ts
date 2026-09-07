@@ -277,6 +277,55 @@ export function useSetRotation() {
   )
 }
 
+/**
+ * A roster-board move is a swing write *and* possibly a slot-model write (a slot made for
+ * somebody no free slot took), so the long-cached slot list goes with the swing reads.
+ */
+function useRosterBoardMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: keys.slots })
+      void client.invalidateQueries({ queryKey: ['upcoming-swings'] })
+      void client.invalidateQueries({ queryKey: ['swing'] })
+      void client.invalidateQueries({ queryKey: ['gaps'] })
+      void client.invalidateQueries({ queryKey: ['suggestions'] })
+      void client.invalidateQueries({ queryKey: ['assignments'] })
+      void client.invalidateQueries({ queryKey: ['expiry-alerts'] })
+      void client.invalidateQueries({ queryKey: keys.people })
+    },
+  })
+}
+
+export function useBringOnboard() {
+  return useRosterBoardMutation(
+    ({ partnership, cc, personId, acknowledgeClash }: { partnership: string; cc: string; personId: number; acknowledgeClash?: boolean }) =>
+      api.bringOnboard(partnership, cc, personId, acknowledgeClash ?? false),
+  )
+}
+
+export function useSendAshore() {
+  return useRosterBoardMutation(({ partnership, cc, personId }: { partnership: string; cc: string; personId: number }) =>
+    api.sendAshore(partnership, cc, personId),
+  )
+}
+
+export function useSetWatch() {
+  return useRosterBoardMutation(
+    ({ partnership, cc, personId, watch }: { partnership: string; cc: string; personId: number; watch: 'day' | 'night' | 'none' }) =>
+      api.setWatch(partnership, cc, personId, watch),
+  )
+}
+
+export function useSetActive() {
+  return useRosterBoardMutation(({ personId, active }: { personId: number; active: boolean }) => api.setActive(personId, active))
+}
+
+export function useSwitchCrew() {
+  return useRosterBoardMutation(({ partnership, cc }: { partnership: string; cc: string }) => api.switchCrew(partnership, cc))
+}
+
 export function useCreateCustomer() {
   return useCustomerMutation((body: SaveCustomerRequest) => api.createCustomer(body))
 }

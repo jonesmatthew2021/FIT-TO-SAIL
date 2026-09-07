@@ -617,13 +617,20 @@ function IntakeDialog({
   )
 }
 
-/** The pop-up's other half: a crew member the roster does not carry yet. */
-function NewPersonForm({
+/**
+ * The pop-up's other half: a crew member the roster does not carry yet. Also the swing roster's
+ * "Add crew member" — there the ship is fixed (`shipId`) and the note says where they are going.
+ */
+export function NewPersonForm({
   suggestedName,
+  shipId,
+  note,
   onCreated,
   onCancel,
 }: {
   suggestedName: string | null
+  shipId?: number
+  note?: string
   onCreated: (person: Person) => void
   onCancel: () => void
 }): React.ReactNode {
@@ -633,7 +640,8 @@ function NewPersonForm({
   const [name, setName] = useState(rosterForm(suggestedName))
   const [sam, setSam] = useState('')
   const [positionId, setPositionId] = useState<number | null>(null)
-  const [partnershipId, setPartnershipId] = useState<number | null>(null)
+  const [partnershipId, setPartnershipId] = useState<number | null>(shipId ?? null)
+  const [rotation, setRotation] = useState<string>('')
 
   const partnership = partnershipId ?? partnerships.data?.[0]?.id ?? null
 
@@ -643,11 +651,14 @@ function NewPersonForm({
       onSubmit={(event) => {
         event.preventDefault()
         if (positionId === null || partnership === null) return
-        create.mutate({ name, sam, positionId, partnershipId: partnership, email: null }, { onSuccess: onCreated })
+        create.mutate(
+          { name, sam, positionId, partnershipId: partnership, email: null, rotation: rotation === '' ? null : rotation },
+          { onSuccess: onCreated },
+        )
       }}
     >
       <p className="note">
-        This crew member is not on the roster. Adding them here also adds them to People &amp; holdings.
+        {note ?? 'This crew member is not on the roster. Adding them here also adds them to People & holdings.'}
       </p>
       <label className="field field--inline field--grow">
         <span className="field__label">Name (SURNAME, Given)</span>
@@ -668,14 +679,24 @@ function NewPersonForm({
           ))}
         </select>
       </label>
+      {shipId === undefined && (
+        <label className="field field--inline">
+          <span className="field__label">Partnership</span>
+          <select className="input" value={partnership ?? ''} onChange={(event) => setPartnershipId(Number(event.target.value))}>
+            {(partnerships.data ?? []).map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.abbrev} — {option.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="field field--inline">
-        <span className="field__label">Partnership</span>
-        <select className="input" value={partnership ?? ''} onChange={(event) => setPartnershipId(Number(event.target.value))}>
-          {(partnerships.data ?? []).map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.abbrev} — {option.name}
-            </option>
-          ))}
+        <span className="field__label">Crew</span>
+        <select className="input" value={rotation} onChange={(event) => setRotation(event.target.value)}>
+          <option value="">Not on a rotation</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
         </select>
       </label>
       <div className="editor__actions">

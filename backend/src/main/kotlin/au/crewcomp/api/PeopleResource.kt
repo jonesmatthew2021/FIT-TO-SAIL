@@ -63,6 +63,13 @@ class PeopleResource(
     fun setRotation(@PathParam("personId") personId: Long, request: SetRotationRequest): PersonDto =
         directory.setRotation(personId, request.rotation).toDto()
 
+    @PUT
+    @Path("/{personId}/active")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "On or off the crew — off takes them off every swing still to sail; audited")
+    fun setActive(@PathParam("personId") personId: Long, request: SetActiveRequest): PersonDto =
+        directory.setActive(personId, request.active).toDto()
+
     @GET
     @Path("/{personId}/evidence")
     @Operation(summary = "A person's evidence documents — the certificates on file, newest first")

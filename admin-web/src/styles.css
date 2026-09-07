@@ -3605,3 +3605,157 @@ a.assistant__source:hover {
     transition-duration: 0s;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Swing roster — the portal's board: onboard and off swing, watches, A/B lists
+ * ------------------------------------------------------------------------- */
+
+.tabs--inner {
+  margin-bottom: 12px;
+}
+
+.roster-toolbar {
+  margin-bottom: 14px;
+  align-items: center;
+}
+
+.roster-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.roster-columns--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .roster-columns,
+  .roster-columns--three {
+    grid-template-columns: 1fr;
+  }
+}
+
+.roster-col {
+  background: var(--color-surface);
+  border: 1px solid var(--color-neutral-800);
+  border-top: 4px solid var(--color-neutral-600);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  min-width: 0;
+}
+
+.roster-col--good {
+  border-top-color: var(--color-good-500, #4caf8a);
+}
+
+.roster-col__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.roster-col__title--good {
+  color: var(--color-good-500, #4caf8a);
+}
+
+.roster-col__blurb {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.roster-group {
+  margin-top: 16px;
+}
+
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--color-neutral-800);
+}
+
+.roster-row__who {
+  flex: 1 1 160px;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.roster-row__name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.roster-row__name:hover {
+  text-decoration: underline;
+}
+
+.roster-row__crew {
+  font-size: 11px;
+}
+
+.roster-row__watch {
+  display: flex;
+  gap: 5px;
+}
+
+.roster-row__error {
+  flex-basis: 100%;
+  font-size: 12px;
+}
+
+.watch-btn {
+  background: transparent;
+  color: var(--color-neutral-400);
+  border: 1px solid var(--color-neutral-700);
+  border-radius: var(--radius-sm, 3px);
+  padding: 5px 9px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.watch-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.watch-btn--day.watch-btn--on {
+  background: var(--tone-warning-fill);
+  color: var(--tone-warning-text);
+  border-color: var(--tone-warning-text);
+}
+
+.watch-btn--night.watch-btn--on {
+  background: var(--color-accent-800);
+  color: var(--color-accent-100);
+  border-color: var(--color-accent-500);
+}
+
+.roster-row__remove {
+  opacity: 0.7;
+}
+
+.roster-gone {
+  margin-top: 16px;
+  line-height: 1.7;
+}
+
+.roster-gone .link-action {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}

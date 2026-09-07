@@ -44,8 +44,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   // office works; the §6 modules follow.
   { to: '/admin', label: 'Admin', module: 'POR-1', built: true },
   { to: '/', label: 'Dashboard', module: 'ADM-1', built: true },
-  { to: '/planner', label: 'Swing planner', module: 'ADM-2', built: true },
   { to: '/people', label: 'People & holdings', module: 'ADM-5', built: true },
+  { to: '/planner', label: 'Swing planner', module: 'ADM-2', built: true },
   { to: '/matrix', label: 'Matrix', module: 'ADM-3', built: true },
   { to: '/register', label: 'Register', module: 'ADM-4', built: true },
   { to: '/requirements', label: 'Requirements', module: 'ADM-6', built: true },

@@ -18,6 +18,7 @@ import { useHasRole, useToday } from '../api/session'
 import { ErrorPanel } from './ErrorPanel'
 import { Spinner } from './Spinner'
 import { StateChip } from './StateChip'
+import { SwingRoster } from './SwingRoster'
 import { downloadCsv, toCsv } from '../domain/csv'
 import { dateFromEpochDay, epochDay, formatDate, formatDayMonth } from '../domain/dates'
 import { needsAttention } from '../domain/enums'
@@ -134,7 +135,10 @@ export function SwingCompliance({ ship }: { ship: Partnership }): React.ReactNod
       )}
 
       {here !== undefined && (
-        <WhoIsClear ship={ship} swing={here} evaluation={evaluationOf(here)} requirementCodes={requirements.data ?? []} canEdit={canEdit} />
+        <>
+          <SwingRoster ship={ship} swing={here} evaluation={evaluationOf(here)} />
+          <WhoIsClear ship={ship} swing={here} evaluation={evaluationOf(here)} requirementCodes={requirements.data ?? []} canEdit={canEdit} />
+        </>
       )}
     </div>
   )
