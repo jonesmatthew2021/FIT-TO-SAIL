@@ -3981,3 +3981,11 @@ a.assistant__source:hover {
 .table--holdings .table__wrap {
   min-width: 0;
 }
+
+/* A breadcrumb row that carries a button: the way back on the left, where it came from beside it. */
+.screen__breadcrumb--bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}

@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
+  useCustomerScope,
   useHoldings,
   usePerson,
   usePersonAssignments,
@@ -38,6 +39,7 @@ export function PersonDetail(): React.ReactNode {
   const { personId: raw } = useParams()
   const personId = Number(raw)
   const person = usePerson(personId)
+  const scope = useCustomerScope()
 
   if (Number.isNaN(personId)) return <ErrorPanel title="Bad person id" error={new Error(raw ?? '')} />
   if (person.isPending) return <Spinner label="Loading person" />
@@ -45,9 +47,13 @@ export function PersonDetail(): React.ReactNode {
 
   return (
     <div className="screen">
-      <p className="screen__breadcrumb">
-        <Link to="/people">Crew and certification</Link> ·{' '}
-        <span>{person.data.partnershipAbbrev}</span>
+      <p className="screen__breadcrumb screen__breadcrumb--bar">
+        <Link className="button" to={`/people${scope.suffix}`}>
+          ← Back to crew list
+        </Link>
+        <span>
+          Crew and certification · {person.data.partnershipAbbrev}
+        </span>
       </p>
 
       <header className="screen__header">
