@@ -2296,20 +2296,11 @@ select.input option {
   background: var(--color-neutral-500);
 }
 
-/* Name and rank stay put while the dates scroll: the position column is sticky beside the crew
-   column (whose fixed 300px is what the offset leans on), so every date always has its person. */
+/* Only the name stays put while the dates scroll (the crew column's fixed 300px); the position
+   scrolls away with the rest, as the office asked — a rank is read once, a name on every row. */
 .matrix-grid--titled td.matrix-grid__pos,
 .matrix-grid--titled thead th:nth-child(2) {
-  position: sticky;
-  left: 300px;
-  background: var(--color-surface);
-  z-index: 1;
-  box-shadow: 1px 0 0 var(--color-neutral-900);
   white-space: nowrap;
-}
-
-.table-scroll--fill thead th:nth-child(2) {
-  z-index: 3;
 }
 
 .table-scroll--fill thead th {
