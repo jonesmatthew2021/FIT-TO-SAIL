@@ -3731,16 +3731,27 @@ a.assistant__source:hover {
   opacity: 0.7;
 }
 
+/* The three watch colours, shared by the board's buttons and the day grid: a sun yellow for
+   days, a sea blue for nights, slate for onboard with no watch set. Solid and far apart, so a
+   row of cells reads at a glance without the legend. */
+:root {
+  --watch-day: #f4c542;
+  --watch-day-ink: #2b2300;
+  --watch-night: #3b82d6;
+  --watch-night-ink: #ffffff;
+  --watch-none: #6b7280;
+}
+
 .watch-btn--day.watch-btn--on {
-  background: var(--tone-warning-fill);
-  color: var(--tone-warning-text);
-  border-color: var(--tone-warning-text);
+  background: var(--watch-day);
+  color: var(--watch-day-ink);
+  border-color: var(--watch-day);
 }
 
 .watch-btn--night.watch-btn--on {
-  background: var(--color-accent-800);
-  color: var(--color-accent-100);
-  border-color: var(--color-accent-500);
+  background: var(--watch-night);
+  color: var(--watch-night-ink);
+  border-color: var(--watch-night);
 }
 
 .roster-row__remove {
@@ -3832,30 +3843,30 @@ a.assistant__source:hover {
   width: 22px;
   min-width: 22px;
   height: 30px;
-  border-left: 1px solid var(--color-neutral-900);
+  border-left: 1px solid rgba(0, 0, 0, 0.35);
 }
 
 .daygrid__cell--off {
-  background: transparent;
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, var(--color-neutral-800) 5px 6px);
 }
 
 .daygrid__cell--day,
 .daygrid__swatch--day {
-  background: var(--tone-warning-fill);
+  background: var(--watch-day);
 }
 
 .daygrid__cell--night,
 .daygrid__swatch--night {
-  background: var(--color-accent-700);
+  background: var(--watch-night);
 }
 
 .daygrid__cell--none,
 .daygrid__swatch--none {
-  background: var(--color-neutral-600);
+  background: var(--watch-none);
 }
 
 .daygrid__cell--today {
-  box-shadow: inset 0 0 0 1px var(--color-accent-400);
+  box-shadow: inset 0 0 0 2px #ffffff;
 }
 
 .daygrid__dates {
