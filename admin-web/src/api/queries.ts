@@ -50,6 +50,10 @@ import {
   type RequirementDetail,
   type SaveCustomerRequest,
   type SaveRequirementRequest,
+  type SetPatternRequest,
+  type SetSwingDatesRequest,
+  type SwingPattern,
+  type UpcomingSwings,
   type ScheduledJob,
   type SetHoldingRequest,
   type SetMatrixCellRequest,
@@ -81,6 +85,8 @@ export const keys = {
   customers: ['customers'] as const,
   unattachedPartnerships: ['customers', 'unattached-partnerships'] as const,
   vessels: ['vessels'] as const,
+  swingPattern: (partnership: string) => ['swing-pattern', partnership] as const,
+  upcomingSwings: (partnership: string) => ['upcoming-swings', partnership] as const,
   crewChanges: (partnership: string) => ['crew-changes', partnership] as const,
   requirements: ['requirements'] as const,
   catalogue: ['catalogue'] as const,
@@ -164,6 +170,75 @@ export function useAddVessel() {
 
 export function useRemoveVessel() {
   return useCustomerMutation((vesselId: number) => api.removeVessel(vesselId))
+}
+
+// ---------------------------------------------------------------------------
+// The swing pattern — the portal's Swing Compliance page
+// ---------------------------------------------------------------------------
+
+export function useSwingPattern(partnership: string | null): UseQueryResult<SwingPattern> {
+  return useQuery({
+    queryKey: keys.swingPattern(partnership ?? ''),
+    queryFn: () => api.swingPattern(partnership as string),
+    enabled: partnership !== null,
+  })
+}
+
+/**
+ * The swing on now and the next few. A POST behind a query, deliberately: ensure-upcoming is
+ * idempotent (it only ever fills gaps the pattern names), so reading the page is what keeps the
+ * calendar ahead — the portal's users never made swings by hand and should not have to here.
+ */
+export function useUpcomingSwings(partnership: string | null): UseQueryResult<UpcomingSwings> {
+  return useQuery({
+    queryKey: keys.upcomingSwings(partnership ?? ''),
+    queryFn: () => api.ensureUpcomingSwings(partnership as string),
+    enabled: partnership !== null,
+  })
+}
+
+/** A swing's dates or roster moved: everything read off the calendar goes with it. */
+function useSwingMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['upcoming-swings'] })
+      void client.invalidateQueries({ queryKey: ['swing-pattern'] })
+      void client.invalidateQueries({ queryKey: ['crew-changes'] })
+      void client.invalidateQueries({ queryKey: ['swing'] })
+      void client.invalidateQueries({ queryKey: ['gaps'] })
+      void client.invalidateQueries({ queryKey: ['expiry-alerts'] })
+      void client.invalidateQueries({ queryKey: keys.partnerships })
+      void client.invalidateQueries({ queryKey: keys.people })
+    },
+  })
+}
+
+export function useSetSwingPattern() {
+  return useSwingMutation(({ partnership, body }: { partnership: string; body: SetPatternRequest }) =>
+    api.setSwingPattern(partnership, body),
+  )
+}
+
+export function useSetSwingDates() {
+  return useSwingMutation(({ partnership, cc, body }: { partnership: string; cc: string; body: SetSwingDatesRequest }) =>
+    api.setSwingDates(partnership, cc, body),
+  )
+}
+
+export function useUseSwingPattern() {
+  return useSwingMutation(({ partnership, cc }: { partnership: string; cc: string }) => api.useSwingPattern(partnership, cc))
+}
+
+export function useRosterFromRotation() {
+  return useSwingMutation(({ partnership, cc }: { partnership: string; cc: string }) => api.rosterFromRotation(partnership, cc))
+}
+
+export function useSetRotation() {
+  return useSwingMutation(({ personId, rotation }: { personId: number; rotation: string | null }) =>
+    api.setRotation(personId, rotation),
+  )
 }
 
 export function useCreateCustomer() {

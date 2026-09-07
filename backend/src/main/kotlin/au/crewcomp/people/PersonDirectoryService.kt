@@ -47,13 +47,37 @@ class PersonDirectoryService(
      * exception item), but a *new* row reusing a number is how the source data got that duplicate
      * in the first place, and the person adding a crew member is the right person to notice.
      */
+    /** Which crew the person sails with — 'A', 'B', or null to take them off the rotation. Audited. */
     @Transactional
-    fun create(name: String, sam: String, positionId: Long, partnershipId: Long, email: String?): Person {
+    fun setRotation(personId: Long, rotation: String?): Person {
+        policy.require(Role.CREW_COORDINATOR, Role.DATA_STEWARD, Role.SYSTEM_ADMINISTRATOR)
+        policy.assertNotReadOnlyActor()
+        val clean = rotation?.trim()?.uppercase()?.ifEmpty { null }
+        require(clean == null || clean == "A" || clean == "B") { "A rotation is A or B" }
+        val person = get(personId)
+        val before = person.rotation
+        person.rotation = clean
+        person.stampUpdated(policy.actor().label)
+        audit.record(
+            entityType = "Person",
+            event = "person.rotation_set",
+            entityId = person.id,
+            businessKey = person.sam,
+            before = mapOf("rotation" to before),
+            after = mapOf("rotation" to clean),
+        )
+        return person
+    }
+
+    @Transactional
+    fun create(name: String, sam: String, positionId: Long, partnershipId: Long, email: String?, rotation: String? = null): Person {
         policy.require(Role.CREW_COORDINATOR, Role.DATA_STEWARD, Role.SYSTEM_ADMINISTRATOR)
         policy.assertNotReadOnlyActor()
 
         val cleanName = name.trim()
         val cleanSam = sam.trim()
+        val cleanRotation = rotation?.trim()?.uppercase()?.ifEmpty { null }
+        require(cleanRotation == null || cleanRotation == "A" || cleanRotation == "B") { "A rotation is A or B" }
         require(cleanName.contains(',')) { "Name must be 'SURNAME, Given names' — the form every other crew record uses" }
         require(cleanSam.isNotEmpty()) { "An employee id (Sam #) is required" }
         people.bySam(cleanSam).firstOrNull()?.let {
@@ -71,6 +95,7 @@ class PersonDirectoryService(
             this.position = position
             this.partnership = partnership
             this.email = email?.trim()?.ifEmpty { null }
+            this.rotation = cleanRotation
             status = PersonStatus.ACTIVE
             stampCreated(actor.label)
         }
@@ -87,6 +112,7 @@ class PersonDirectoryService(
                 "position" to position.name,
                 "partnership" to partnership.abbrev,
                 "email" to person.email,
+                "rotation" to person.rotation,
             ),
         )
         return person

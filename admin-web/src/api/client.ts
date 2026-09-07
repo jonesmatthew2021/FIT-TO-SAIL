@@ -25,6 +25,13 @@ export type SaveCustomerRequest = Schemas['SaveCustomerRequest']
 export type Vessel = Schemas['VesselDto']
 export type AddVesselRequest = Schemas['AddVesselRequest']
 export type CreatePartnershipRequest = Schemas['CreatePartnershipRequest']
+
+// The swing pattern (the portal's Swing Compliance page)
+export type SwingPattern = Schemas['PatternDto']
+export type SetPatternRequest = Schemas['SetPatternRequest']
+export type SetSwingDatesRequest = Schemas['SetSwingDatesRequest']
+export type UpcomingSwings = Schemas['UpcomingSwingsDto']
+export type Unrostered = Schemas['UnrosteredDto']
 export type CrewChange = Schemas['CrewChangeDto']
 export type Requirement = Schemas['RequirementDto']
 export type Position = Schemas['PositionDto']
@@ -524,6 +531,33 @@ export const api = {
 
   detachPartnership: (partnershipId: number): Promise<Partnership> =>
     request(`/api/v1/customers/partnerships/${partnershipId}/detach`, { method: 'PUT' }),
+
+  // --- The swing pattern --------------------------------------------------------
+
+  swingPattern: (partnership: string): Promise<SwingPattern> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/pattern`),
+
+  setSwingPattern: (partnership: string, body: SetPatternRequest): Promise<Partnership> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/pattern`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  /** Idempotent: creates and rosters only the swings the pattern says are missing. */
+  ensureUpcomingSwings: (partnership: string): Promise<UpcomingSwings> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/ensure-upcoming`, { method: 'POST' }),
+
+  setSwingDates: (partnership: string, cc: string, body: SetSwingDatesRequest): Promise<CrewChange> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/dates`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
+  useSwingPattern: (partnership: string, cc: string): Promise<CrewChange> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/use-pattern`, { method: 'POST' }),
+
+  rosterFromRotation: (partnership: string, cc: string): Promise<UpcomingSwings> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster-from-rotation`, { method: 'POST' }),
+
+  setRotation: (personId: number, rotation: string | null): Promise<Person> =>
+    request(`/api/v1/people/${personId}/rotation`, { method: 'PUT', body: JSON.stringify({ rotation }) }),
 
   createPartnership: (customerId: number, body: CreatePartnershipRequest): Promise<Partnership> =>
     request(`/api/v1/customers/${customerId}/partnerships`, { method: 'POST', body: JSON.stringify(body) }),

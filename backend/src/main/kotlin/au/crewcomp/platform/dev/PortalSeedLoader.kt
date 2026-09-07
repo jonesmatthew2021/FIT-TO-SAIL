@@ -199,6 +199,11 @@ class PortalSeedLoader(
             name = "TSV Coolibah — MinRes Onslow"
             vesselClass = null // "engineer class 3" per the shift sheet; O-3 semantics stay open
             customer = customers.getValue("United Marine")
+            // The portal's four-week pattern (ROSTER_DEFAULTS): swing 0 flies out 12 Aug 2026 with
+            // crew B, crew A on the next, Wednesday to Wednesday.
+            rosterAnchor = LocalDate.of(2026, 8, 12)
+            rosterCycleDays = 28
+            rosterAnchorCrew = "B"
             stampCreated(actor, now)
         }
         em.persist(partnership)
@@ -426,7 +431,14 @@ class PortalSeedLoader(
      * while it stays unambiguous.
      */
     private fun matchPerson(listName: String): Person? {
-        val tokens = listName.trim().split(Regex("\\s+"))
+        val tokens = listName.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (tokens.size == 1) {
+            // A given name alone: the person if exactly one crew member carries it.
+            val given = tokens.single().lowercase()
+            return personsByNormName.values.singleOrNull {
+                it.name.substringAfter(',').trim().substringBefore(' ').lowercase() == given
+            }
+        }
         if (tokens.size < 2) return null
         val surname = tokens.last().lowercase()
         val given = tokens.first().lowercase()
@@ -467,8 +479,23 @@ class PortalSeedLoader(
             // Not stated anywhere in the portal. Assumed, and flagged, rather than left to crash
             // the schema's not-null: Q17's cutoff semantics need a value to be testable at all.
             cutoffDate = start.minusDays(7)
+            // The swing's place in the pattern, so the swing page can read it as one of its own.
+            rotation = crewKey.takeIf { it == "A" || it == "B" }
+            patternK = swing.path("k").takeUnless { it.isMissingNode || it.isNull }?.asInt()
             stampCreated(actor, now)
         }
+        // Who sails with which crew, from the portal's roster list. A first name alone ("Brenton")
+        // is matched when exactly one crew member carries it; anything less certain is left off.
+        var rotations = 0
+        data.path("people").forEach { entry ->
+            val crew = entry.path("crew").asText("").takeIf { it == "A" || it == "B" } ?: return@forEach
+            val person = matchPerson(entry.path("name").asText("")) ?: return@forEach
+            if (person.rotation == null) {
+                person.rotation = crew
+                rotations++
+            }
+        }
+        counts["rotations"] = rotations
         em.persist(cc)
         flag(
             "WARN", "roster", cc.ccId,

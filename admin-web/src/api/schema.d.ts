@@ -3970,6 +3970,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/people/{personId}/rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Which crew the person sails with (A/B) — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    personId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetRotationRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PersonDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/positions": {
         parameters: {
             query?: never;
@@ -4901,6 +4964,159 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/swings/{partnership}/ensure-upcoming": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The swing on now and the next few, made from the pattern and rostered where missing */
+        post: {
+            parameters: {
+                query: {
+                    lookahead: number;
+                };
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UpcomingSwingsDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/swings/{partnership}/pattern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The ship's pattern and which swing today falls in */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PatternDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** Set the ship's pattern — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetPatternRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PartnershipDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/swings/{partnership}/{cc}/assignments": {
         parameters: {
             query?: never;
@@ -4959,6 +5175,70 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/swings/{partnership}/{cc}/dates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** The office's dates for a swing, typed over the pattern's — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cc: string;
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetSwingDatesRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CrewChangeDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5130,6 +5410,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/swings/{partnership}/{cc}/roster-from-rotation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Put the swing's crew into free slots; reports who could not be rostered */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cc: string;
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["UpcomingSwingsDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/swings/{partnership}/{cc}/suggestions": {
         parameters: {
             query?: never;
@@ -5180,6 +5513,59 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/swings/{partnership}/{cc}/use-pattern": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Put the pattern's dates back on a swing — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cc: string;
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CrewChangeDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -5522,6 +5908,7 @@ export interface components {
             /** Format: int64 */
             partnershipId: number;
             email?: string | null;
+            rotation?: string | null;
         };
         CreateRegisterRecordRequest: {
             type: string;
@@ -5553,6 +5940,9 @@ export interface components {
             from: components["schemas"]["LocalDate"];
             to: components["schemas"]["LocalDate"];
             cutoff: components["schemas"]["LocalDate"];
+            rotation: string | null;
+            /** Format: int32 */
+            patternK: number | null;
         };
         CrewRequestDto: {
             /** Format: int64 */
@@ -5890,6 +6280,19 @@ export interface components {
             vesselClass: string | null;
             /** Format: int64 */
             customerId: number | null;
+            rosterAnchor: components["schemas"]["LocalDate"] | null;
+            /** Format: int32 */
+            rosterCycleDays: number | null;
+            rosterAnchorCrew: string | null;
+        };
+        PatternDto: {
+            rosterAnchor: components["schemas"]["LocalDate"] | null;
+            /** Format: int32 */
+            rosterCycleDays: number | null;
+            rosterAnchorCrew: string | null;
+            /** Format: int32 */
+            currentK: number | null;
+            today: components["schemas"]["LocalDate"];
         };
         PersonDto: {
             /** Format: int64 */
@@ -5905,6 +6308,7 @@ export interface components {
             partnershipAbbrev: string;
             status: string;
             email: string | null;
+            rotation: string | null;
         };
         PersonEvaluationDto: {
             /** Format: int64 */
@@ -6124,8 +6528,21 @@ export interface components {
             requirementId: number;
             level: string;
         };
+        SetPatternRequest: {
+            rosterAnchor?: components["schemas"]["LocalDate"] | null;
+            /** Format: int32 */
+            rosterCycleDays?: number | null;
+            rosterAnchorCrew?: string | null;
+        };
+        SetRotationRequest: {
+            rotation?: string | null;
+        };
         SetScopesRequest: {
             partnershipIds: number[];
+        };
+        SetSwingDatesRequest: {
+            from: components["schemas"]["LocalDate"];
+            to: components["schemas"]["LocalDate"];
         };
         SlotDto: {
             /** Format: int64 */
@@ -6303,6 +6720,18 @@ export interface components {
             requirementId: number;
             code: string;
             title: string;
+        };
+        UnrosteredDto: {
+            ccId: string;
+            /** Format: int64 */
+            personId: number;
+            name: string;
+            position: string;
+            reason: string;
+        };
+        UpcomingSwingsDto: {
+            swings: components["schemas"]["CrewChangeDto"][];
+            unrostered: components["schemas"]["UnrosteredDto"][];
         };
         UpdateMatrixDraftRequest: {
             label: string;

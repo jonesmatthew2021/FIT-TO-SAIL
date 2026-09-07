@@ -216,8 +216,12 @@ class AssignmentService(
     /**
      * The person's own commitments overlapping the window: assignments anywhere (including
      * another slot of this same swing) and leave that has not been declined or cancelled.
+     *
+     * Public so a caller rostering many people at once (the swing pattern) can *ask* before
+     * assigning: an exception out of [assign] marks the shared transaction rollback-only, and one
+     * clash would otherwise undo everyone else's assignment in the same run.
      */
-    private fun clashesFor(person: Person, fromDate: LocalDate, toDate: LocalDate): List<String> {
+    fun clashesFor(person: Person, fromDate: LocalDate, toDate: LocalDate): List<String> {
         val personId = person.requiredId
 
         val assignmentClashes = assignments

@@ -40,6 +40,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   // The company page (COM-1) is reached from the customer box's "Manage customers…" option, not
   // from a rail link — the box is the whole of the Company group.
   { to: '/company', label: 'Company', module: 'COM-1', built: true, group: 'company' },
+  // The portal's Admin tab set, per ship — the office's template. First, because it is where the
+  // office works; the §6 modules follow.
+  { to: '/admin', label: 'Admin', module: 'POR-1', built: true },
   { to: '/', label: 'Dashboard', module: 'ADM-1', built: true },
   { to: '/planner', label: 'Swing planner', module: 'ADM-2', built: true },
   { to: '/people', label: 'People & holdings', module: 'ADM-5', built: true },

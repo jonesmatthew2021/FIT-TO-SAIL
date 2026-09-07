@@ -75,6 +75,20 @@ class Partnership : AuditedEntity() {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     var customer: Customer? = null
+
+    /**
+     * The ship's swing pattern (V14): swing k flies out on [rosterAnchor] + k × [rosterCycleDays],
+     * and [rosterAnchorCrew] is the crew that flies out on the anchor, the other crew on the next.
+     * All three null: the ship has no pattern and its swings are entered by hand.
+     */
+    @Column(name = "roster_anchor")
+    var rosterAnchor: LocalDate? = null
+
+    @Column(name = "roster_cycle_days")
+    var rosterCycleDays: Int? = null
+
+    @Column(name = "roster_anchor_crew")
+    var rosterAnchorCrew: String? = null
 }
 
 @Entity
@@ -167,6 +181,14 @@ class CrewChange : AuditedEntity() {
     /** Stored rather than derived from `from - 7 days`, so exceptions can exist (§4.1, Q17). */
     @Column(name = "cutoff_date", nullable = false)
     lateinit var cutoffDate: LocalDate
+
+    /** The crew this swing carries — 'A' or 'B' — when the ship runs a rotation (V14). */
+    @Column(name = "rotation")
+    var rotation: String? = null
+
+    /** The swing's number in the ship's pattern, when made from it; what "use the pattern" reads. */
+    @Column(name = "pattern_k")
+    var patternK: Int? = null
 }
 
 @Entity

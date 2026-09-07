@@ -58,6 +58,10 @@ class Person : AuditedEntity() {
     @Column(name = "mobile")
     var mobile: String? = null
 
+    /** The crew the person sails with on the ship's rotation — 'A' or 'B' — or null (V14). */
+    @Column(name = "rotation")
+    var rotation: String? = null
+
     /**
      * §10.3 sync high-water mark, assigned by the `person_sync_seq` database trigger.
      *

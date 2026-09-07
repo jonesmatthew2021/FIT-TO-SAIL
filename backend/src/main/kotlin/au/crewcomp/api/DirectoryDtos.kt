@@ -49,7 +49,33 @@ data class PartnershipDto(
     val vesselClass: String?,
     /** The customer this operation is run for (COM-1); null until the office attaches one. */
     val customerId: Long?,
+    /** The swing pattern (V14): swing k flies out on anchor + k × cycle; null when there is none. */
+    val rosterAnchor: LocalDate?,
+    val rosterCycleDays: Int?,
+    val rosterAnchorCrew: String?,
 )
+
+/** The ship's swing pattern, set by the office. Nulls clear it. */
+data class SetPatternRequest(
+    val rosterAnchor: LocalDate? = null,
+    val rosterCycleDays: Int? = null,
+    val rosterAnchorCrew: String? = null,
+)
+
+/** The office's dates for one swing, typed over the pattern's. */
+data class SetSwingDatesRequest(val from: LocalDate, val to: LocalDate)
+
+/** Which crew a person sails with; null takes them off the rotation. */
+data class SetRotationRequest(val rotation: String? = null)
+
+/** What ensure-upcoming did: the swings now on the calendar, and who could not be rostered. */
+data class UpcomingSwingsDto(
+    val swings: List<CrewChangeDto>,
+    /** People on the rotation with no free slot that takes their position, per swing. */
+    val unrostered: List<UnrosteredDto>,
+)
+
+data class UnrosteredDto(val ccId: String, val personId: Long, val name: String, val position: String, val reason: String)
 
 /** COM-1 — a client company, with the partnerships run for it. */
 data class CustomerDto(
@@ -91,6 +117,9 @@ data class CrewChangeDto(
     val from: LocalDate,
     val to: LocalDate,
     val cutoff: LocalDate,
+    /** The crew the swing carries and its number in the ship's pattern (V14); null off-pattern. */
+    val rotation: String?,
+    val patternK: Int?,
 )
 
 data class RequirementDto(
@@ -113,6 +142,8 @@ data class CreatePersonRequest(
     val positionId: Long,
     val partnershipId: Long,
     val email: String? = null,
+    /** 'A' or 'B' to put them on the ship's rotation; omitted, they are not on one. */
+    val rotation: String? = null,
 )
 
 /**
@@ -177,6 +208,8 @@ data class PersonDto(
     val partnershipAbbrev: String,
     val status: String,
     val email: String?,
+    /** The crew the person sails with — 'A' or 'B' — or null when not on a rotation (V14). */
+    val rotation: String?,
 )
 
 data class AssignmentDto(
@@ -232,6 +265,9 @@ fun Partnership.toDto() = PartnershipDto(
     name = name,
     vesselClass = vesselClass,
     customerId = customer?.requiredId,
+    rosterAnchor = rosterAnchor,
+    rosterCycleDays = rosterCycleDays,
+    rosterAnchorCrew = rosterAnchorCrew,
 )
 
 fun CrewChange.toDto() = CrewChangeDto(
@@ -241,6 +277,8 @@ fun CrewChange.toDto() = CrewChangeDto(
     from = fromDate,
     to = toDate,
     cutoff = cutoffDate,
+    rotation = rotation,
+    patternK = patternK,
 )
 
 fun Requirement.toDto() = RequirementDto(
@@ -298,6 +336,7 @@ fun Person.toDto() = PersonDto(
     partnershipAbbrev = partnership.abbrev,
     status = status.wire,
     email = email,
+    rotation = rotation,
 )
 
 fun QualificationHolding.toDto() = HoldingDto(
