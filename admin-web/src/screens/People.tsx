@@ -104,6 +104,13 @@ export function People(): React.ReactNode {
         )}
         {canFile && <UploadCertificates />}
       </div>
+      {canFile && (
+        <p className="note">
+          Note — all documents will be automatically renamed to{' '}
+          <span className="mono">Crew name - Certificate name - Issue date.PDF</span> (any non-PDF files will be
+          automatically converted).
+        </p>
+      )}
 
       {addingOne && ship !== undefined && <AddCrewMember ship={ship} onClose={() => setAddingOne(false)} />}
       {uploadingList && ship !== undefined && (
