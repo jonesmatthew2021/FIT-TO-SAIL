@@ -5790,11 +5790,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Bring a person onto the swing — a free slot for their position, or a new one; a clash is a 409 unless acknowledged */
+        /** Bring a person onto the swing — the whole of it, or from/to for part of it; a free slot for their position, or a new one; a clash is a 409 unless acknowledged */
         post: {
             parameters: {
                 query: {
                     acknowledgeClash: boolean;
+                    from: string | null;
+                    to: string | null;
                 };
                 header?: never;
                 path: {
@@ -5858,6 +5860,69 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": components["schemas"]["SetWatchRequest"];
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/swings/{partnership}/{cc}/roster/{personId}/window": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** The days a person is on the swing — home early, out late, or the whole swing again */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cc: string;
+                    partnership: string;
+                    personId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetSwingDatesRequest"];
                 };
             };
             responses: {

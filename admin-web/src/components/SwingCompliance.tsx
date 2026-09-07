@@ -18,6 +18,7 @@ import { useHasRole, useToday } from '../api/session'
 import { ErrorPanel } from './ErrorPanel'
 import { Spinner } from './Spinner'
 import { StateChip } from './StateChip'
+import { SwingDayGrid } from './SwingDayGrid'
 import { SwingRoster } from './SwingRoster'
 import { downloadCsv, toCsv } from '../domain/csv'
 import { dateFromEpochDay, epochDay, formatDate, formatDayMonth } from '../domain/dates'
@@ -52,6 +53,8 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
   const canEdit = useHasRole(...SWING_EDITORS)
   const suffix = useCustomerScope().suffix
   const [picked, setPicked] = useState<string | null>(null)
+  // Crew and shift distribution: the swing pressed opens day by day, in a window of its own.
+  const [opened, setOpened] = useState<string | null>(null)
 
   const swings = [...(upcoming.data?.swings ?? [])].sort((a, b) => epochDay(a.from) - epochDay(b.from))
   const evaluations = useQueries({
@@ -72,6 +75,11 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
   const here = swings.find((s) => s.ccId === picked) ?? onNow
   const evaluationOf = (swing: CrewChange | undefined) =>
     swing === undefined ? undefined : evaluations[swings.indexOf(swing)]?.data
+  const pick = (swing: CrewChange) => {
+    setPicked(swing.ccId)
+    if (show === 'distribution') setOpened(swing.ccId)
+  }
+  const openedSwing = swings.find((s) => s.ccId === opened)
 
   const rotationless = (people.data ?? []).filter((p) => p.partnershipId === ship.id && p.rotation === null && p.status === 'active')
 
@@ -95,7 +103,7 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
         <>
           <div className="swing-on">
             <p className="nav__group swing-eyebrow">On swing</p>
-            <SwingCard ship={ship} swing={onNow} evaluation={evaluationOf(onNow)} picked={here?.ccId === onNow.ccId} canEdit={canEdit} onPick={() => setPicked(onNow.ccId)} />
+            <SwingCard ship={ship} swing={onNow} evaluation={evaluationOf(onNow)} picked={here?.ccId === onNow.ccId} canEdit={canEdit} onPick={() => pick(onNow)} opens={show === 'distribution'} />
           </div>
           {coming.length > 0 && (
             <>
@@ -109,7 +117,8 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
                     evaluation={evaluationOf(swing)}
                     picked={here?.ccId === swing.ccId}
                     canEdit={canEdit}
-                    onPick={() => setPicked(swing.ccId)}
+                    onPick={() => pick(swing)}
+                    opens={show === 'distribution'}
                   />
                 ))}
               </div>
@@ -139,6 +148,9 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
       )}
 
       {here !== undefined && show === 'distribution' && <SwingRoster ship={ship} swing={here} evaluation={evaluationOf(here)} />}
+      {openedSwing !== undefined && show === 'distribution' && (
+        <SwingDayGrid ship={ship} swing={openedSwing} evaluation={evaluationOf(openedSwing)} onClose={() => setOpened(null)} />
+      )}
       {here !== undefined && show === 'compliance' && (
         <WhoIsClear ship={ship} swing={here} evaluation={evaluationOf(here)} requirementCodes={requirements.data ?? []} canEdit={canEdit} />
       )}
@@ -256,6 +268,7 @@ function SwingCard({
   picked,
   canEdit,
   onPick,
+  opens = false,
 }: {
   ship: Partnership
   swing: CrewChange
@@ -263,6 +276,8 @@ function SwingCard({
   picked: boolean
   canEdit: boolean
   onPick: () => void
+  /** Pressing the card opens it day by day (Crew and shift distribution) as well as picking it. */
+  opens?: boolean
 }): React.ReactNode {
   const setDates = useSetSwingDates()
   const usePattern = useUseSwingPattern()
@@ -332,8 +347,8 @@ function SwingCard({
               Use the pattern
             </button>
           )}
-          <button type="button" className={picked ? 'button' : 'button button--quiet'} onClick={onPick}>
-            {picked ? 'Shown below' : 'Show below'}
+          <button type="button" className={picked && !opens ? 'button' : 'button button--quiet'} onClick={onPick}>
+            {opens ? 'Open day by day' : picked ? 'Shown below' : 'Show below'}
           </button>
         </span>
       </div>

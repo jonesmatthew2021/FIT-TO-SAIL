@@ -102,13 +102,30 @@ class SwingResource(
 
     @POST
     @Path("/swings/{partnership}/{cc}/roster/{personId}/onboard")
-    @Operation(summary = "Bring a person onto the swing — a free slot for their position, or a new one; a clash is a 409 unless acknowledged")
+    @Operation(summary = "Bring a person onto the swing — the whole of it, or from/to for part of it; a free slot for their position, or a new one; a clash is a 409 unless acknowledged")
     fun bringOnboard(
         @PathParam("partnership") partnership: String,
         @PathParam("cc") cc: String,
         @PathParam("personId") personId: Long,
         @QueryParam("acknowledgeClash") @DefaultValue("false") acknowledgeClash: Boolean,
-    ) = roster.bringOnboard(partnership, cc, personId, acknowledgeClash)
+        @QueryParam("from") from: String?,
+        @QueryParam("to") to: String?,
+    ) = roster.bringOnboard(
+        partnership, cc, personId, acknowledgeClash,
+        from?.takeIf { it.isNotBlank() }?.let(LocalDate::parse),
+        to?.takeIf { it.isNotBlank() }?.let(LocalDate::parse),
+    )
+
+    @PUT
+    @Path("/swings/{partnership}/{cc}/roster/{personId}/window")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "The days a person is on the swing — home early, out late, or the whole swing again")
+    fun setWindow(
+        @PathParam("partnership") partnership: String,
+        @PathParam("cc") cc: String,
+        @PathParam("personId") personId: Long,
+        request: SetSwingDatesRequest,
+    ) = roster.setWindow(partnership, cc, personId, request.from, request.to)
 
     @POST
     @Path("/swings/{partnership}/{cc}/roster/{personId}/ashore")

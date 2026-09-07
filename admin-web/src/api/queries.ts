@@ -300,8 +300,26 @@ function useRosterBoardMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Pro
 
 export function useBringOnboard() {
   return useRosterBoardMutation(
-    ({ partnership, cc, personId, acknowledgeClash }: { partnership: string; cc: string; personId: number; acknowledgeClash?: boolean }) =>
-      api.bringOnboard(partnership, cc, personId, acknowledgeClash ?? false),
+    ({
+      partnership,
+      cc,
+      personId,
+      acknowledgeClash,
+      window,
+    }: {
+      partnership: string
+      cc: string
+      personId: number
+      acknowledgeClash?: boolean
+      window?: { from: string; to: string }
+    }) => api.bringOnboard(partnership, cc, personId, acknowledgeClash ?? false, window),
+  )
+}
+
+export function useSetWindow() {
+  return useRosterBoardMutation(
+    ({ partnership, cc, personId, from, to }: { partnership: string; cc: string; personId: number; from: string; to: string }) =>
+      api.setWindow(partnership, cc, personId, from, to),
   )
 }
 

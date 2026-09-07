@@ -590,12 +590,25 @@ export const api = {
     request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster-from-rotation`, { method: 'POST' }),
 
   /** The roster board: a free slot for the person's position, or a new one. A clash is a 409 `assignment_clash`. */
-  bringOnboard: (partnership: string, cc: string, personId: number, acknowledgeClash = false): Promise<void> =>
+  bringOnboard: (
+    partnership: string,
+    cc: string,
+    personId: number,
+    acknowledgeClash = false,
+    window?: { from: string; to: string },
+  ): Promise<void> =>
     request(
       `/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster/${personId}/onboard` +
-        (acknowledgeClash ? '?acknowledgeClash=true' : ''),
+        query({ acknowledgeClash: acknowledgeClash ? 'true' : undefined, from: window?.from, to: window?.to }),
       { method: 'POST' },
     ),
+
+  /** The days a person is on the swing — home early, out late, or the whole swing again. */
+  setWindow: (partnership: string, cc: string, personId: number, from: string, to: string): Promise<void> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster/${personId}/window`, {
+      method: 'PUT',
+      body: JSON.stringify({ from, to }),
+    }),
 
   sendAshore: (partnership: string, cc: string, personId: number): Promise<void> =>
     request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/roster/${personId}/ashore`, { method: 'POST' }),

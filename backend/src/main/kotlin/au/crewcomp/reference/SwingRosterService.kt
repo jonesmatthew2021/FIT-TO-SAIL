@@ -13,6 +13,7 @@ import au.crewcomp.platform.security.AccessPolicy
 import au.crewcomp.platform.security.Role
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.transaction.Transactional
+import java.time.LocalDate
 
 /**
  * The swing roster board — the Coolibah portal's "Onboard and off swing" page, per swing.
@@ -58,23 +59,63 @@ class SwingRosterService(
         }
     }
 
+    /**
+     * Onto the swing — for the whole of it, or for [from]..[to] when somebody comes out late,
+     * goes home early, or fills in for part of it. A part-swing window shares a slot with whoever
+     * holds it for the rest of the swing, which is what a handover is (§4.3).
+     */
     @Transactional
-    fun bringOnboard(abbrev: String, ccId: String, personId: Long, acknowledgeClash: Boolean) {
+    fun bringOnboard(
+        abbrev: String,
+        ccId: String,
+        personId: Long,
+        acknowledgeClash: Boolean,
+        from: LocalDate? = null,
+        to: LocalDate? = null,
+    ) {
         policy.require(Role.CREW_COORDINATOR, Role.SYSTEM_ADMINISTRATOR)
         val crewChange = crewChange(abbrev, ccId)
         val person = people.findById(personId) ?: throw EntityNotFoundException("No person $personId")
+        val fromDate = from ?: crewChange.fromDate
+        val toDate = to ?: crewChange.toDate
         val existing = assignments.forCrewChangeUnscoped(crewChange.requiredId)
-        require(existing.none { it.person.requiredId == personId }) { "${person.name} is already on $ccId" }
+        require(existing.none { it.person.requiredId == personId && overlaps(it, fromDate, toDate) }) {
+            "${person.name} is already on $ccId for those days"
+        }
 
         // Asked before anything is written: an exception out of assign() would mark the
         // transaction rollback-only, and this one is meant to reach the mapper as a 409.
-        val clashes = assignmentService.clashesFor(person, crewChange.fromDate, crewChange.toDate)
+        val clashes = assignmentService.clashesFor(person, fromDate, toDate)
         if (clashes.isNotEmpty() && !acknowledgeClash) throw AssignmentClashException(clashes)
 
-        val slot = freeSlot(existing, person, Shift.NOT_APPLICABLE)
-            ?: freeSlot(existing, person, null)
+        val slot = freeSlot(existing, person, Shift.NOT_APPLICABLE, fromDate, toDate)
+            ?: freeSlot(existing, person, null, fromDate, toDate)
             ?: makeSlot(person, Shift.NOT_APPLICABLE)
-        assignmentService.assign(abbrev, ccId, slot.ref, personId, acknowledgeClash = true)
+        assignmentService.assign(abbrev, ccId, slot.ref, personId, fromDate, toDate, acknowledgeClash = true)
+    }
+
+    /**
+     * The days somebody is on the swing, changed after the fact — home early, out late, or back
+     * to the whole swing. Their legs become one leg, [from]..[to], on the slot they held if it is
+     * free for those days, else another on the same shift, else a new one. The watch is kept.
+     */
+    @Transactional
+    fun setWindow(abbrev: String, ccId: String, personId: Long, from: LocalDate, to: LocalDate) {
+        policy.require(Role.CREW_COORDINATOR, Role.SYSTEM_ADMINISTRATOR)
+        require(!to.isBefore(from)) { "The last day ($to) is before the first ($from)" }
+        val crewChange = crewChange(abbrev, ccId)
+        val existing = assignments.forCrewChangeUnscoped(crewChange.requiredId)
+        val mine = existing.filter { it.person.requiredId == personId }
+        require(mine.isNotEmpty()) { "Person $personId is not on $ccId" }
+        val person = mine.first().person
+        val held = slots.byRef(mine.first().slotRef)
+        val others = existing - mine.toSet()
+        val target = held?.takeIf { slot -> others.none { it.slotRef == slot.ref && overlaps(it, from, to) } }
+            ?: freeSlot(others, person, held?.shift ?: Shift.NOT_APPLICABLE, from, to)
+            ?: makeSlot(person, held?.shift ?: Shift.NOT_APPLICABLE)
+        mine.forEach { assignmentService.unassign(it.requiredId) }
+        assignments.flush()
+        assignmentService.assign(abbrev, ccId, target.ref, personId, from, to, acknowledgeClash = true)
     }
 
     @Transactional
@@ -97,7 +138,9 @@ class SwingRosterService(
         val person = mine.first().person
         if (mine.all { slots.byRef(it.slotRef)?.shift == wanted.shift }) return
 
-        val target = freeSlot(existing - mine.toSet(), person, wanted.shift) ?: makeSlot(person, wanted.shift)
+        val first = mine.minOf { it.fromDate }
+        val last = mine.maxOf { it.toDate }
+        val target = freeSlot(existing - mine.toSet(), person, wanted.shift, first, last) ?: makeSlot(person, wanted.shift)
         // Every leg they held, moved as it was: a handover keeps its dates on the new slot.
         val legs = mine.map { Triple(it.requiredId, it.fromDate, it.toDate) }
         legs.forEach { assignmentService.unassign(it.first) }
@@ -143,15 +186,20 @@ class SwingRosterService(
         return crewChange
     }
 
-    /** A slot nobody on the swing holds, on [shift] (any shift when null), that takes the person's position. */
-    private fun freeSlot(taken: Collection<Assignment>, person: Person, shift: Shift?): PositionSlot? {
-        val takenRefs = taken.map { it.slotRef }.toSet()
-        return slots.allOrdered().firstOrNull { slot ->
-            slot.ref !in takenRefs &&
+    /**
+     * A slot nobody holds for any of [from]..[to], on [shift] (any shift when null), that takes the
+     * person's position. Free by *days*, not by swing: a slot whose holder goes home on the 20th is
+     * free from the 21st, so the person coming out to replace them shares it — a handover.
+     */
+    private fun freeSlot(taken: Collection<Assignment>, person: Person, shift: Shift?, from: LocalDate, to: LocalDate): PositionSlot? =
+        slots.allOrdered().firstOrNull { slot ->
+            taken.none { it.slotRef == slot.ref && overlaps(it, from, to) } &&
                 (shift == null || slot.shift == shift) &&
                 slot.allowedPositions.any { it.requiredId == person.position.requiredId }
         }
-    }
+
+    private fun overlaps(assignment: Assignment, from: LocalDate, to: LocalDate): Boolean =
+        !assignment.fromDate.isAfter(to) && !assignment.toDate.isBefore(from)
 
     private fun makeSlot(person: Person, shift: Shift): PositionSlot {
         val next = (slots.allOrdered().maxOfOrNull { it.ref } ?: 0) + 1
