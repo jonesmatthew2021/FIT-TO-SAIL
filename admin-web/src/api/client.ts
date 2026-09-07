@@ -103,6 +103,9 @@ export type PersonSuggestion = Schemas['PersonSuggestionDto']
 export type FileIntakeRequest = Schemas['FileIntakeRequest']
 export type CreatePersonRequest = Schemas['CreatePersonRequest']
 
+/** One rewritten sentence (see components/Copy.tsx). */
+export type PageCopy = Schemas['PageCopyDto']
+
 // ADM-10 — administration
 export type ConfigSetting = Schemas['ConfigSettingDto']
 export type ScheduledJob = Schemas['ScheduledJobDto']
@@ -625,6 +628,15 @@ export const api = {
   /** Off the crew (`false`) keeps the record and takes them off every swing still to sail. */
   setActive: (personId: number, active: boolean): Promise<Person> =>
     request(`/api/v1/people/${personId}/active`, { method: 'PUT', body: JSON.stringify({ active }) }),
+
+  /** Page text the office has rewritten — see components/Copy.tsx. */
+  pageCopy: (): Promise<PageCopy[]> => request('/api/v1/copy'),
+
+  setPageCopy: (key: string, text: string): Promise<PageCopy> =>
+    request(`/api/v1/copy/${encodeURIComponent(key)}`, { method: 'PUT', body: JSON.stringify({ text }) }),
+
+  clearPageCopy: (key: string): Promise<void> =>
+    request(`/api/v1/copy/${encodeURIComponent(key)}`, { method: 'DELETE' }),
 
   setRotation: (personId: number, rotation: string | null): Promise<Person> =>
     request(`/api/v1/people/${personId}/rotation`, { method: 'PUT', body: JSON.stringify({ rotation }) }),

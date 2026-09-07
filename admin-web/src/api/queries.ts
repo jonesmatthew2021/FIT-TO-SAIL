@@ -39,6 +39,7 @@ import {
   type MatrixVersionSummary,
   type Notification,
   type NotificationSummary,
+  type PageCopy,
   type Partnership,
   type Person,
   type Position,
@@ -334,6 +335,27 @@ export function useSetWatch() {
     ({ partnership, cc, personId, watch }: { partnership: string; cc: string; personId: number; watch: 'day' | 'night' | 'none' }) =>
       api.setWatch(partnership, cc, personId, watch),
   )
+}
+
+/** Page text the office has rewritten — read once, held for the session, refreshed on a write. */
+export function usePageCopy(): UseQueryResult<PageCopy[]> {
+  return useQuery({ queryKey: ['page-copy'], queryFn: api.pageCopy, staleTime: 60 * 60 * 1000 })
+}
+
+export function useSetCopy() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ key, text }: { key: string; text: string }) => api.setPageCopy(key, text),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['page-copy'] }),
+  })
+}
+
+export function useClearCopy() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (key: string) => api.clearPageCopy(key),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['page-copy'] }),
+  })
 }
 
 export function useSetActive() {

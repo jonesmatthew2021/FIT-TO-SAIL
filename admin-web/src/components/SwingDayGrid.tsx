@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useBringOnboard, usePeople, useSendAshore, useSetWindow, useSlots } from '../api/queries'
 import { ApiError, type CrewChange, type Partnership, type SwingEvaluation } from '../api/client'
 import { useHasRole, useToday } from '../api/session'
+import { Copy } from './Copy'
 import { Modal } from './Modal'
 import { dateFromEpochDay, epochDay, formatDate, formatDayMonth } from '../domain/dates'
 import { RANK_GROUPS, rankGroup } from '../domain/ranks'
@@ -137,7 +138,7 @@ export function SwingDayGrid({
 
       <p className="muted daygrid-legend">
         <span className="daygrid__swatch daygrid__swatch--day" /> days · <span className="daygrid__swatch daygrid__swatch--night" /> nights ·{' '}
-        <span className="daygrid__swatch daygrid__swatch--none" /> onboard, no watch set · blank is ashore
+        <span className="daygrid__swatch daygrid__swatch--none" /> <Copy k="daygrid.legend-tail">onboard, no watch set · blank is ashore</Copy>
       </p>
 
       {canEdit && <PartSwing ship={ship} swing={swing} offSwing={offSwing} />}
@@ -279,8 +280,9 @@ function PartSwing({ ship, swing, offSwing }: { ship: Partnership; swing: CrewCh
   return (
     <div className="editor daygrid-part">
       <p className="note">
-        Bring somebody on for part of this swing — filling in, coming out late, or swapping with someone going home early.
-        They share the seat of whoever holds it for the rest of the swing.
+        <Copy k="daygrid.part-swing-note">
+          Bring somebody on for part of this swing — filling in, coming out late, or swapping with someone going home early. They share the seat of whoever holds it for the rest of the swing.
+        </Copy>
       </p>
       <label className="field field--inline field--grow">
         <span className="field__label">Who</span>

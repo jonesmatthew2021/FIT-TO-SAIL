@@ -4024,3 +4024,55 @@ a.assistant__source:hover {
 .chip--toggle.chip--pressed {
   box-shadow: 0 0 0 2px var(--color-bg, #14151f), 0 0 0 4px currentColor;
 }
+
+/* Editable page text — a sentence with a pencil while "Edit text" is on */
+.copy {
+  white-space: pre-line;
+}
+
+.copy--editable {
+  appearance: none;
+  background: transparent;
+  border: 1px dashed var(--color-accent-500);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin: -2px -6px;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: text;
+  white-space: pre-line;
+}
+
+.copy--editable:hover {
+  background: var(--color-accent-900);
+}
+
+.copy--changed {
+  border-style: solid;
+}
+
+.copy__pencil {
+  margin-left: 6px;
+  font-size: 0.85em;
+  color: var(--color-accent-400);
+}
+
+.copy--open {
+  display: block;
+  margin: 4px 0;
+}
+
+.copy__textarea {
+  display: block;
+  width: 100%;
+  min-width: 320px;
+  max-width: 720px;
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.copy__actions {
+  margin-top: 6px;
+}

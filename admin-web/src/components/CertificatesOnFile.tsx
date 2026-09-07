@@ -22,6 +22,7 @@ import {
   type Requirement,
 } from '../api/client'
 import { useHasRole, useToday } from '../api/session'
+import { Copy } from './Copy'
 import { ErrorPanel } from './ErrorPanel'
 import { Modal } from './Modal'
 import { Spinner } from './Spinner'
@@ -592,9 +593,9 @@ function BulkIntake({
       onClose={onClose}
     >
       <p className="note">
-        Pictures are turned into PDFs here before they are read. The model's reading fills each row; check who it
-        belongs to and what it evidences, then press File — or File all once every row reads right. Each scan is stored
-        as <span className="mono">SURNAME, Given - Certificate - issue date.pdf</span>.
+        <Copy k="intake.note">
+          Pictures are turned into PDFs here before they are read. The model's reading fills each row; check who it belongs to and what it evidences, then press File — or File all once every row reads right. Each scan is stored as SURNAME, Given - Certificate - issue date.pdf.
+        </Copy>
       </p>
 
       <div className="table-scroll">

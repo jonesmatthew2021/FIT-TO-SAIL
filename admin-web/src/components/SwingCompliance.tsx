@@ -18,6 +18,7 @@ import { useHasRole, useToday } from '../api/session'
 import { ErrorPanel } from './ErrorPanel'
 import { Spinner } from './Spinner'
 import { StateChip } from './StateChip'
+import { Copy } from './Copy'
 import { SwingDayGrid } from './SwingDayGrid'
 import { SwingRoster } from './SwingRoster'
 import { downloadCsv, toCsv } from '../domain/csv'
@@ -86,9 +87,15 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
   return (
     <div className="swing-page">
       <p className="screen__subtitle">
-        {show === 'compliance'
-          ? 'Who is on each swing, and whether they are clear to sail. Press a swing to work on it — the sections below follow it, and each one\'s heading says whether it needs you before you open it.'
-          : 'Who is on each swing and which watch they keep. Press a swing to work on it — the roster below follows it.'}
+        {show === 'compliance' ? (
+          <Copy k="swing-compliance.subtitle">
+            Who is on each swing, and whether they are clear to sail. Press a swing to work on it — the sections below follow it, and each one's heading says whether it needs you before you open it.
+          </Copy>
+        ) : (
+          <Copy k="crew-distribution.subtitle">
+            Who is on each swing and which watch they keep. Press a swing to open it day by day — the roster below follows it.
+          </Copy>
+        )}
       </p>
 
       <PatternPanel ship={ship} pattern={pattern.data} canEdit={canEdit} />

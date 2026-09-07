@@ -13,6 +13,7 @@ import {
 import { ApiError, type CrewChange, type Partnership, type Person, type SwingEvaluation } from '../api/client'
 import { useHasRole } from '../api/session'
 import { NewPersonForm } from './CertificatesOnFile'
+import { Copy } from './Copy'
 import { Modal } from './Modal'
 import { StateChip } from './StateChip'
 import { RANK_GROUPS, rankGroup } from '../domain/ranks'
@@ -147,7 +148,7 @@ export function SwingRoster({
               title="Onboard swing"
               tone="good"
               count={onboard.length}
-              blurb={canEdit ? 'On this swing. Set each one to days or nights, or send them to the off swing.' : 'On this swing.'}
+              blurb={canEdit ? <Copy k="roster.onboard-blurb">On this swing. Set each one to days or nights, or send them to the off swing.</Copy> : 'On this swing.'}
               empty="Nobody is on this swing yet."
               rows={onboard.map((row) => ({ personId: row.personId, name: row.name, positionName: row.positionName, rotation: row.rotation }))}
               render={(row) => (
@@ -158,7 +159,7 @@ export function SwingRoster({
               title="Off swing"
               tone="muted"
               count={off.length}
-              blurb={canEdit ? 'Ashore. Bring anyone onboard who has come out early or is filling in.' : 'Ashore.'}
+              blurb={canEdit ? <Copy k="roster.off-blurb">Ashore. Bring anyone onboard who has come out early or is filling in.</Copy> : 'Ashore.'}
               empty="Nobody."
               rows={off.map((p) => ({ personId: p.id, name: p.name, positionName: p.positionName, rotation: p.rotation }))}
               render={(row) => <OffRow ship={ship} swing={swing} person={byId.get(row.personId) as Person} canEdit={canEdit} />}
@@ -221,7 +222,7 @@ function RosterColumn({
   title: string
   tone: 'good' | 'muted'
   count: number
-  blurb: string
+  blurb: React.ReactNode
   empty: string
   rows: RosterLine[]
   render: (row: RosterLine) => React.ReactNode
@@ -424,8 +425,9 @@ function CrewLists({ crew, canEdit }: { crew: readonly Person[]; canEdit: boolea
   return (
     <>
       <p className="muted">
-        Which crew each person sails with. The pattern rosters crew A onto A swings and crew B onto B swings; moving
-        somebody here changes every swing still to be rostered, not one already on the board.
+        <Copy k="roster.lists-note">
+          Which crew each person sails with. The pattern rosters crew A onto A swings and crew B onto B swings; moving somebody here changes every swing still to be rostered, not one already on the board.
+        </Copy>
       </p>
       <div className="roster-columns roster-columns--three">
         {lists.map((list) => (
@@ -507,7 +509,9 @@ function SwitchSwings({
         a fill-in or anybody without a crew letter stays where they are and is moved by hand.
       </p>
       <p className="panel__detail">
-        Watches are set again from the slots the pattern finds free, so check them on the board afterwards.
+        <Copy k="roster.switch-note">
+          Watches are set again from the slots the pattern finds free, so check them on the board afterwards.
+        </Copy>
       </p>
       <div className="callout callout--quiet">
         <div>

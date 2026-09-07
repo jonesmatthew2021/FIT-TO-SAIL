@@ -5,6 +5,7 @@ import { keys, useAllPartnerships, useCustomerScope, usePeople } from '../api/qu
 import type { Person } from '../api/client'
 import { useHasRole } from '../api/session'
 import { UploadCertificates } from '../components/CertificatesOnFile'
+import { Copy } from '../components/Copy'
 import { AddCrewMember, UploadCrewList } from '../components/CrewUpload'
 import { DataTable, type Column } from '../components/DataTable'
 import { ErrorPanel } from '../components/ErrorPanel'
@@ -83,8 +84,10 @@ export function People(): React.ReactNode {
       <header className="screen__header">
         <h1 className="screen__title">Crew and certification</h1>
         <p className="screen__subtitle">
-          {people.data.length} crew visible to your roles. The directory is the system of record for
-          qualification holdings; each person's page carries the scans behind them.
+          {people.data.length} crew visible to your roles.{' '}
+          <Copy k="people.subtitle">
+            The directory is the system of record for qualification holdings; each person's page carries the scans behind them.
+          </Copy>
         </p>
       </header>
 
@@ -106,9 +109,9 @@ export function People(): React.ReactNode {
       </div>
       {canFile && (
         <p className="note">
-          Note — all documents will be automatically renamed to{' '}
-          <span className="mono">Crew name - Certificate name - Issue date.PDF</span> (any non-PDF files will be
-          automatically converted).
+          <Copy k="people.upload-note">
+            Note — all documents will be automatically renamed to Crew name - Certificate name - Issue date.PDF (any non-PDF files will be automatically converted).
+          </Copy>
         </p>
       )}
 
