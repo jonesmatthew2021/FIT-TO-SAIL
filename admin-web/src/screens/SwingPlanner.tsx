@@ -49,13 +49,14 @@ import { requirementLookup, requirementParts } from '../domain/requirements'
 const ROSTER_EDITORS = ['crew_coordinator', 'system_administrator'] as const
 
 /**
- * ADM-2 — the swing planner, in two views.
+ * ADM-2 — Crew and shift distribution, in two views.
  *
- * Swing compliance is the Coolibah portal's page of that name on the ship in scope: the swing on
- * now and the three coming, each with its dates and the engine's verdict on its roster. It opens
- * first. The slot planner beside it is the original ADM-2 screen — one swing's slots along its own
- * time axis, quotas, gap report, suggestions — and a link that names a swing (`?partnership=&cc=`,
- * from the dashboard, a register record or a person) lands there directly.
+ * The swing roster is the Coolibah portal's board on the ship in scope: the swing on now and the
+ * five coming as cards, and under the one pressed, who is on it, who is off it, and the watch each
+ * keeps. It opens first. The slot planner beside it is the original ADM-2 screen — one swing's
+ * slots along its own time axis, quotas, gap report, suggestions — and a link that names a swing
+ * (`?partnership=&cc=`, from the dashboard, a register record or a person) lands there directly.
+ * Whether the swing is clear to sail is the next screen, Swing and shift compliance.
  *
  * The selection lives in the URL, so a planner view is a link someone can paste into a message
  * ("every entity view deep-links", §6).
@@ -66,7 +67,7 @@ const ROSTER_EDITORS = ['crew_coordinator', 'system_administrator'] as const
  * the vessel stops being compliant rather than as the words "expires mid-swing".
  */
 const VIEWS = [
-  { id: 'compliance', label: 'Swing compliance' },
+  { id: 'roster', label: 'Swing roster' },
   { id: 'planner', label: 'Slot planner' },
 ] as const
 
@@ -76,7 +77,7 @@ export function SwingPlanner(): React.ReactNode {
   const partnerships = useAllPartnerships()
   const partnership = params.get('partnership')
   const cc = params.get('cc')
-  const view = params.get('view') === 'planner' || (params.get('view') === null && cc !== null) ? 'planner' : 'compliance'
+  const view = params.get('view') === 'planner' || (params.get('view') === null && cc !== null) ? 'planner' : 'roster'
   const [slotUnderConsideration, setSlotUnderConsideration] = useState<number | null>(null)
 
   const evaluation = useSwingEvaluation(partnership, cc)
@@ -111,12 +112,12 @@ export function SwingPlanner(): React.ReactNode {
     </nav>
   )
 
-  if (view === 'compliance') {
+  if (view === 'roster') {
     return (
       <div className="screen">
         <header className="screen__header">
           <div className="screen__headline">
-            <h1 className="screen__title">Swing planner</h1>
+            <h1 className="screen__title">Crew and shift distribution</h1>
           </div>
           {ship !== undefined && <p className="screen__subtitle">{ship.name}</p>}
         </header>
@@ -124,7 +125,7 @@ export function SwingPlanner(): React.ReactNode {
         {partnerships.isPending && <Spinner label="Loading the ship" />}
         {partnerships.error !== null && <ErrorPanel title="Could not load the ship" error={partnerships.error} />}
         {partnerships.data !== undefined && ship === undefined && <p className="empty">Choose a ship in the rail.</p>}
-        {ship !== undefined && <SwingCompliance ship={ship} />}
+        {ship !== undefined && <SwingCompliance ship={ship} show="distribution" />}
       </div>
     )
   }
@@ -135,7 +136,7 @@ export function SwingPlanner(): React.ReactNode {
         <div className="screen__headline">
           <h1 className="screen__title">
             {evaluation.data === undefined
-              ? 'Swing planner'
+              ? 'Crew and shift distribution'
               : headline(partnership as string, evaluation.data)}
           </h1>
           {evaluation.data !== undefined && evaluation.data.openSlots.length > 0 && (

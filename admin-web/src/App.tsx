@@ -19,6 +19,7 @@ import { Register } from './screens/Register'
 import { RegisterNew } from './screens/RegisterNew'
 import { Requirements } from './screens/Requirements'
 import { SwingPlanner } from './screens/SwingPlanner'
+import { SwingShiftCompliance } from './screens/SwingShiftCompliance'
 
 /**
  * A 4xx is the server's considered answer — a role check, a scope check, a validation failure —
@@ -47,6 +48,7 @@ export function App(): React.ReactNode {
               <Route path="company" element={<Company />} />
               <Route path="admin" element={<Admin />} />
               <Route path="planner" element={<SwingPlanner />} />
+              <Route path="swing-compliance" element={<SwingShiftCompliance />} />
               <Route path="people" element={<People />} />
               <Route path="people/:personId" element={<PersonDetail />} />
               <Route path="requirements" element={<Requirements />} />

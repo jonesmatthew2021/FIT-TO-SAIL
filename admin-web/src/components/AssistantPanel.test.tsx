@@ -22,7 +22,7 @@ import {
 describe('route context', () => {
   it('names the screen by module code and label', () => {
     expect(contextForPath('/')).toEqual({ chip: 'ADM-1 Dashboard', mono: false, screen: 'ADM-1 Dashboard' })
-    expect(contextForPath('/planner').chip).toBe('ADM-2 Swing planner')
+    expect(contextForPath('/planner').chip).toBe('ADM-2 Crew and shift distribution')
     expect(contextForPath('/people/12').chip).toBe('ADM-5 People & holdings')
     expect(contextForPath('/evidence/3f6a').chip).toBe('ADM-9 Evidence queue')
   })
@@ -167,7 +167,7 @@ describe('the panel', () => {
     stubAsk(200, {
       text: 'UNI CC24 is one GPH short of the M7 quota on Shift 1.',
       sources: [
-        { label: 'ADM-2 Swing planner', deepLink: '/planner' },
+        { label: 'ADM-2 Crew and shift distribution', deepLink: '/planner' },
         { label: 'evil', deepLink: '//evil.example' },
       ],
     })
@@ -177,7 +177,7 @@ describe('the panel', () => {
     await user.click(screen.getByRole('button', { name: 'What blocks the next cutoff?' }))
 
     expect(await screen.findByText(/one GPH short/)).toBeDefined()
-    const chip = screen.getByRole('link', { name: 'ADM-2 Swing planner' })
+    const chip = screen.getByRole('link', { name: 'ADM-2 Crew and shift distribution' })
     expect(chip.getAttribute('href')).toBe('/planner')
     // The protocol-relative "deep link" renders as text, never as an href (open-redirect rule).
     expect(screen.getByText('evil').tagName).toBe('SPAN')

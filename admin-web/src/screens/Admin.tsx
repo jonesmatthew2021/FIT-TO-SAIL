@@ -12,9 +12,9 @@ import { TodayScreen } from '../components/TodayScreen'
  * The portal's Admin tab set, per ship — the template every ship carries.
  *
  * Four tabs, each on the ship in scope: Today, Required documents for upload, Certification
- * checker, E-learning status. Swing compliance lives on the Swing planner (ADM-2) beside the slot
- * planner; the portal's OPMS and AI checkers were left behind on purpose — Ask AI (top right of
- * every screen) is the question box here.
+ * checker, E-learning status. Swing compliance is its own screen (Swing and shift compliance), the
+ * roster board another (Crew and shift distribution); the portal's OPMS and AI checkers were left
+ * behind on purpose — Ask AI (top right of every screen) is the question box here.
  */
 const TABS = [
   { id: 'today', label: 'Today' },

@@ -411,7 +411,7 @@ export function AssistantPanel({ state }: { state: AssistantState }): React.Reac
           <div className="assistant__turn">
             <span className="assistant__dot" aria-hidden="true" />
             <div className="assistant__prose">
-              I can read the register, the matrix and the swing planner. Ask in plain words — I answer
+              I can read the register, the matrix and the slot planner. Ask in plain words — I answer
               with the record I got it from.
             </div>
           </div>

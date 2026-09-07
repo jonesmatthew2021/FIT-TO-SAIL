@@ -320,7 +320,7 @@ function PartnershipRow({
           `/planner?partnership=${encodeURIComponent(partnership.abbrev)}&cc=${encodeURIComponent(swing.ccId)}`,
         )
       }
-      openLabel={`Open ${partnership.abbrev} ${swing.ccId} in the swing planner`}
+      openLabel={`Open ${partnership.abbrev} ${swing.ccId} in the slot planner`}
       value={<SwingStates row={row} onInspect={onInspect} />}
     >
       <Cut date={swing.cutoff} label={cutoffLabel} tight={!passed && days <= CUTOFF_URGENT_DAYS} />

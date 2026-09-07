@@ -29,10 +29,12 @@ const SWING_EDITORS = ['crew_coordinator', 'compliance_lead', 'system_administra
 /**
  * Swing compliance — the Coolibah portal's page of the same name, per ship.
  *
- * The swing on now sits by itself, the three coming side by side under it; every card carries the
+ * The swing on now sits by itself, the five coming side by side under it; every card carries the
  * dates the swing is read against, in boxes the office can type over, and the engine's verdict on
- * its roster. Press a card and the sections below follow it: who is clear, who is not, what is
- * expiring onboard, and whether the swing carries the certificates each shift needs.
+ * its roster. Press a card and the section below follows it. Two screens share this: Swing and
+ * shift compliance (`show="compliance"`) puts who is clear, who is not, what is expiring onboard
+ * and whether the swing carries the certificates each shift needs under the cards; Crew and shift
+ * distribution (`show="distribution"`) puts the roster board there instead.
  *
  * Where the portal worked the verdict out in the page, here every state is the server's (§5.1,
  * AUTH-1): "not clear" is a `gap` roll-up, "expiring onboard" is `expiring`, "needs a look" is
@@ -41,7 +43,7 @@ const SWING_EDITORS = ['crew_coordinator', 'compliance_lead', 'system_administra
  * the portal's rules exactly, kept on the server (`SwingService`) so the crew app and every other
  * screen read the same calendar.
  */
-export function SwingCompliance({ ship }: { ship: Partnership }): React.ReactNode {
+export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'compliance' | 'distribution' }): React.ReactNode {
   const today = useToday()
   const pattern = useSwingPattern(ship.abbrev)
   const upcoming = useUpcomingSwings(ship.abbrev)
@@ -76,8 +78,9 @@ export function SwingCompliance({ ship }: { ship: Partnership }): React.ReactNod
   return (
     <div className="swing-page">
       <p className="screen__subtitle">
-        Who is on each swing, and whether they are clear to sail. Press a swing to work on it — the
-        sections below follow it, and each one's heading says whether it needs you before you open it.
+        {show === 'compliance'
+          ? 'Who is on each swing, and whether they are clear to sail. Press a swing to work on it — the sections below follow it, and each one\'s heading says whether it needs you before you open it.'
+          : 'Who is on each swing and which watch they keep. Press a swing to work on it — the roster below follows it.'}
       </p>
 
       <PatternPanel ship={ship} pattern={pattern.data} canEdit={canEdit} />
@@ -135,11 +138,9 @@ export function SwingCompliance({ ship }: { ship: Partnership }): React.ReactNod
         </p>
       )}
 
-      {here !== undefined && (
-        <>
-          <SwingRoster ship={ship} swing={here} evaluation={evaluationOf(here)} />
-          <WhoIsClear ship={ship} swing={here} evaluation={evaluationOf(here)} requirementCodes={requirements.data ?? []} canEdit={canEdit} />
-        </>
+      {here !== undefined && show === 'distribution' && <SwingRoster ship={ship} swing={here} evaluation={evaluationOf(here)} />}
+      {here !== undefined && show === 'compliance' && (
+        <WhoIsClear ship={ship} swing={here} evaluation={evaluationOf(here)} requirementCodes={requirements.data ?? []} canEdit={canEdit} />
       )}
     </div>
   )
