@@ -175,8 +175,8 @@ function CustomerCard({
           </p>
         </div>
         <div className="row-actions">
-          <Link className="button" to={`/?customer=${customer.id}`}>
-            Open compliance
+          <Link className="button" to={`/company?customer=${customer.id}`}>
+            Just this customer
           </Link>
           {canEdit && (
             <button type="button" className="button" onClick={() => setAddingOperation(true)}>
@@ -247,9 +247,9 @@ function CustomerCard({
                   </p>
                 </div>
                 <div className="row-actions">
-                  {/* Every ship carries the whole compliance set from the moment it exists. */}
-                  <Link className="button" to={`/?customer=${customer.id}&operation=${partnership.id}`}>
-                    Open this ship's compliance
+                  {/* Every ship carries the whole Admin template from the moment it exists. */}
+                  <Link className="button" to={`/admin?customer=${customer.id}&operation=${partnership.id}`}>
+                    Open this ship
                   </Link>
                   {canEdit && (
                     <button

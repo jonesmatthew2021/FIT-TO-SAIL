@@ -311,7 +311,7 @@ function ShipGate(): React.ReactNode {
               <ul className="list-plain list-plain--tight">
                 {ships.map((ship) => (
                   <li key={ship.id}>
-                    <NavLink to={`/?customer=${customer.id}&operation=${ship.id}`}>
+                    <NavLink to={`/admin?customer=${customer.id}&operation=${ship.id}`}>
                       {shipLabel(ship.id, ship.abbrev, ship.name, vessels.data ?? [])}
                     </NavLink>
                   </li>

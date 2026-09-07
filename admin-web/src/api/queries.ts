@@ -52,6 +52,7 @@ import {
   type SaveRequirementRequest,
   type SetPatternRequest,
   type SetSwingDatesRequest,
+  type ShipDocument,
   type SwingPattern,
   type UpcomingSwings,
   type ScheduledJob,
@@ -86,6 +87,7 @@ export const keys = {
   unattachedPartnerships: ['customers', 'unattached-partnerships'] as const,
   vessels: ['vessels'] as const,
   swingPattern: (partnership: string) => ['swing-pattern', partnership] as const,
+  shipDocuments: (partnership: string) => ['ship-documents', partnership] as const,
   upcomingSwings: (partnership: string) => ['upcoming-swings', partnership] as const,
   crewChanges: (partnership: string) => ['crew-changes', partnership] as const,
   requirements: ['requirements'] as const,
@@ -170,6 +172,40 @@ export function useAddVessel() {
 
 export function useRemoveVessel() {
   return useCustomerMutation((vesselId: number) => api.removeVessel(vesselId))
+}
+
+// ---------------------------------------------------------------------------
+// The ship's documents — the portal's Required documents for upload
+// ---------------------------------------------------------------------------
+
+export function useShipDocuments(partnership: string | null): UseQueryResult<ShipDocument[]> {
+  return useQuery({
+    queryKey: keys.shipDocuments(partnership ?? ''),
+    queryFn: () => api.shipDocuments(partnership as string),
+    enabled: partnership !== null,
+  })
+}
+
+function useShipDocumentMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['ship-documents'] })
+    },
+  })
+}
+
+export function useFileShipDocument() {
+  return useShipDocumentMutation(({ partnership, category, file }: { partnership: string; category: string; file: File }) =>
+    api.fileShipDocument(partnership, category, file),
+  )
+}
+
+export function useWithdrawShipDocument() {
+  return useShipDocumentMutation(({ documentId, reason }: { documentId: number; reason: string }) =>
+    api.withdrawShipDocument(documentId, reason),
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -304,19 +340,23 @@ export function useCustomerScope(): {
   const customers = useCustomers()
   const customer = customerId === null ? null : (customers.data?.find((c) => c.id === customerId) ?? null)
 
+  // A scope naming a customer the list no longer carries (a stale link, a reloaded database) is
+  // no scope at all: it is forgotten and the reader lands at the gate, rather than every screen
+  // quietly filtering to nothing.
+  const stale = customerId !== null && customers.data !== undefined && customer === null
+  useEffect(() => {
+    if (stale) rememberScope(null, null)
+  }, [stale])
+  if (stale) return { customerId: null, customer: null, operationId: null, partnershipIds: null, suffix: '' }
+
   let partnershipIds: ReadonlySet<number> | null = null
-  if (customerId !== null) {
-    if (customer !== null) {
-      // A ship the customer does not have filters to nothing, for the same reason as below.
-      partnershipIds =
-        operationId === null
-          ? new Set(customer.partnershipIds)
-          : new Set(customer.partnershipIds.filter((id) => id === operationId))
-    } else if (customers.data !== undefined) {
-      // A scope that names a customer the list does not carry filters to nothing rather than to
-      // everything: a stale link must not quietly show the wrong company's crew.
-      partnershipIds = new Set()
-    }
+  if (customer !== null) {
+    // A ship the customer does not have filters to nothing: a stale ship must not show the
+    // customer's whole fleet as if it were the one asked for.
+    partnershipIds =
+      operationId === null
+        ? new Set(customer.partnershipIds)
+        : new Set(customer.partnershipIds.filter((id) => id === operationId))
   }
 
   const suffix =

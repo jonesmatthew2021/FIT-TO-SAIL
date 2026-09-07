@@ -120,7 +120,8 @@ export function ShipBar(): React.ReactNode {
           onClose={() => setAdding(false)}
           onCreated={(partnership) => {
             setAdding(false)
-            void navigate(`${location.pathname}?customer=${partnership.customerId ?? ''}&operation=${partnership.id}`)
+            // A new ship opens on its Admin template, which it carries from this moment.
+            void navigate(`/admin?customer=${partnership.customerId ?? ''}&operation=${partnership.id}`)
           }}
         />
       )}

@@ -526,6 +526,212 @@ a:hover {
 .tile--caution { border-left-color: var(--color-caution-500, #c9b64a); }
 .tile--accent { border-left-color: var(--color-accent-500, #8b8cf0); }
 
+/* Certification checker: a person's gaps as lines under their name, the portal's columns. */
+.gap-person {
+  margin-bottom: 12px;
+}
+
+.gap-person__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--color-neutral-900);
+  padding: 5px 9px;
+  border-radius: var(--radius-sm, 4px);
+  font-weight: 500;
+}
+
+.gap-lines {
+  display: flex;
+  flex-direction: column;
+}
+
+.gap-line {
+  display: grid;
+  grid-template-columns: 56px minmax(180px, 1fr) 110px 90px 110px 80px 120px 130px;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--color-neutral-800);
+  font-size: 13px;
+}
+
+.gap-line__title {
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .gap-line {
+    grid-template-columns: 56px minmax(140px, 1fr) 110px 120px;
+  }
+
+  .gap-line > :nth-child(3),
+  .gap-line > :nth-child(4),
+  .gap-line > :nth-child(7) {
+    display: none;
+  }
+}
+
+/* Today: the worklist, one line each; the quieter list under it. */
+.today-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  border: 1px solid var(--color-neutral-800);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
+.today-line__who {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.today-attention {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--color-neutral-800);
+}
+
+.today-attention__n {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--color-warning-500, #e0a13a);
+  min-width: 40px;
+  text-align: right;
+}
+
+.today-attention__text {
+  flex: 1 1 240px;
+  color: var(--color-neutral-500);
+  font-size: 13px;
+}
+
+/* E-learning: a completion bar and the by-module list. */
+.bar {
+  display: inline-block;
+  width: 96px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-neutral-800);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.bar__fill {
+  display: block;
+  height: 100%;
+}
+
+.bar__fill--good, .bar__label--good { background: var(--color-good-500, #4caf8a); }
+.bar__fill--caution, .bar__label--caution { background: var(--color-caution-500, #c9b64a); }
+.bar__fill--warning, .bar__label--warning { background: var(--color-warning-500, #e0a13a); }
+.bar__fill--critical, .bar__label--critical { background: var(--color-critical-500, #d9534f); }
+
+.bar__label {
+  background: none !important;
+  font-size: 11px;
+  min-width: 74px;
+}
+
+.bar__label--good { color: var(--color-good-500, #4caf8a); }
+.bar__label--caution { color: var(--color-caution-500, #c9b64a); }
+.bar__label--warning { color: var(--color-warning-500, #e0a13a); }
+.bar__label--critical { color: var(--color-critical-500, #d9534f); }
+
+.module-row {
+  border-bottom: 1px solid var(--color-neutral-800);
+}
+
+.module-row__head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  width: 100%;
+  text-align: left;
+  padding: 9px 0;
+  background: transparent;
+  border: 0;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.module-row__people {
+  padding: 0 0 12px 23px;
+}
+
+.module-person {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 90px 90px 110px;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--color-neutral-800);
+  font-size: 13px;
+}
+
+/* Required documents: one card per sheet, its verdict on its left edge. */
+.doc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.doc-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-neutral-800);
+  border-left: 4px solid var(--color-neutral-600);
+  border-radius: var(--radius-md);
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.doc-card--good { border-left-color: var(--color-good-500, #4caf8a); }
+.doc-card--critical { border-left-color: var(--color-critical-500, #d9534f); }
+.doc-card--warning { border-left-color: var(--color-warning-500, #e0a13a); }
+
+.doc-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.doc-card__title {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-neutral-400);
+}
+
+.doc-card__blurb {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-neutral-500);
+  line-height: 1.55;
+}
+
+.doc-card__file {
+  margin: 0;
+  font-size: 13.5px;
+  word-break: break-word;
+}
+
 /* A screen's own ship box with add and remove beside it, top right of the header. */
 .ship-bar {
   display: flex;

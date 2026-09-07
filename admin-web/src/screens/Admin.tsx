@@ -1,9 +1,13 @@
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAllPartnerships, useCustomerScope } from '../api/queries'
+import { CertificationChecker } from '../components/CertificationChecker'
+import { ELearningStatus } from '../components/ELearningStatus'
 import { ErrorPanel } from '../components/ErrorPanel'
+import { RequiredDocuments } from '../components/RequiredDocuments'
 import { ShipBar } from '../components/ShipBar'
 import { Spinner } from '../components/Spinner'
 import { SwingCompliance } from '../components/SwingCompliance'
+import { TodayScreen } from '../components/TodayScreen'
 
 /**
  * The portal's Admin tab set, per ship — the template every ship carries.
@@ -30,7 +34,8 @@ export function Admin(): React.ReactNode {
   const scope = useCustomerScope()
   const partnerships = useAllPartnerships()
   const [params, setParams] = useSearchParams()
-  const tab = (TABS.find((t) => t.id === params.get('tab'))?.id ?? 'swing') as TabId
+  // Today first, as the portal opened: the day's worklist before anything else.
+  const tab = (TABS.find((t) => t.id === params.get('tab'))?.id ?? 'today') as TabId
 
   if (partnerships.isPending) return <Spinner label="Loading the ship" />
   if (partnerships.error !== null) return <ErrorPanel title="Could not load the ship" error={partnerships.error} />
@@ -67,33 +72,18 @@ export function Admin(): React.ReactNode {
 
       {tab === 'swing' && <SwingCompliance ship={ship} />}
       {tab === 'today' && (
-        <Pending
-          title="Today"
-          what="The day's headline for this ship — what sails clean, what does not, what is due."
-          where={{ to: `/${scope.suffix}`, label: 'the dashboard' }}
+        <TodayScreen
+          ship={ship}
+          go={(target) => {
+            const next = new URLSearchParams(params)
+            next.set('tab', target)
+            setParams(next)
+          }}
         />
       )}
-      {tab === 'required-docs' && (
-        <Pending
-          title="Required documents for upload"
-          what="The spreadsheets and sheets the checks read — skills matrix, validity matrix, training matrix, shift allocation, OPMS export — and which are on file."
-          where={{ to: `/people${scope.suffix}`, label: 'People & holdings (upload certificates)' }}
-        />
-      )}
-      {tab === 'checker' && (
-        <Pending
-          title="Certification checker"
-          what="Every certificate on file against the matrix: what is held, what is missing, what disagrees."
-          where={{ to: `/matrix${scope.suffix}`, label: 'the crew matrix' }}
-        />
-      )}
-      {tab === 'elearning' && (
-        <Pending
-          title="E-learning status"
-          what="The online modules each crew member has done, from the OPMS export."
-          where={{ to: `/matrix${scope.suffix}`, label: 'the crew matrix (Project Induction)' }}
-        />
-      )}
+      {tab === 'required-docs' && <RequiredDocuments ship={ship} />}
+      {tab === 'checker' && <CertificationChecker />}
+      {tab === 'elearning' && <ELearningStatus />}
       {tab === 'opms' && (
         <Pending
           title="OPMS checker"

@@ -26,6 +26,9 @@ export type Vessel = Schemas['VesselDto']
 export type AddVesselRequest = Schemas['AddVesselRequest']
 export type CreatePartnershipRequest = Schemas['CreatePartnershipRequest']
 
+// The ship's documents (the portal's Required documents for upload)
+export type ShipDocument = Schemas['ShipDocumentDto']
+
 // The swing pattern (the portal's Swing Compliance page)
 export type SwingPattern = Schemas['PatternDto']
 export type SetPatternRequest = Schemas['SetPatternRequest']
@@ -531,6 +534,36 @@ export const api = {
 
   detachPartnership: (partnershipId: number): Promise<Partnership> =>
     request(`/api/v1/customers/partnerships/${partnershipId}/detach`, { method: 'PUT' }),
+
+  // --- The ship's documents -------------------------------------------------------
+
+  shipDocuments: (partnership: string): Promise<ShipDocument[]> =>
+    request(`/api/v1/ship-documents/${encodeURIComponent(partnership)}`),
+
+  fileShipDocument: (partnership: string, category: string, file: File): Promise<ShipDocument> =>
+    request(`/api/v1/ship-documents/${encodeURIComponent(partnership)}/${encodeURIComponent(category)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type === '' ? 'application/octet-stream' : file.type,
+        'X-File-Name': encodeURIComponent(file.name),
+      },
+      body: file,
+    }),
+
+  shipDocumentUrl: (documentId: number): string => `/api/v1/ship-documents/content/${documentId}`,
+
+  /** The bytes, for the readers on the Admin tabs — the same URL the download link uses. */
+  shipDocumentBytes: async (documentId: number): Promise<ArrayBuffer> => {
+    const response = await fetch(`/api/v1/ship-documents/content/${documentId}`, {
+      credentials: 'same-origin',
+      headers: devHeaders(),
+    })
+    if (!response.ok) throw new ApiError(response.status, ...(await errorBody(response)))
+    return response.arrayBuffer()
+  },
+
+  withdrawShipDocument: (documentId: number, reason: string): Promise<void> =>
+    request(`/api/v1/ship-documents/content/${documentId}`, { method: 'DELETE', body: JSON.stringify({ reason }) }),
 
   // --- The swing pattern --------------------------------------------------------
 

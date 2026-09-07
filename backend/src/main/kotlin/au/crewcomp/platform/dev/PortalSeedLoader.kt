@@ -23,6 +23,7 @@ import au.crewcomp.reference.Partnership
 import au.crewcomp.reference.PositionSlot
 import au.crewcomp.reference.PositionTier
 import au.crewcomp.reference.Requirement
+import au.crewcomp.reference.ShipDocument
 import au.crewcomp.reference.Vessel
 import au.crewcomp.rules.ConditionalKind
 import au.crewcomp.rules.ConditionalMemberRole
@@ -175,10 +176,10 @@ class PortalSeedLoader(
         em.flush()
         log.infof(
             "Portal dataset loaded from %s (rev %d, saved %s): %d requirements, %d people, " +
-                "%d holdings, swing %s, %d quota rules, %d certificates on file, %d worklist items",
+                "%d holdings, swing %s, %d quota rules, %d certificates on file, %d ship sheets, %d worklist items",
             root, rev, savedAt, requirementsByCode.size, personsByNormName.size,
             counts["holdings"] ?: 0, swing?.ccId ?: "(none)", counts["quotas"] ?: 0,
-            counts["documents"] ?: 0, counts["worklist"] ?: 0,
+            counts["documents"] ?: 0, counts["sheets"] ?: 0, counts["worklist"] ?: 0,
         )
     }
 
@@ -818,6 +819,7 @@ class PortalSeedLoader(
             if (requirement != null) imported++ else unfiled++
         }
         counts["documents"] = imported + unfiled
+        counts["sheets"] = loadShipDocuments(indexFile, docsRoot, storage)
 
         if (misfiled > 0) {
             flag(
@@ -839,6 +841,47 @@ class PortalSeedLoader(
         if (unknownPerson > 0) {
             flag("DATAERR", "evidence", "$unknownPerson certificates", "Name someone the qualification matrix does not carry — not imported.")
         }
+    }
+
+    /**
+     * The ship's own sheets — every index entry that is not a certificate: the training, skills
+     * and validity matrices, the shift-allocation guideline, the OPMS export, the crew
+     * certificates sheet, the one document. The newest per category is current; the rest are
+     * history, as the portal kept them.
+     */
+    private fun loadShipDocuments(indexFile: Path, docsRoot: Path, storage: ObjectStorage): Int {
+        val entries = ObjectMapper().readTree(Files.readString(indexFile))
+            .filter { it.path("category").asText() != "certificate" }
+            .filter { it.path("removedAt").asText("").isEmpty() }
+            .sortedByDescending { it.path("createdAt").asText("") }
+        val currentSeen = mutableSetOf<String>()
+        var loaded = 0
+        entries.forEach { entry ->
+            val path = docsRoot.resolve(entry.path("path").asText())
+            if (!Files.isRegularFile(path)) return@forEach
+            val category = entry.path("category").asText("document")
+            val bytes = Files.readAllBytes(path)
+            val key = "ship-documents/${partnership.abbrev}/${UUID.randomUUID()}/original"
+            storage.put(key, bytes, entry.path("contentType").asText("application/octet-stream"))
+            em.persist(
+                ShipDocument().apply {
+                    this.partnership = this@PortalSeedLoader.partnership
+                    this.category = category
+                    fileName = entry.path("filename").asText()
+                    contentType = entry.path("contentType").asText("application/octet-stream")
+                    byteSize = bytes.size.toLong()
+                    objectKey = key
+                    sha256 = entry.path("checksum").asText("").lowercase().ifEmpty { null }
+                    current = currentSeen.add(category)
+                    filedBy = entry.path("uploadedBy").asText("").ifEmpty { actor }
+                    filedAt = runCatching { Instant.parse(entry.path("createdAt").asText("")) }.getOrNull() ?: now
+                    if (!current) supersededAt = now
+                    stampCreated(actor, now)
+                },
+            )
+            loaded++
+        }
+        return loaded
     }
 
     // ------------------------------------------------------------------ worklist and accounts
