@@ -77,7 +77,7 @@ export function TodayScreen({ ship, go }: { ship: Partnership; go: (tab: string)
   if (in60 > 0) attention.push({ n: in60, text: "expiring in 30 to 60 days — next month's bookings", target: 'checker', act: 'See them' })
   if (unknown > 0) attention.push({ n: unknown, text: 'marked with a question mark nobody has answered', target: 'checker', act: 'Settle them' })
   if (awaitingCount > 0) attention.push({ n: awaitingCount, text: 'scans on file waiting for a code — file them to what they evidence', target: 'required-docs', act: 'Check them' })
-  if (opmsAge !== null && opmsAge > 9) attention.push({ n: `${opmsAge}d`, text: 'since Portways refreshed the OPMS spreadsheet — chase the weekly export', target: 'opms', act: 'OPMS' })
+  if (opmsAge !== null && opmsAge > 9) attention.push({ n: `${opmsAge}d`, text: 'since Portways refreshed the OPMS spreadsheet — chase the weekly export', target: 'required-docs', act: 'OPMS' })
   if (certSheetAge !== null && certSheetAge > 30) attention.push({ n: `${certSheetAge}d`, text: 'since the crew certificates spreadsheet was updated', target: 'required-docs', act: 'Go' })
 
   return (

@@ -2,7 +2,9 @@ import { Fragment, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
+  useAllPartnerships,
   useAssign,
+  useCustomerScope,
   usePositions,
   useRequirements,
   useSlots,
@@ -29,6 +31,7 @@ import { Modal } from '../components/Modal'
 import { RequirementLabel } from '../components/RequirementLabel'
 import { Spinner } from '../components/Spinner'
 import { StateChip } from '../components/StateChip'
+import { SwingCompliance } from '../components/SwingCompliance'
 import { SwingSelector } from '../components/SwingSelector'
 import { Lapse, Leg, Ruler, RulerRow, Seam } from '../components/Ruler'
 import { downloadCsv, toCsv } from '../domain/csv'
@@ -46,7 +49,13 @@ import { requirementLookup, requirementParts } from '../domain/requirements'
 const ROSTER_EDITORS = ['crew_coordinator', 'system_administrator'] as const
 
 /**
- * ADM-2 — the swing planner.
+ * ADM-2 — the swing planner, in two views.
+ *
+ * Swing compliance is the Coolibah portal's page of that name on the ship in scope: the swing on
+ * now and the three coming, each with its dates and the engine's verdict on its roster. It opens
+ * first. The slot planner beside it is the original ADM-2 screen — one swing's slots along its own
+ * time axis, quotas, gap report, suggestions — and a link that names a swing (`?partnership=&cc=`,
+ * from the dashboard, a register record or a person) lands there directly.
  *
  * The selection lives in the URL, so a planner view is a link someone can paste into a message
  * ("every entity view deep-links", §6).
@@ -56,20 +65,68 @@ const ROSTER_EDITORS = ['crew_coordinator', 'system_administrator'] as const
  * along the swing's own time axis, so a handover reads as two legs and an expiry reads as the day
  * the vessel stops being compliant rather than as the words "expires mid-swing".
  */
+const VIEWS = [
+  { id: 'compliance', label: 'Swing compliance' },
+  { id: 'planner', label: 'Slot planner' },
+] as const
+
 export function SwingPlanner(): React.ReactNode {
   const [params, setParams] = useSearchParams()
+  const scope = useCustomerScope()
+  const partnerships = useAllPartnerships()
   const partnership = params.get('partnership')
   const cc = params.get('cc')
+  const view = params.get('view') === 'planner' || (params.get('view') === null && cc !== null) ? 'planner' : 'compliance'
   const [slotUnderConsideration, setSlotUnderConsideration] = useState<number | null>(null)
 
   const evaluation = useSwingEvaluation(partnership, cc)
+  const ship = partnerships.data?.find((p) => p.id === scope.operationId)
 
   function select(nextPartnership: string | null, nextCc: string | null): void {
     const next = new URLSearchParams()
+    next.set('view', 'planner')
     if (nextPartnership !== null) next.set('partnership', nextPartnership)
     if (nextCc !== null) next.set('cc', nextCc)
     setSlotUnderConsideration(null)
     setParams(next)
+  }
+
+  const tabs = (
+    <nav className="tabs" aria-label="Swing views">
+      {VIEWS.map((v) => (
+        <button
+          key={v.id}
+          type="button"
+          className={v.id === view ? 'tabs__tab tabs__tab--active' : 'tabs__tab'}
+          aria-current={v.id === view}
+          onClick={() => {
+            const next = new URLSearchParams(params)
+            next.set('view', v.id)
+            setParams(next)
+          }}
+        >
+          {v.label}
+        </button>
+      ))}
+    </nav>
+  )
+
+  if (view === 'compliance') {
+    return (
+      <div className="screen">
+        <header className="screen__header">
+          <div className="screen__headline">
+            <h1 className="screen__title">Swing planner</h1>
+          </div>
+          {ship !== undefined && <p className="screen__subtitle">{ship.name}</p>}
+        </header>
+        {tabs}
+        {partnerships.isPending && <Spinner label="Loading the ship" />}
+        {partnerships.error !== null && <ErrorPanel title="Could not load the ship" error={partnerships.error} />}
+        {partnerships.data !== undefined && ship === undefined && <p className="empty">Choose a ship in the rail.</p>}
+        {ship !== undefined && <SwingCompliance ship={ship} />}
+      </div>
+    )
   }
 
   return (
@@ -90,6 +147,8 @@ export function SwingPlanner(): React.ReactNode {
           )}
         </div>
       </header>
+
+      {tabs}
 
       <SwingSelector partnership={partnership} cc={cc} onChange={select} />
 
