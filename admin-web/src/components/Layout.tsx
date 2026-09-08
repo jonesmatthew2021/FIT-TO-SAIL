@@ -50,7 +50,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/swing-compliance', label: 'Swing and shift compliance', module: 'POR-2', built: true },
   { to: '/matrix', label: 'Matrix', module: 'ADM-3', built: true },
   { to: '/register', label: 'Register', module: 'ADM-4', built: true },
-  { to: '/requirements', label: 'Requirements', module: 'ADM-6', built: true },
   { to: '/exceptions', label: 'Exceptions', module: 'ADM-7', built: true },
   // Beside the other two queues, and after them: the evidence queue and the exceptions worklist are
   // the daily ones. ADM-11 post-dates §6, which enumerates ADM-1 to ADM-10 — the crew app's one-tap

@@ -17,7 +17,6 @@ import { People } from './screens/People'
 import { PersonDetail } from './screens/PersonDetail'
 import { Register } from './screens/Register'
 import { RegisterNew } from './screens/RegisterNew'
-import { Requirements } from './screens/Requirements'
 import { SwingPlanner } from './screens/SwingPlanner'
 import { SwingShiftCompliance } from './screens/SwingShiftCompliance'
 
@@ -51,7 +50,6 @@ export function App(): React.ReactNode {
               <Route path="swing-compliance" element={<SwingShiftCompliance />} />
               <Route path="people" element={<People />} />
               <Route path="people/:personId" element={<PersonDetail />} />
-              <Route path="requirements" element={<Requirements />} />
               <Route path="exceptions" element={<Exceptions />} />
               <Route path="crew-requests" element={<CrewRequests />} />
               <Route path="register" element={<Register />} />
