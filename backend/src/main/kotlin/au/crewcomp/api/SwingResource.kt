@@ -147,6 +147,21 @@ class SwingResource(
         request: SetWatchRequest,
     ) = roster.setWatch(partnership, cc, personId, request.watch)
 
+    @GET
+    @Path("/swings/{partnership}/{cc}/shift-balance")
+    @Operation(summary = "Day against night by rank — the same people and the same ranks on each, cooks excepted")
+    fun shiftBalance(@PathParam("partnership") partnership: String, @PathParam("cc") cc: String): ShiftBalanceDto {
+        val balance = roster.shiftBalance(partnership, cc)
+        return ShiftBalanceDto(
+            balanced = balance.balanced,
+            dayCount = balance.dayCount,
+            nightCount = balance.nightCount,
+            ranks = balance.ranks.map { RankBalanceDto(it.position, it.day, it.night) },
+            excluded = balance.excluded,
+            unwatched = balance.unwatched,
+        )
+    }
+
     @POST
     @Path("/swings/{partnership}/{cc}/switch-crew")
     @Operation(summary = "The crew change: the swing carries the other crew, rostered from the rotation")
@@ -160,6 +175,17 @@ class SwingResource(
         )
     }
 }
+
+data class RankBalanceDto(val position: String, val day: Int, val night: Int)
+
+data class ShiftBalanceDto(
+    val balanced: Boolean,
+    val dayCount: Int,
+    val nightCount: Int,
+    val ranks: List<RankBalanceDto>,
+    val excluded: List<String>,
+    val unwatched: List<String>,
+)
 
 data class SetWatchRequest(
     /** `day`, `night` or `none`. */

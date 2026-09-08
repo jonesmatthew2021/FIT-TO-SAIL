@@ -177,6 +177,59 @@ class SwingRosterService(
         return crewChange
     }
 
+    // ------------------------------------------------------------ shift balance
+
+    /** One rank's headcount on each shift; a difference is a watch short of that rank. */
+    data class RankBalance(val position: String, val day: Int, val night: Int)
+
+    data class ShiftBalance(
+        val balanced: Boolean,
+        val dayCount: Int,
+        val nightCount: Int,
+        val ranks: List<RankBalance>,
+        /** Cooks and chefs — outside the shifts, not counted. */
+        val excluded: List<String>,
+        /** On the swing but on no watch — on neither shift until one is set. */
+        val unwatched: List<String>,
+    )
+
+    /**
+     * The office's rule: the day shift and the night shift carry the same number of people and
+     * the same ranks, cooks and chefs excepted. Read off the swing's assignments and the shift
+     * each slot keeps; a rank whose two counts differ is the finding.
+     */
+    @Transactional
+    fun shiftBalance(abbrev: String, ccId: String): ShiftBalance {
+        val crewChange = crewChange(abbrev, ccId)
+        val shiftOf = slots.allOrdered().associate { it.ref to it.shift }
+        val excluded = mutableListOf<String>()
+        val unwatched = mutableListOf<String>()
+        val day = mutableMapOf<String, Int>()
+        val night = mutableMapOf<String, Int>()
+        // One row per person, whatever legs they hold.
+        assignments.forCrewChangeUnscoped(crewChange.requiredId).distinctBy { it.person.requiredId }.forEach { a ->
+            val position = a.person.position.name
+            if (COOK.containsMatchIn(position)) {
+                excluded += a.person.name
+                return@forEach
+            }
+            when (shiftOf[a.slotRef]) {
+                Shift.SHIFT_1 -> day.merge(position, 1, Int::plus)
+                Shift.SHIFT_2 -> night.merge(position, 1, Int::plus)
+                else -> unwatched += a.person.name
+            }
+        }
+        val ranks = (day.keys + night.keys).distinct().sorted().map { RankBalance(it, day[it] ?: 0, night[it] ?: 0) }
+        return ShiftBalance(
+            balanced = ranks.all { it.day == it.night },
+            dayCount = day.values.sum(),
+            nightCount = night.values.sum(),
+            ranks = ranks,
+            excluded = excluded,
+            unwatched = unwatched,
+        )
+    }
+
     // -----------------------------------------------------------------------
 
     private fun crewChange(abbrev: String, ccId: String): CrewChange {
@@ -200,6 +253,10 @@ class SwingRosterService(
 
     private fun overlaps(assignment: Assignment, from: LocalDate, to: LocalDate): Boolean =
         !assignment.fromDate.isAfter(to) && !assignment.toDate.isBefore(from)
+
+    private companion object {
+        val COOK = Regex("(?i)cook|chef")
+    }
 
     private fun makeSlot(person: Person, shift: Shift): PositionSlot {
         val next = (slots.allOrdered().maxOfOrNull { it.ref } ?: 0) + 1

@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { useFileShipDocument, usePeople, useRequirements, useShipDocuments, useSlots } from '../api/queries'
+import { useFileShipDocument, usePeople, useRequirements, useShiftBalance, useShipDocuments, useSlots } from '../api/queries'
 import { api, type CrewChange, type Partnership, type Requirement, type SwingEvaluation } from '../api/client'
 import { useHasRole } from '../api/session'
 import { Copy } from './Copy'
@@ -172,6 +172,8 @@ export function ShiftAllocation({ ship, swing, evaluation }: { ship: Partnership
         </span>
       </div>
 
+      <ShiftBalancePanel ship={ship} swing={swing} />
+
       {rules.swing.length > 0 && (
         <div className="shift-panel shift-panel--swing">
           <div className="shift-panel__head">
@@ -219,6 +221,67 @@ export function ShiftAllocation({ ship, swing, evaluation }: { ship: Partnership
         </p>
       )}
     </section>
+  )
+}
+
+/**
+ * The office's balance rule: day and night carry the same number of people and the same ranks,
+ * cooks and chefs excepted. The comparison is the server's; this lays it out rank by rank with
+ * the differences in red.
+ */
+function ShiftBalancePanel({ ship, swing }: { ship: Partnership; swing: CrewChange }): React.ReactNode {
+  const balance = useShiftBalance(ship.abbrev, swing.ccId)
+  if (balance.data === undefined) return null
+  const b = balance.data
+  const order = [...RANK_GROUPS.map((g) => g.label), 'Other positions']
+  const ranks = [...b.ranks].sort((x, y) => order.indexOf(rankGroup(x.position)) - order.indexOf(rankGroup(y.position)) || x.position.localeCompare(y.position))
+  const differences = ranks.filter((r) => r.day !== r.night)
+  return (
+    <div className={`shift-panel shift-panel--swing${b.balanced ? '' : ' shift-panel--unbalanced'}`}>
+      <div className="shift-panel__head">
+        <span>
+          <strong>Shift balance</strong>{' '}
+          <span className="muted">
+            {b.dayCount} on days · {b.nightCount} on nights · the same people and the same ranks on each, cooks excepted
+          </span>
+        </span>
+        {b.balanced ? (
+          <span className="chip chip--good chip--small">balanced</span>
+        ) : (
+          <span className="chip chip--critical chip--small">
+            {differences.length} {differences.length === 1 ? 'rank differs' : 'ranks differ'}
+          </span>
+        )}
+      </div>
+      <div className="balance">
+        <div className="balance__row balance__row--head">
+          <span>Rank</span>
+          <span>Days</span>
+          <span>Nights</span>
+          <span />
+        </div>
+        {ranks.map((r) => (
+          <div key={r.position} className={r.day === r.night ? 'balance__row' : 'balance__row balance__row--off'}>
+            <span className="standing__pos">{r.position}</span>
+            <span className="mono">{r.day}</span>
+            <span className="mono">{r.night}</span>
+            <span className="balance__note">
+              {r.day === r.night
+                ? ''
+                : r.day > r.night
+                  ? `Nights short ${r.day - r.night} ${r.position}`
+                  : `Days short ${r.night - r.day} ${r.position}`}
+            </span>
+          </div>
+        ))}
+      </div>
+      {(b.excluded.length > 0 || b.unwatched.length > 0) && (
+        <p className="muted balance__foot">
+          {b.excluded.length > 0 && <>Not counted (cooks): {b.excluded.join(', ')}. </>}
+          {b.unwatched.length > 0 && <>On no watch yet: {b.unwatched.join(', ')} — set a watch on the roster and they count.</>}
+        </p>
+      )}
+    </div>
   )
 }
 

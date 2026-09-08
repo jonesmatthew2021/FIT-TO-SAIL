@@ -106,6 +106,9 @@ export type CreatePersonRequest = Schemas['CreatePersonRequest']
 /** One rewritten sentence (see components/Copy.tsx). */
 export type PageCopy = Schemas['PageCopyDto']
 
+/** Day against night by rank — the office's balance rule, read on the server. */
+export type ShiftBalance = Schemas['ShiftBalanceDto']
+
 // ADM-10 — administration
 export type ConfigSetting = Schemas['ConfigSettingDto']
 export type ScheduledJob = Schemas['ScheduledJobDto']
@@ -621,6 +624,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ watch }),
     }),
+
+  /** Day against night by rank — the office's balance rule, read on the server. */
+  shiftBalance: (partnership: string, cc: string): Promise<ShiftBalance> =>
+    request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/shift-balance`),
 
   switchCrew: (partnership: string, cc: string): Promise<UpcomingSwings> =>
     request(`/api/v1/swings/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/switch-crew`, { method: 'POST' }),

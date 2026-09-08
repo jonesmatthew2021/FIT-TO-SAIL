@@ -6112,6 +6112,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/swings/{partnership}/{cc}/shift-balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Day against night by rank — the same people and the same ranks on each, cooks excepted */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cc: string;
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ShiftBalanceDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/swings/{partnership}/{cc}/suggestions": {
         parameters: {
             query?: never;
@@ -7074,6 +7127,13 @@ export interface components {
             /** Format: int64 */
             linkedEntityId?: number | null;
         };
+        RankBalanceDto: {
+            position: string;
+            /** Format: int32 */
+            day: number;
+            /** Format: int32 */
+            night: number;
+        };
         RegisterNoteDto: {
             /** Format: int64 */
             id: number;
@@ -7260,6 +7320,16 @@ export interface components {
         };
         SetWatchRequest: {
             watch: string;
+        };
+        ShiftBalanceDto: {
+            balanced: boolean;
+            /** Format: int32 */
+            dayCount: number;
+            /** Format: int32 */
+            nightCount: number;
+            ranks: components["schemas"]["RankBalanceDto"][];
+            excluded: string[];
+            unwatched: string[];
         };
         ShipDocumentDto: {
             /** Format: int64 */

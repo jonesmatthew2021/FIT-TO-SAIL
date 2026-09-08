@@ -41,6 +41,7 @@ import {
   type NotificationSummary,
   type PageCopy,
   type Partnership,
+  type ShiftBalance,
   type Person,
   type Position,
   type RaiseExceptionRequest,
@@ -335,6 +336,11 @@ export function useSetWatch() {
     ({ partnership, cc, personId, watch }: { partnership: string; cc: string; personId: number; watch: 'day' | 'night' | 'none' }) =>
       api.setWatch(partnership, cc, personId, watch),
   )
+}
+
+/** Day against night by rank for one swing; goes stale with the roster reads (`['swing']`). */
+export function useShiftBalance(partnership: string, cc: string): UseQueryResult<ShiftBalance> {
+  return useQuery({ queryKey: ['swing', partnership, cc, 'shift-balance'], queryFn: () => api.shiftBalance(partnership, cc) })
 }
 
 /** Page text the office has rewritten — read once, held for the session, refreshed on a write. */

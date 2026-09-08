@@ -4362,3 +4362,36 @@ a.assistant__source:hover {
   font-size: 10.5px;
   color: var(--color-neutral-400);
 }
+
+/* Shift balance — day against night by rank */
+.shift-panel--unbalanced {
+  border-top-color: var(--color-critical-500, #d9534f);
+}
+
+.balance__row {
+  display: grid;
+  grid-template-columns: 170px 60px 60px 1fr;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--color-neutral-800);
+  font-size: 12.5px;
+  align-items: baseline;
+}
+
+.balance__row--head {
+  border-top: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-neutral-400);
+}
+
+.balance__row--off .mono,
+.balance__note {
+  color: var(--color-critical-400, #e57373);
+}
+
+.balance__foot {
+  margin: 8px 0 4px;
+  font-size: 12px;
+}
