@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   useBringOnboard,
   usePeople,
+  useRosterFromRotation,
   useSendAshore,
   useSetActive,
   useSetRotation,
@@ -64,6 +65,7 @@ export function SwingRoster({
   const [view, setView] = useState<'board' | 'lists' | 'switch'>('board')
   const [adding, setAdding] = useState(false)
   const bring = useBringOnboard()
+  const reroster = useRosterFromRotation()
 
   const crew = (people.data ?? []).filter((p) => p.partnershipId === ship.id && p.status === 'active')
   const gone = (people.data ?? []).filter((p) => p.partnershipId === ship.id && p.status === 'inactive')
@@ -134,6 +136,17 @@ export function SwingRoster({
             {canEdit && (
               <button type="button" className="button button--primary" onClick={() => setAdding(true)}>
                 Add crew member
+              </button>
+            )}
+            {canEdit && swing.rotation !== null && (
+              <button
+                type="button"
+                className="button button--quiet"
+                disabled={reroster.isPending}
+                title="Put everyone on this swing's crew who is not yet on it into a free seat"
+                onClick={() => reroster.mutate({ partnership: ship.abbrev, cc: swing.ccId })}
+              >
+                {reroster.isPending ? 'Rostering…' : `Roster crew ${swing.rotation} into free seats`}
               </button>
             )}
             <span className="muted">

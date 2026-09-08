@@ -100,15 +100,60 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
         )}
       </p>
 
-      <PatternPanel ship={ship} pattern={pattern.data} canEdit={canEdit} />
+      {show === 'distribution' ? (
+        <PatternPanel ship={ship} pattern={pattern.data} canEdit={canEdit} />
+      ) : (
+        pattern.data?.rosterAnchor != null && (
+          <p className="section__note swing-pattern-line">
+            Pattern: crew {pattern.data.rosterAnchorCrew} flies out {formatDate(pattern.data.rosterAnchor)}, every {pattern.data.rosterCycleDays} days, the crews
+            alternating. Dates and the pattern are set on{' '}
+            <Link to={`/planner${suffix}`}>Crew and shift distribution</Link>.
+          </p>
+        )
+      )}
 
       {swings.length === 0 && (
         <p className="empty">
-          No swings on the calendar yet. Set the ship's pattern above and they are made from it.
+          {show === 'distribution'
+            ? 'No swings on the calendar yet. Set the ship\'s pattern above and they are made from it.'
+            : 'No swings on the calendar yet. Set the ship\'s pattern on Crew and shift distribution and they are made from it.'}
         </p>
       )}
 
-      {onNow !== undefined && (
+      {/* Compliance: every swing on one line, read only — press one to select it. */}
+      {show === 'compliance' && onNow !== undefined && (
+        <div className="swing-strip" role="tablist" aria-label="Swings">
+          {[onNow, ...coming].map((swing) => {
+            const v = verdict(evaluationOf(swing))
+            const selected = here?.ccId === swing.ccId
+            return (
+              <button
+                key={swing.ccId}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                className={['swing-pill', selected ? 'swing-pill--picked' : '', v.notClear.length > 0 ? 'swing-pill--bad' : ''].filter(Boolean).join(' ')}
+                onClick={() => setPicked(swing.ccId)}
+              >
+                <span className="swing-pill__title">{swingLabel(swing)}</span>
+                <span className="swing-pill__meta mono">
+                  {swing === onNow ? 'on swing · ' : ''}
+                  {swing.rotation !== null ? `crew ${swing.rotation}` : swing.ccId} · {v.rows.length} rostered
+                </span>
+                {evaluationOf(swing) === undefined ? (
+                  <span className="chip chip--muted chip--small">evaluating…</span>
+                ) : v.notClear.length > 0 ? (
+                  <span className="chip chip--critical chip--small">{v.notClear.length} not clear</span>
+                ) : (
+                  <span className="chip chip--good chip--small">All clear</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {show === 'distribution' && onNow !== undefined && (
         <>
           <div className="swing-on">
             <p className="nav__group swing-eyebrow">On swing</p>
@@ -161,7 +206,8 @@ export function SwingCompliance({ ship, show }: { ship: Partnership; show: 'comp
         <SwingDayGrid ship={ship} swing={openedSwing} evaluation={evaluationOf(openedSwing)} onClose={() => setOpened(null)} />
       )}
       {here !== undefined && show === 'compliance' && (
-        <WhoIsClear ship={ship} swing={here} evaluation={evaluationOf(here)} requirementCodes={requirements.data ?? []} canEdit={canEdit} />
+        // Read only here: rostering, like the dates, is Crew and shift distribution's business.
+        <WhoIsClear ship={ship} swing={here} evaluation={evaluationOf(here)} requirementCodes={requirements.data ?? []} canEdit={false} />
       )}
     </div>
   )
