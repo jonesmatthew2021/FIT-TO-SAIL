@@ -19,7 +19,9 @@ import { ErrorPanel } from './ErrorPanel'
 import { Spinner } from './Spinner'
 import { StateChip } from './StateChip'
 import { Copy } from './Copy'
+import { ShiftAllocation } from './ShiftAllocation'
 import { SwingDayGrid } from './SwingDayGrid'
+import { SwingReport } from './SwingReport'
 import { SwingRoster } from './SwingRoster'
 import { downloadCsv, toCsv } from '../domain/csv'
 import { dateFromEpochDay, epochDay, formatDate, formatDayMonth } from '../domain/dates'
@@ -484,31 +486,9 @@ function WhoIsClear({
 
       </section>
 
-      <section className={`section fold fold--${evaluation.quotas.some((q) => !q.satisfied) ? 'critical' : evaluation.quotas.length > 0 ? 'good' : 'accent'}`}>
-        <div className="section__header">
-          <div>
-            <h2 className="section__title">Certificates required by shift</h2>
-            <p className="section__note">
-              {evaluation.quotas.length === 0
-                ? 'No shift rules on the matrix for this ship yet.'
-                : `${evaluation.quotas.filter((q) => q.satisfied).length} requirements met · ${evaluation.quotas.filter((q) => !q.satisfied).length} short`}
-            </p>
-          </div>
-        </div>
-        {evaluation.quotas.length > 0 && (
-          <ul className="list-plain list-plain--tight">
-            {evaluation.quotas.map((q) => (
-              <li key={`${q.footnote}-${q.requirementId}-${q.shift ?? ''}`} className="tag-row">
-                <span className={`chip chip--${q.satisfied ? 'good' : 'critical'} chip--small`}>{q.satisfied ? 'met' : `${q.shortfall} short`}</span>
-                <span>
-                  <span className="mono">{q.footnote}</span> · at least {q.min} with <span className="mono">{code(q.requirementId)}</span> per {q.scope}
-                  {q.shift !== null && ` (${q.shift})`} — {q.actual} on this swing
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <ShiftAllocation ship={ship} swing={swing} evaluation={evaluation} />
+
+      <SwingReport ship={ship} swing={swing} evaluation={evaluation} />
     </>
   )
 }
