@@ -619,44 +619,68 @@ function AccessTab({
   vessels: readonly Vessel[]
 }): React.ReactNode {
   const accounts = useUserAccounts()
+  const people = usePeople()
   const setAccountStatus = useSetUserAccountStatus()
-  const [inviting, setInviting] = useState<Customer | null>(null)
+  const [inviting, setInviting] = useState<{ customer: Customer; kind: 'management' | 'crew' } | null>(null)
 
   if (accounts.isPending) return <Spinner label="Loading the accounts" />
   if (accounts.error !== null) return <ErrorPanel title="Could not load the accounts" error={accounts.error} />
 
-  const forCustomer = (customer: Customer) =>
-    accounts.data.filter((a) => a.scopedPartnershipIds.length > 0 && a.scopedPartnershipIds.some((id) => customer.partnershipIds.includes(id)))
-  const office = accounts.data.filter((a) => a.scopedPartnershipIds.length === 0)
+  // Management belongs to a customer through the ships it is scoped to; crew through the crew
+  // member it is (their own record, no scope). What is neither is the office's.
+  const shipOfPerson = new Map((people.data ?? []).map((p) => [p.id, p.partnershipId]))
+  const management = (customer: Customer) =>
+    accounts.data.filter((a) => a.scopedPartnershipIds.some((id) => customer.partnershipIds.includes(id)))
+  const crewOf = (customer: Customer) =>
+    accounts.data.filter(
+      (a) => a.scopedPartnershipIds.length === 0 && a.personId !== null && customer.partnershipIds.includes(shipOfPerson.get(a.personId) ?? -1),
+    )
+  const placed = new Set(customers.flatMap((c) => [...management(c), ...crewOf(c)].map((a) => a.id)))
+  const office = accounts.data.filter((a) => !placed.has(a.id))
+  const onStatus = (a: UserAccount, status: string) => setAccountStatus.mutate({ userAccountId: a.id, status })
 
   return (
     <>
       <p className="note">
         <Copy k="business.access-note">
-          A customer's staff sign in to the same program and see only their own company: their ships, their crews, their swings. Give someone access here and they are limited to that customer's ships — an account with no ships against it sees everything, so those are the office's and are listed last.
+          A customer's people sign in to the same program and see only their own company. Management runs the company's compliance across its ships; crew see their own record through the crew app. An account with no ships and no crew member against it sees everything, so those are the office's and are listed last.
         </Copy>
       </p>
 
       {customers.map((customer) => {
-        const people = forCustomer(customer)
         const ships = shipsOf(customer)
+        const managers = management(customer)
+        const crew = crewOf(customer)
         return (
-          <section key={customer.id} className="section biz-access">
-            <div className="section__header">
-              <div>
-                <h2 className="section__title">{customer.name}</h2>
-                <p className="section__note">
-                  {people.length === 0 ? 'Nobody has access yet' : `${people.length} with access`} · {ships.length === 0 ? 'no ships yet' : ships.map((s) => shipLabel(s.id, s.abbrev, s.name, vessels)).join(', ')}
-                </p>
+          <div key={customer.id}>
+            <section className="section biz-access">
+              <div className="section__header">
+                <div>
+                  <h2 className="section__title">{customer.name} management</h2>
+                  <p className="section__note">
+                    {managers.length === 0 ? 'Nobody yet' : `${managers.length} with access`} · {ships.length === 0 ? 'no ships yet' : ships.map((s) => shipLabel(s.id, s.abbrev, s.name, vessels)).join(', ')}
+                  </p>
+                </div>
+                <button type="button" className="button button--primary" disabled={ships.length === 0} title={ships.length === 0 ? "Add the customer's ships under Company first" : ''} onClick={() => setInviting({ customer, kind: 'management' })}>
+                  Give management access
+                </button>
               </div>
-              <button type="button" className="button button--primary" disabled={ships.length === 0} title={ships.length === 0 ? 'Add the customer\'s ships under Company first' : ''} onClick={() => setInviting(customer)}>
-                Give someone access
-              </button>
-            </div>
-            {people.length > 0 && (
-              <AccountTable accounts={people} onStatus={(a, status) => setAccountStatus.mutate({ userAccountId: a.id, status })} pending={setAccountStatus.isPending} />
-            )}
-          </section>
+              {managers.length > 0 && <AccountTable accounts={managers} onStatus={onStatus} pending={setAccountStatus.isPending} />}
+            </section>
+
+            <section className="section biz-access">
+              <div className="section__header">
+                <div>
+                  <h2 className="section__title">{customer.name} crew</h2>
+                  <p className="section__note">{crew.length === 0 ? 'No crew member has an account yet' : `${crew.length} with access`} · their own record, through the crew app</p>
+                </div>
+                <button type="button" className="button" disabled={ships.length === 0} onClick={() => setInviting({ customer, kind: 'crew' })}>
+                  Give crew access
+                </button>
+              </div>
+              {crew.length > 0 && <AccountTable accounts={crew} onStatus={onStatus} pending={setAccountStatus.isPending} />}
+            </section>
+          </div>
         )
       })}
 
@@ -670,11 +694,11 @@ function AccessTab({
             Administration
           </Link>
         </div>
-        <AccountTable accounts={office} onStatus={(a, status) => setAccountStatus.mutate({ userAccountId: a.id, status })} pending={setAccountStatus.isPending} />
+        <AccountTable accounts={office} onStatus={onStatus} pending={setAccountStatus.isPending} />
       </section>
 
       {setAccountStatus.error !== null && <p className="editor__error">{errorText(setAccountStatus.error)}</p>}
-      {inviting !== null && <InviteForm customer={inviting} ships={shipsOf(inviting)} onClose={() => setInviting(null)} />}
+      {inviting !== null && <InviteForm customer={inviting.customer} ships={shipsOf(inviting.customer)} initialKind={inviting.kind} onClose={() => setInviting(null)} />}
     </>
   )
 }
@@ -733,11 +757,11 @@ function AccountTable({ accounts, onStatus, pending }: { accounts: readonly User
  * member, who sees their own record and nothing else — so no ship scope at all, since a scope
  * would widen a crew member to the whole ship.
  */
-function InviteForm({ customer, ships, onClose }: { customer: Customer; ships: Partnership[]; onClose: () => void }): React.ReactNode {
+function InviteForm({ customer, ships, initialKind, onClose }: { customer: Customer; ships: Partnership[]; initialKind: 'management' | 'crew'; onClose: () => void }): React.ReactNode {
   const create = useCreateUserAccount()
   const scope = useSetUserAccountScopes()
   const people = usePeople()
-  const [kind, setKind] = useState<'management' | 'crew'>('management')
+  const [kind, setKind] = useState<'management' | 'crew'>(initialKind)
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [personId, setPersonId] = useState<number | null>(null)

@@ -238,7 +238,7 @@ export const CREW_ROLES: readonly string[] = ['crew_member']
 
 export function accessKind(roles: readonly string[]): AccessKind {
   if (roles.includes('system_administrator')) return 'office'
-  if (roles.length > 0 && roles.every((role) => role === 'crew_member' || role === 'vessel_master')) return 'crew'
+  if (roles.length > 0 && roles.every((role) => role === 'crew_member')) return 'crew'
   return 'management'
 }
 
