@@ -56,6 +56,11 @@ import {
   type SaveVesselCertificateRequest,
   type SetRenewalRequest,
   type Timesheet,
+  type AuditRecord,
+  type RegulatoryItem,
+  type SaveAuditRequest,
+  type SaveFindingRequest,
+  type SaveRegulatoryItemRequest,
   type TravelItem,
   type VesselCertificate,
   type PageCopy,
@@ -527,6 +532,41 @@ export function useGenerateReminders() {
 }
 export function useMarkReminderSent() {
   return useOpsMutation(['reminders'], ({ id, channel }: { id: number; channel: string }) => api.markReminderSent(id, channel))
+}
+
+export function useAudits(partnership: string | null): UseQueryResult<AuditRecord[]> {
+  return useQuery({ queryKey: ['audits', partnership ?? ''], queryFn: () => api.audits(partnership as string), enabled: partnership !== null })
+}
+export function useCreateAudit() {
+  return useOpsMutation(['audits'], ({ partnership, body }: { partnership: string; body: SaveAuditRequest }) => api.createAudit(partnership, body))
+}
+export function useUpdateAudit() {
+  return useOpsMutation(['audits'], ({ id, body }: { id: number; body: SaveAuditRequest }) => api.updateAudit(id, body))
+}
+export function useAddFinding() {
+  return useOpsMutation(['audits'], ({ auditId, body }: { auditId: number; body: SaveFindingRequest }) => api.addFinding(auditId, body))
+}
+export function useUpdateFinding() {
+  return useOpsMutation(['audits'], ({ id, body }: { id: number; body: SaveFindingRequest }) => api.updateFinding(id, body))
+}
+export function useRemoveFinding() {
+  return useOpsMutation(['audits'], (id: number) => api.removeFinding(id))
+}
+
+export function useRegulatory(partnership: string | null): UseQueryResult<RegulatoryItem[]> {
+  return useQuery({ queryKey: ['regulatory', partnership ?? ''], queryFn: () => api.regulatory(partnership as string), enabled: partnership !== null })
+}
+export function useAddRegulatory() {
+  return useOpsMutation(['regulatory'], ({ partnership, body }: { partnership: string; body: SaveRegulatoryItemRequest }) => api.addRegulatory(partnership, body))
+}
+export function useAddStandardRegulatory() {
+  return useOpsMutation(['regulatory'], (partnership: string) => api.addStandardRegulatory(partnership))
+}
+export function useUpdateRegulatory() {
+  return useOpsMutation(['regulatory'], ({ id, body }: { id: number; body: SaveRegulatoryItemRequest }) => api.updateRegulatory(id, body))
+}
+export function useRemoveRegulatory() {
+  return useOpsMutation(['regulatory'], (id: number) => api.removeRegulatory(id))
 }
 
 export function useTimesheet(partnership: string | null, from: string, to: string): UseQueryResult<Timesheet> {

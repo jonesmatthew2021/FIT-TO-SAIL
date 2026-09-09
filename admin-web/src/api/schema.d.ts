@@ -3828,6 +3828,330 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ops/audits/findings/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change or close a finding — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveFindingRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditFindingDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Remove a finding raised in error — audited */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/audits/item/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change an audit — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveAuditRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/audits/item/{id}/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Raise a finding on an audit — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveFindingRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditFindingDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/audits/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The ship's audits, newest first, with their findings */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Record an audit — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveAuditRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuditDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ops/calendar/{partnership}.ics": {
         parameters: {
             query?: never;
@@ -4557,6 +4881,256 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/regulatory/item/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a requirement's status, evidence or due date — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveRegulatoryItemRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RegulatoryItemDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Remove a requirement — audited */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/regulatory/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The ship's National Law requirements and where each stands */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RegulatoryItemDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Add a requirement — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveRegulatoryItemRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RegulatoryItemDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/regulatory/{partnership}/standard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add the standard domestic commercial vessel list — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RegulatoryItemDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -8659,6 +9233,31 @@ export interface components {
             signedAt: components["schemas"]["Instant"];
             signedAtDisplay: string;
         };
+        AuditDto: {
+            /** Format: int64 */
+            id: number;
+            kind: string;
+            auditor: string | null;
+            auditDate: components["schemas"]["LocalDate"];
+            scope: string | null;
+            outcome: string | null;
+            status: string;
+            note: string | null;
+            findings: components["schemas"]["AuditFindingDto"][];
+        };
+        AuditFindingDto: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            auditId: number;
+            reference: string | null;
+            severity: string;
+            description: string;
+            correctiveAction: string | null;
+            owner: string | null;
+            dueOn: components["schemas"]["LocalDate"] | null;
+            closedOn: components["schemas"]["LocalDate"] | null;
+        };
         CellDto: {
             /** Format: int64 */
             requirementId: number;
@@ -8725,6 +9324,8 @@ export interface components {
             abbrev: string;
             name: string;
             vesselClass?: string | null;
+            registry?: string | null;
+            regime?: string | null;
         };
         CreatePersonRequest: {
             name: string;
@@ -9211,6 +9812,8 @@ export interface components {
             /** Format: int32 */
             rosterCycleDays: number | null;
             rosterAnchorCrew: string | null;
+            registry: string | null;
+            regime: string | null;
         };
         PatternDto: {
             rosterAnchor: components["schemas"]["LocalDate"] | null;
@@ -9379,6 +9982,18 @@ export interface components {
             actor: string;
             occurredAt: components["schemas"]["Instant"];
         };
+        RegulatoryItemDto: {
+            /** Format: int64 */
+            id: number;
+            reference: string;
+            title: string;
+            kind: string;
+            status: string;
+            evidence: string | null;
+            nextDue: components["schemas"]["LocalDate"] | null;
+            responsible: string | null;
+            note: string | null;
+        };
         RejectEvidenceRequest: {
             reason: string;
         };
@@ -9494,6 +10109,15 @@ export interface components {
             to: string | null;
             kind: string;
         };
+        SaveAuditRequest: {
+            kind: string;
+            auditor?: string | null;
+            auditDate: components["schemas"]["LocalDate"];
+            scope?: string | null;
+            outcome?: string | null;
+            status?: string;
+            note?: string | null;
+        };
         SaveBusinessRequest: {
             billingEmail?: string | null;
             abn?: string | null;
@@ -9511,6 +10135,15 @@ export interface components {
             notes?: string | null;
             status?: string;
         };
+        SaveFindingRequest: {
+            reference?: string | null;
+            severity: string;
+            description: string;
+            correctiveAction?: string | null;
+            owner?: string | null;
+            dueOn?: components["schemas"]["LocalDate"] | null;
+            closedOn?: components["schemas"]["LocalDate"] | null;
+        };
         SavePersonDetailRequest: {
             passportNumber?: string | null;
             passportExpiry?: components["schemas"]["LocalDate"] | null;
@@ -9525,6 +10158,16 @@ export interface components {
             ppeSizes?: string | null;
             dietary?: string | null;
             notes?: string | null;
+        };
+        SaveRegulatoryItemRequest: {
+            reference: string;
+            title: string;
+            kind: string;
+            status?: string;
+            evidence?: string | null;
+            nextDue?: components["schemas"]["LocalDate"] | null;
+            responsible?: string | null;
+            note?: string | null;
         };
         SaveRequirementRequest: {
             code?: string | null;

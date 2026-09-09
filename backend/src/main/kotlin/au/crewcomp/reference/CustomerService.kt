@@ -239,7 +239,7 @@ class CustomerService(
      * they are added; the seeders were the only way before.
      */
     @Transactional
-    fun createPartnership(customerId: Long, abbrev: String, name: String, vesselClass: String?): Partnership {
+    fun createPartnership(customerId: Long, abbrev: String, name: String, vesselClass: String?, registry: String? = null, regime: String? = null): Partnership {
         policy.require(Role.COMPLIANCE_LEAD, Role.SYSTEM_ADMINISTRATOR)
         policy.assertNotReadOnlyActor()
 
@@ -250,6 +250,8 @@ class CustomerService(
             "An operation's code is 2–6 letters or digits (the swing calendar and the register key on it)"
         }
         require(cleanName.isNotEmpty()) { "An operation needs a name" }
+        require(registry == null || registry in setOf("australian", "international")) { "A vessel is Australian or internationally registered" }
+        require(regime == null || regime in setOf("domestic", "international")) { "The manning regime is domestic (National Law) or international (STCW/SOLAS)" }
         partnerships.byAbbrev(cleanAbbrev)?.let {
             throw IllegalArgumentException("Code $cleanAbbrev is already ${it.name}")
         }
@@ -258,6 +260,8 @@ class CustomerService(
             this.abbrev = cleanAbbrev
             this.name = cleanName
             this.vesselClass = vesselClass?.trim()?.ifEmpty { null }
+            this.registry = registry
+            this.regime = regime
             this.customer = customer
             stampCreated(policy.actor().label)
         }
@@ -269,7 +273,7 @@ class CustomerService(
             event = "partnership.created",
             entityId = partnership.id,
             businessKey = partnership.abbrev,
-            after = mapOf("name" to cleanName, "vesselClass" to partnership.vesselClass, "customer" to customer.name),
+            after = mapOf("name" to cleanName, "vesselClass" to partnership.vesselClass, "customer" to customer.name, "registry" to registry, "regime" to regime),
         )
         return partnership
     }

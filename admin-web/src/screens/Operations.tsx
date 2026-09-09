@@ -2,7 +2,12 @@ import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   useAcknowledgeNotice,
+  useAddFinding,
+  useAddRegulatory,
+  useAddStandardRegulatory,
   useAddTravel,
+  useAudits,
+  useCreateAudit,
   useAllPartnerships,
   useAttachVesselCertificateFile,
   useClearRest,
@@ -18,15 +23,22 @@ import {
   usePositions,
   usePostNotice,
   useRecordLeave,
+  useRegulatory,
   useReminders,
+  useRemoveFinding,
+  useRemoveRegulatory,
   useRemoveTravel,
   useRestSummary,
   useSetLeaveStatus,
   useSetManning,
   useSetRest,
+  useSwingEvaluation,
   useTimesheet,
   useTravel,
   useUpcomingSwings,
+  useUpdateAudit,
+  useUpdateFinding,
+  useUpdateRegulatory,
   useUpdateTravel,
   useUpdateVesselCertificate,
   useVesselCertificates,
@@ -37,7 +49,13 @@ import {
 import {
   api,
   ApiError,
+  type AuditFinding,
+  type AuditRecord,
   type ManningRequirement,
+  type RegulatoryItem,
+  type SaveAuditRequest,
+  type SaveFindingRequest,
+  type SaveRegulatoryItemRequest,
   type Notice,
   type Partnership,
   type Person,
@@ -50,6 +68,7 @@ import { useHasRole, useToday } from '../api/session'
 import { Copy } from '../components/Copy'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Modal } from '../components/Modal'
+import { AuditPack } from '../components/AuditPack'
 import { ShipBar } from '../components/ShipBar'
 import { Spinner } from '../components/Spinner'
 import { downloadCsv, toCsv } from '../domain/csv'
@@ -65,6 +84,8 @@ const TABS = [
   { id: 'notices', label: 'Notices' },
   { id: 'reminders', label: 'Reminders' },
   { id: 'timesheets', label: 'Timesheets' },
+  { id: 'auditing', label: 'Auditing' },
+  { id: 'amsa', label: 'AMSA requirements' },
 ] as const
 
 type TabId = (typeof TABS)[number]['id']
@@ -124,6 +145,8 @@ export function Operations(): React.ReactNode {
       {tab === 'notices' && <NoticesTab ship={ship} />}
       {tab === 'reminders' && <RemindersTab ship={ship} />}
       {tab === 'timesheets' && <TimesheetsTab ship={ship} />}
+      {tab === 'auditing' && <AuditingTab ship={ship} />}
+      {tab === 'amsa' && <AmsaTab ship={ship} />}
     </div>
   )
 }
@@ -1320,5 +1343,527 @@ function TimesheetsTab({ ship }: { ship: Partnership }): React.ReactNode {
         </table>
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Auditing
+// ---------------------------------------------------------------------------
+
+const AUDIT_KINDS = [
+  { id: 'internal', label: 'Internal' },
+  { id: 'amsa', label: 'AMSA' },
+  { id: 'class', label: 'Class' },
+  { id: 'customer', label: 'Customer' },
+  { id: 'flag', label: 'Flag state' },
+  { id: 'other', label: 'Other' },
+] as const
+
+function AuditingTab({ ship }: { ship: Partnership }): React.ReactNode {
+  const today = useToday()
+  const audits = useAudits(ship.abbrev)
+  const upcoming = useUpcomingSwings(ship.abbrev)
+  const canEdit = useHasRole('compliance_lead', 'system_administrator')
+  const [editing, setEditing] = useState<AuditRecord | 'new' | null>(null)
+  const [raising, setRaising] = useState<AuditRecord | null>(null)
+  const [editingFinding, setEditingFinding] = useState<AuditFinding | null>(null)
+  const swings = [...(upcoming.data?.swings ?? [])].sort((a, b) => epochDay(a.from) - epochDay(b.from))
+  const onNow = swings.find((s) => epochDay(s.from) <= epochDay(today) && epochDay(s.to) >= epochDay(today)) ?? swings.find((s) => epochDay(s.from) > epochDay(today)) ?? swings[0]
+  const evaluation = useSwingEvaluation(onNow === undefined ? null : ship.abbrev, onNow?.ccId ?? null)
+
+  if (audits.isPending) return <Spinner label="Loading the audit register" />
+  if (audits.error !== null) return <ErrorPanel title="Could not load the audit register" error={audits.error} />
+
+  const open = audits.data.flatMap((a) => a.findings).filter((f) => f.closedOn === null)
+  const overdue = open.filter((f) => f.dueOn !== null && epochDay(f.dueOn) < epochDay(today))
+
+  return (
+    <div className="swing-page">
+      <section className={`section fold fold--${overdue.length > 0 ? 'critical' : open.length > 0 ? 'accent' : 'good'}`}>
+        <div className="section__header">
+          <div>
+            <h2 className="section__title">
+              {audits.data.length === 0
+                ? 'No audits recorded yet.'
+                : open.length === 0
+                  ? 'Every finding is closed.'
+                  : `${open.length} open ${open.length === 1 ? 'finding' : 'findings'}${overdue.length > 0 ? `, ${overdue.length} overdue` : ''}.`}
+            </h2>
+            <p className="section__note">
+              <Copy k="ops.audit-note">
+                Every audit the ship has had — internal, AMSA, class, the customer's — and what it found. A finding carries its severity, the corrective action, who owns it and when it is due; what the next auditor wants to see is the last lot closed. The audit pack writes the current swing down for them.
+              </Copy>
+            </p>
+          </div>
+          <span className="row-actions">
+            {onNow !== undefined && evaluation.data !== undefined && <AuditPack ship={ship} swing={onNow} evaluation={evaluation.data} />}
+            {canEdit && (
+              <button type="button" className="button button--primary" onClick={() => setEditing('new')}>
+                Record an audit
+              </button>
+            )}
+          </span>
+        </div>
+      </section>
+
+      {audits.data.map((audit) => (
+        <div key={audit.id} className="panel">
+          <div className="section__header">
+            <div>
+              <p className="panel__title">
+                {AUDIT_KINDS.find((k) => k.id === audit.kind)?.label ?? audit.kind} audit · {formatDate(audit.auditDate)}
+                {audit.auditor !== null && <span className="muted"> · {audit.auditor}</span>}
+              </p>
+              <p className="meta">
+                {audit.scope ?? 'no scope noted'}
+                {audit.outcome !== null && ` · outcome: ${audit.outcome}`}
+              </p>
+            </div>
+            <span className="row-actions">
+              <span className={`chip chip--${audit.status === 'closed' ? 'good' : audit.status === 'planned' ? 'muted' : 'accent'} chip--small`}>{audit.status}</span>
+              {canEdit && (
+                <>
+                  <button type="button" className="button button--quiet" onClick={() => setEditing(audit)}>
+                    Edit
+                  </button>
+                  <button type="button" className="button button--quiet" onClick={() => setRaising(audit)}>
+                    Raise a finding
+                  </button>
+                </>
+              )}
+            </span>
+          </div>
+          {audit.note !== null && <p className="panel__detail">{audit.note}</p>}
+          {audit.findings.length > 0 && (
+            <div className="table-block table-block--plain">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th scope="col">Ref</th>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Finding</th>
+                    <th scope="col">Corrective action</th>
+                    <th scope="col">Owner</th>
+                    <th scope="col">Due</th>
+                    <th scope="col">Closed</th>
+                    {canEdit && <th scope="col" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {audit.findings.map((f) => {
+                    const late = f.closedOn === null && f.dueOn !== null && epochDay(f.dueOn) < epochDay(today)
+                    return (
+                      <tr key={f.id}>
+                        <td className="mono">{f.reference ?? '—'}</td>
+                        <td>
+                          <span className={`chip chip--${f.severity === 'major' ? 'critical' : f.severity === 'minor' ? 'warning' : 'muted'} chip--small`}>{f.severity}</span>
+                        </td>
+                        <td className="table__wrap">{f.description}</td>
+                        <td className="table__wrap">{f.correctiveAction ?? <span className="dim">—</span>}</td>
+                        <td>{f.owner ?? <span className="dim">—</span>}</td>
+                        <td>{f.dueOn === null ? <span className="dim">—</span> : <span className={late ? 'chip chip--critical chip--small' : ''}>{formatDate(f.dueOn)}</span>}</td>
+                        <td>{f.closedOn === null ? <span className="chip chip--warning chip--small">open</span> : <span className="chip chip--good chip--small">{formatDate(f.closedOn)}</span>}</td>
+                        {canEdit && (
+                          <td>
+                            <button type="button" className="link-action" onClick={() => setEditingFinding(f)}>
+                              {f.closedOn === null ? 'Update / close' : 'Edit'}
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {editing !== null && <AuditForm ship={ship} {...(editing === 'new' ? {} : { existing: editing })} onClose={() => setEditing(null)} />}
+      {raising !== null && <FindingForm auditId={raising.id} onClose={() => setRaising(null)} />}
+      {editingFinding !== null && <FindingForm auditId={editingFinding.auditId} existing={editingFinding} onClose={() => setEditingFinding(null)} />}
+    </div>
+  )
+}
+
+function AuditForm({ ship, existing, onClose }: { ship: Partnership; existing?: AuditRecord; onClose: () => void }): React.ReactNode {
+  const today = useToday()
+  const create = useCreateAudit()
+  const update = useUpdateAudit()
+  const [kind, setKind] = useState(existing?.kind ?? 'internal')
+  const [auditor, setAuditor] = useState(existing?.auditor ?? '')
+  const [auditDate, setAuditDate] = useState(existing?.auditDate ?? today)
+  const [scope, setScope] = useState(existing?.scope ?? '')
+  const [outcome, setOutcome] = useState(existing?.outcome ?? '')
+  const [status, setStatus] = useState(existing?.status ?? 'open')
+  const [note, setNote] = useState(existing?.note ?? '')
+  const pending = create.isPending || update.isPending
+  const body: SaveAuditRequest = { kind, auditor: auditor === '' ? null : auditor, auditDate, scope: scope === '' ? null : scope, outcome: outcome === '' ? null : outcome, status, note: note === '' ? null : note }
+  return (
+    <Modal title={existing === undefined ? `Record an audit of ${ship.abbrev}` : 'Edit the audit'} onClose={onClose}>
+      <form
+        className="editor"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (existing === undefined) create.mutate({ partnership: ship.abbrev, body }, { onSuccess: onClose })
+          else update.mutate({ id: existing.id, body }, { onSuccess: onClose })
+        }}
+      >
+        <label className="field field--inline">
+          <span className="field__label">Kind</span>
+          <select className="input" value={kind} onChange={(event) => setKind(event.target.value)}>
+            {AUDIT_KINDS.map((k) => (
+              <option key={k.id} value={k.id}>
+                {k.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Date</span>
+          <input className="input" type="date" value={auditDate} onChange={(event) => setAuditDate(event.target.value)} />
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Auditor</span>
+          <input className="input" value={auditor} onChange={(event) => setAuditor(event.target.value)} placeholder="Who audited, and for whom" />
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Scope</span>
+          <input className="input" value={scope} onChange={(event) => setScope(event.target.value)} placeholder="SMS review, crew certificates, vessel survey" />
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Outcome</span>
+          <input className="input" value={outcome} onChange={(event) => setOutcome(event.target.value)} placeholder="Passed with two minors" />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Status</span>
+          <select className="input" value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="planned">Planned</option>
+            <option value="open">Open</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Note</span>
+          <textarea className="input" rows={2} value={note} onChange={(event) => setNote(event.target.value)} />
+        </label>
+        <div className="editor__actions">
+          <button type="submit" className="button button--primary" disabled={pending}>
+            {pending ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {(create.error ?? update.error) !== null && <p className="editor__error">{errorText(create.error ?? update.error)}</p>}
+      </form>
+    </Modal>
+  )
+}
+
+function FindingForm({ auditId, existing, onClose }: { auditId: number; existing?: AuditFinding; onClose: () => void }): React.ReactNode {
+  const today = useToday()
+  const add = useAddFinding()
+  const update = useUpdateFinding()
+  const remove = useRemoveFinding()
+  const [reference, setReference] = useState(existing?.reference ?? '')
+  const [severity, setSeverity] = useState(existing?.severity ?? 'minor')
+  const [description, setDescription] = useState(existing?.description ?? '')
+  const [correctiveAction, setCorrectiveAction] = useState(existing?.correctiveAction ?? '')
+  const [owner, setOwner] = useState(existing?.owner ?? '')
+  const [dueOn, setDueOn] = useState(existing?.dueOn ?? '')
+  const [closedOn, setClosedOn] = useState(existing?.closedOn ?? '')
+  const pending = add.isPending || update.isPending || remove.isPending
+  const body: SaveFindingRequest = {
+    reference: reference === '' ? null : reference,
+    severity,
+    description,
+    correctiveAction: correctiveAction === '' ? null : correctiveAction,
+    owner: owner === '' ? null : owner,
+    dueOn: dueOn === '' ? null : dueOn,
+    closedOn: closedOn === '' ? null : closedOn,
+  }
+  return (
+    <Modal title={existing === undefined ? 'Raise a finding' : 'The finding'} onClose={onClose}>
+      <form
+        className="editor"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (existing === undefined) add.mutate({ auditId, body }, { onSuccess: onClose })
+          else update.mutate({ id: existing.id, body }, { onSuccess: onClose })
+        }}
+      >
+        <label className="field field--inline">
+          <span className="field__label">Reference</span>
+          <input className="input input--level" value={reference} onChange={(event) => setReference(event.target.value)} placeholder="NC-1" />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Severity</span>
+          <select className="input" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+            <option value="major">Major</option>
+            <option value="minor">Minor</option>
+            <option value="observation">Observation</option>
+          </select>
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">What was found</span>
+          <textarea className="input" rows={3} value={description} onChange={(event) => setDescription(event.target.value)} />
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Corrective action</span>
+          <textarea className="input" rows={2} value={correctiveAction} onChange={(event) => setCorrectiveAction(event.target.value)} />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Owner</span>
+          <input className="input" value={owner} onChange={(event) => setOwner(event.target.value)} />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Due</span>
+          <input className="input" type="date" value={dueOn} onChange={(event) => setDueOn(event.target.value)} />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Closed on</span>
+          <input className="input" type="date" value={closedOn} onChange={(event) => setClosedOn(event.target.value)} />
+        </label>
+        <div className="editor__actions">
+          <button type="submit" className="button button--primary" disabled={pending || description.trim() === ''}>
+            {pending ? 'Saving…' : 'Save'}
+          </button>
+          {existing !== undefined && existing.closedOn === null && (
+            <button type="button" className="button" disabled={pending} onClick={() => update.mutate({ id: existing.id, body: { ...body, closedOn: today } }, { onSuccess: onClose })}>
+              Close it today
+            </button>
+          )}
+          {existing !== undefined && (
+            <button type="button" className="button button--quiet" disabled={pending} onClick={() => remove.mutate(existing.id, { onSuccess: onClose })}>
+              Remove
+            </button>
+          )}
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {(add.error ?? update.error ?? remove.error) !== null && <p className="editor__error">{errorText(add.error ?? update.error ?? remove.error)}</p>}
+      </form>
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// AMSA requirements
+// ---------------------------------------------------------------------------
+
+const REG_STATUSES = [
+  { id: 'met', label: 'Met', tone: 'good' },
+  { id: 'not_met', label: 'Not met', tone: 'critical' },
+  { id: 'unknown', label: 'Not yet known', tone: 'caution' },
+  { id: 'not_applicable', label: 'Not applicable', tone: 'muted' },
+] as const
+
+function AmsaTab({ ship }: { ship: Partnership }): React.ReactNode {
+  const today = useToday()
+  const items = useRegulatory(ship.abbrev)
+  const addStandard = useAddStandardRegulatory()
+  const canEdit = useHasRole('compliance_lead', 'system_administrator')
+  const [editing, setEditing] = useState<RegulatoryItem | 'new' | null>(null)
+
+  if (items.isPending) return <Spinner label="Loading the requirements" />
+  if (items.error !== null) return <ErrorPanel title="Could not load the requirements" error={items.error} />
+
+  const notMet = items.data.filter((i) => i.status === 'not_met')
+  const unknown = items.data.filter((i) => i.status === 'unknown')
+  const dueSoon = items.data.filter((i) => i.nextDue !== null && i.status !== 'not_applicable' && daysBetween(today, i.nextDue) <= 60)
+  const regime = ship.regime === 'international' ? 'international (STCW / SOLAS)' : ship.regime === 'domestic' ? 'domestic commercial vessel (National Law)' : 'not yet chosen'
+
+  return (
+    <div className="swing-page">
+      <section className={`section fold fold--${notMet.length > 0 ? 'critical' : unknown.length > 0 ? 'accent' : items.data.length === 0 ? 'accent' : 'good'}`}>
+        <div className="section__header">
+          <div>
+            <h2 className="section__title">
+              {items.data.length === 0
+                ? 'No requirements listed yet.'
+                : notMet.length > 0
+                  ? `${notMet.length} ${notMet.length === 1 ? 'requirement is' : 'requirements are'} not met.`
+                  : unknown.length > 0
+                    ? `${unknown.length} ${unknown.length === 1 ? 'requirement has' : 'requirements have'} not been checked yet.`
+                    : 'Every listed requirement is met.'}
+            </h2>
+            <p className="section__note">
+              <Copy k="ops.amsa-note">
+                What the vessel answers to and where each item stands — met, not met, not yet known — with the evidence that says so and when it next falls due. Start from the standard list for the vessel's regime and edit it to the vessel.
+              </Copy>{' '}
+              This ship: <strong>{ship.registry === 'international' ? 'internationally registered' : ship.registry === 'australian' ? 'Australian registered' : 'registration not recorded'}</strong>, manning regime <strong>{regime}</strong>.
+            </p>
+          </div>
+          <span className="row-actions">
+            {canEdit && (
+              <>
+                <button type="button" className="button" disabled={addStandard.isPending} onClick={() => addStandard.mutate(ship.abbrev)}>
+                  {addStandard.isPending ? 'Adding…' : ship.regime === 'international' ? 'Add the international list' : 'Add the National Law list'}
+                </button>
+                <button type="button" className="button button--primary" onClick={() => setEditing('new')}>
+                  Add a requirement
+                </button>
+              </>
+            )}
+          </span>
+        </div>
+        {dueSoon.length > 0 && (
+          <p className="muted">
+            Falling due inside 60 days: {dueSoon.map((i) => `${i.title} (${formatDayMonth(i.nextDue as string)})`).join(' · ')}
+          </p>
+        )}
+      </section>
+
+      <div className="table-block table-block--plain">
+        <table className="table">
+          <thead>
+            <tr>
+              <th scope="col">Reference</th>
+              <th scope="col">Requirement</th>
+              <th scope="col">Kind</th>
+              <th scope="col">Status</th>
+              <th scope="col">Evidence</th>
+              <th scope="col">Next due</th>
+              <th scope="col">Responsible</th>
+              {canEdit && <th scope="col" />}
+            </tr>
+          </thead>
+          <tbody>
+            {items.data.length === 0 && (
+              <tr>
+                <td colSpan={8} className="empty">
+                  Nothing listed. Add the standard list to start.
+                </td>
+              </tr>
+            )}
+            {items.data.map((i) => {
+              const st = REG_STATUSES.find((x) => x.id === i.status)
+              const late = i.nextDue !== null && i.status !== 'not_applicable' && epochDay(i.nextDue) < epochDay(today)
+              return (
+                <tr key={i.id}>
+                  <td className="mono">{i.reference}</td>
+                  <td className="table__wrap">
+                    {i.title}
+                    {i.note !== null && <span className="meta"> · {i.note}</span>}
+                  </td>
+                  <td>{i.kind}</td>
+                  <td>
+                    <span className={`chip chip--${st?.tone ?? 'muted'} chip--small`}>{st?.label ?? i.status}</span>
+                  </td>
+                  <td className="table__wrap muted">{i.evidence ?? '—'}</td>
+                  <td>{i.nextDue === null ? <span className="dim">—</span> : <span className={late ? 'chip chip--critical chip--small' : ''}>{formatDate(i.nextDue)}</span>}</td>
+                  <td>{i.responsible ?? <span className="dim">—</span>}</td>
+                  {canEdit && (
+                    <td>
+                      <button type="button" className="link-action" onClick={() => setEditing(i)}>
+                        Update
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      {addStandard.error !== null && <p className="editor__error">{errorText(addStandard.error)}</p>}
+      {editing !== null && <RegulatoryForm ship={ship} {...(editing === 'new' ? {} : { existing: editing })} onClose={() => setEditing(null)} />}
+    </div>
+  )
+}
+
+function RegulatoryForm({ ship, existing, onClose }: { ship: Partnership; existing?: RegulatoryItem; onClose: () => void }): React.ReactNode {
+  const add = useAddRegulatory()
+  const update = useUpdateRegulatory()
+  const remove = useRemoveRegulatory()
+  const [reference, setReference] = useState(existing?.reference ?? '')
+  const [title, setTitle] = useState(existing?.title ?? '')
+  const [kind, setKind] = useState(existing?.kind ?? 'record')
+  const [status, setStatus] = useState(existing?.status ?? 'unknown')
+  const [evidence, setEvidence] = useState(existing?.evidence ?? '')
+  const [nextDue, setNextDue] = useState(existing?.nextDue ?? '')
+  const [responsible, setResponsible] = useState(existing?.responsible ?? '')
+  const [note, setNote] = useState(existing?.note ?? '')
+  const pending = add.isPending || update.isPending || remove.isPending
+  const body: SaveRegulatoryItemRequest = {
+    reference,
+    title,
+    kind,
+    status,
+    evidence: evidence === '' ? null : evidence,
+    nextDue: nextDue === '' ? null : nextDue,
+    responsible: responsible === '' ? null : responsible,
+    note: note === '' ? null : note,
+  }
+  return (
+    <Modal title={existing === undefined ? 'Add a requirement' : existing.title} onClose={onClose}>
+      <form
+        className="editor"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (existing === undefined) add.mutate({ partnership: ship.abbrev, body }, { onSuccess: onClose })
+          else update.mutate({ id: existing.id, body }, { onSuccess: onClose })
+        }}
+      >
+        <label className="field field--inline">
+          <span className="field__label">Reference</span>
+          <input className="input" value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Marine Order 504" />
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Requirement</span>
+          <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Kind</span>
+          <select className="input" value={kind} onChange={(event) => setKind(event.target.value)}>
+            {['certificate', 'system', 'record', 'survey', 'other'].map((k) => (
+              <option key={k} value={k}>
+                {k[0]?.toUpperCase()}{k.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="kind-choice" role="radiogroup" aria-label="Status">
+          {REG_STATUSES.map((s) => (
+            <button key={s.id} type="button" className={status === s.id ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setStatus(s.id)}>
+              <strong>{s.label}</strong>
+            </button>
+          ))}
+        </div>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Evidence</span>
+          <input className="input" value={evidence} onChange={(event) => setEvidence(event.target.value)} placeholder="Certificate no., where it is filed, who checked" />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Next due</span>
+          <input className="input" type="date" value={nextDue} onChange={(event) => setNextDue(event.target.value)} />
+        </label>
+        <label className="field field--inline">
+          <span className="field__label">Responsible</span>
+          <input className="input" value={responsible} onChange={(event) => setResponsible(event.target.value)} />
+        </label>
+        <label className="field field--inline field--grow">
+          <span className="field__label">Note</span>
+          <input className="input" value={note} onChange={(event) => setNote(event.target.value)} />
+        </label>
+        <div className="editor__actions">
+          <button type="submit" className="button button--primary" disabled={pending || reference.trim() === '' || title.trim() === ''}>
+            {pending ? 'Saving…' : 'Save'}
+          </button>
+          {existing !== undefined && (
+            <button type="button" className="button button--quiet" disabled={pending} onClick={() => remove.mutate(existing.id, { onSuccess: onClose })}>
+              Remove
+            </button>
+          )}
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {(add.error ?? update.error ?? remove.error) !== null && <p className="editor__error">{errorText(add.error ?? update.error ?? remove.error)}</p>}
+      </form>
+    </Modal>
   )
 }

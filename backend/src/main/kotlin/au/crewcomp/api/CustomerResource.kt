@@ -96,7 +96,7 @@ class CustomerResource(private val customers: CustomerService) {
         @PathParam("customerId") customerId: Long,
         request: CreatePartnershipRequest,
     ): PartnershipDto =
-        customers.createPartnership(customerId, request.abbrev, request.name, request.vesselClass).toDto()
+        customers.createPartnership(customerId, request.abbrev, request.name, request.vesselClass, request.registry, request.regime).toDto()
 
     @DELETE
     @Path("/partnerships/{partnershipId}")

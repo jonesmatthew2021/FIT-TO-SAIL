@@ -150,6 +150,8 @@ export function OperationForm({
   const [abbrev, setAbbrev] = useState('')
   const [name, setName] = useState('')
   const [vesselClass, setVesselClass] = useState('')
+  const [registry, setRegistry] = useState<'australian' | 'international' | null>(null)
+  const [regime, setRegime] = useState<'domestic' | 'international' | null>(null)
   const chosen = customer ?? customers.find((c) => c.id === customerId)
 
   return (
@@ -164,7 +166,7 @@ export function OperationForm({
           event.preventDefault()
           if (customerId === null) return
           create.mutate(
-            { customerId, body: { abbrev, name, vesselClass: vesselClass === '' ? null : vesselClass } },
+            { customerId, body: { abbrev, name, vesselClass: vesselClass === '' ? null : vesselClass, registry, regime } },
             { onSuccess: (partnership) => (onCreated === undefined ? onClose() : onCreated(partnership)) },
           )
         }}
@@ -200,11 +202,38 @@ export function OperationForm({
           <span className="field__label">Vessel class</span>
           <input className="input" value={vesselClass} onChange={(event) => setVesselClass(event.target.value)} placeholder="optional" />
         </label>
+        <p className="note">Two questions that decide which rules the ship answers to.</p>
+        <fieldset className="field field--inline field--grow">
+          <span className="field__label">Is the vessel Australian or internationally registered?</span>
+          <div className="kind-choice">
+            <button type="button" className={registry === 'australian' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => { setRegistry('australian'); if (regime === null) setRegime('domestic') }}>
+              <strong>Australian</strong>
+              <span>On the Australian register or the domestic commercial vessel fleet.</span>
+            </button>
+            <button type="button" className={registry === 'international' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => { setRegistry('international'); if (regime === null) setRegime('international') }}>
+              <strong>International</strong>
+              <span>Registered under another flag.</span>
+            </button>
+          </div>
+        </fieldset>
+        <fieldset className="field field--inline field--grow">
+          <span className="field__label">Which manning requirements does it fall under?</span>
+          <div className="kind-choice">
+            <button type="button" className={regime === 'domestic' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setRegime('domestic')}>
+              <strong>Domestic commercial vessel</strong>
+              <span>The National Law and AMSA's Marine Orders — crewing determined for the operation.</span>
+            </button>
+            <button type="button" className={regime === 'international' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setRegime('international')}>
+              <strong>International</strong>
+              <span>STCW and SOLAS — a Minimum Safe Manning Document and STCW certificates.</span>
+            </button>
+          </div>
+        </fieldset>
         <div className="editor__actions">
           <button
             type="submit"
             className="button button--primary"
-            disabled={create.isPending || customerId === null || abbrev.trim() === '' || name.trim() === ''}
+            disabled={create.isPending || customerId === null || abbrev.trim() === '' || name.trim() === '' || registry === null || regime === null}
           >
             {create.isPending ? 'Adding…' : 'Add ship'}
           </button>

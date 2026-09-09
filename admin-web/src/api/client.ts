@@ -129,6 +129,12 @@ export type NoticeAck = Schemas['NoticeAckDto']
 export type PostNoticeRequest = Schemas['PostNoticeRequest']
 export type Reminder = Schemas['ReminderDto']
 export type Timesheet = Schemas['TimesheetDto']
+export type AuditRecord = Schemas['AuditDto']
+export type AuditFinding = Schemas['AuditFindingDto']
+export type SaveAuditRequest = Schemas['SaveAuditRequest']
+export type SaveFindingRequest = Schemas['SaveFindingRequest']
+export type RegulatoryItem = Schemas['RegulatoryItemDto']
+export type SaveRegulatoryItemRequest = Schemas['SaveRegulatoryItemRequest']
 
 /** Day against night by rank — the office's balance rule, read on the server. */
 export type ShiftBalance = Schemas['ShiftBalanceDto']
@@ -749,6 +755,26 @@ export const api = {
     request(`/api/v1/ops/reminders/${encodeURIComponent(partnership)}/generate`, { method: 'POST' }),
   markReminderSent: (id: number, channel: string): Promise<Reminder> =>
     request(`/api/v1/ops/reminders/${id}/sent`, { method: 'PUT', body: JSON.stringify({ channel }) }),
+
+  audits: (partnership: string): Promise<AuditRecord[]> => request(`/api/v1/ops/audits/${encodeURIComponent(partnership)}`),
+  createAudit: (partnership: string, body: SaveAuditRequest): Promise<AuditRecord> =>
+    request(`/api/v1/ops/audits/${encodeURIComponent(partnership)}`, { method: 'POST', body: JSON.stringify(body) }),
+  updateAudit: (id: number, body: SaveAuditRequest): Promise<AuditRecord> =>
+    request(`/api/v1/ops/audits/item/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  addFinding: (auditId: number, body: SaveFindingRequest): Promise<AuditFinding> =>
+    request(`/api/v1/ops/audits/item/${auditId}/findings`, { method: 'POST', body: JSON.stringify(body) }),
+  updateFinding: (id: number, body: SaveFindingRequest): Promise<AuditFinding> =>
+    request(`/api/v1/ops/audits/findings/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  removeFinding: (id: number): Promise<void> => request(`/api/v1/ops/audits/findings/${id}`, { method: 'DELETE' }),
+
+  regulatory: (partnership: string): Promise<RegulatoryItem[]> => request(`/api/v1/ops/regulatory/${encodeURIComponent(partnership)}`),
+  addRegulatory: (partnership: string, body: SaveRegulatoryItemRequest): Promise<RegulatoryItem> =>
+    request(`/api/v1/ops/regulatory/${encodeURIComponent(partnership)}`, { method: 'POST', body: JSON.stringify(body) }),
+  addStandardRegulatory: (partnership: string): Promise<RegulatoryItem[]> =>
+    request(`/api/v1/ops/regulatory/${encodeURIComponent(partnership)}/standard`, { method: 'POST' }),
+  updateRegulatory: (id: number, body: SaveRegulatoryItemRequest): Promise<RegulatoryItem> =>
+    request(`/api/v1/ops/regulatory/item/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  removeRegulatory: (id: number): Promise<void> => request(`/api/v1/ops/regulatory/item/${id}`, { method: 'DELETE' }),
 
   timesheet: (partnership: string, from: string, to: string): Promise<Timesheet> =>
     request(`/api/v1/ops/timesheets/${encodeURIComponent(partnership)}${query({ from, to })}`),

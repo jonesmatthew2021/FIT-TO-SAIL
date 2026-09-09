@@ -109,6 +109,14 @@ class Partnership : AuditedEntity() {
 
     @Column(name = "roster_anchor_crew")
     var rosterAnchorCrew: String? = null
+
+    /** `australian` · `international` — the flag the vessel sails under (V20). */
+    @Column(name = "registry")
+    var registry: String? = null
+
+    /** `domestic` (National Law, domestic commercial vessel) · `international` (STCW/SOLAS) — the manning regime (V20). */
+    @Column(name = "regime")
+    var regime: String? = null
 }
 
 @Entity

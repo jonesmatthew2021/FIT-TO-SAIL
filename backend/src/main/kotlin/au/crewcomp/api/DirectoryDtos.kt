@@ -53,6 +53,10 @@ data class PartnershipDto(
     val rosterAnchor: LocalDate?,
     val rosterCycleDays: Int?,
     val rosterAnchorCrew: String?,
+    /** `australian` · `international`, asked when the ship was added; null on ships from before. */
+    val registry: String?,
+    /** `domestic` · `international` — which manning regime the vessel answers to. */
+    val regime: String?,
 )
 
 /** The ship's swing pattern, set by the office. Nulls clear it. */
@@ -117,7 +121,7 @@ data class VesselDto(val id: Long, val name: String, val kind: String, val partn
 data class AddVesselRequest(val name: String, val kind: String)
 
 /** A new operation under a customer: the code the calendar and register key on, its name, its class. */
-data class CreatePartnershipRequest(val abbrev: String, val name: String, val vesselClass: String? = null)
+data class CreatePartnershipRequest(val abbrev: String, val name: String, val vesselClass: String? = null, val registry: String? = null, val regime: String? = null)
 
 /** Create and update share a body; status is only read on update (a new customer is active). */
 data class SaveCustomerRequest(
@@ -288,6 +292,8 @@ fun Partnership.toDto() = PartnershipDto(
     rosterAnchor = rosterAnchor,
     rosterCycleDays = rosterCycleDays,
     rosterAnchorCrew = rosterAnchorCrew,
+    registry = registry,
+    regime = regime,
 )
 
 fun CrewChange.toDto() = CrewChangeDto(
