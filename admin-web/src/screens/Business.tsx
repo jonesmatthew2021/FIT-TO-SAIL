@@ -619,21 +619,15 @@ function AccessTab({
   vessels: readonly Vessel[]
 }): React.ReactNode {
   const accounts = useUserAccounts()
-  const people = usePeople()
   const setAccountStatus = useSetUserAccountStatus()
   const [inviting, setInviting] = useState<Customer | null>(null)
 
   if (accounts.isPending) return <Spinner label="Loading the accounts" />
   if (accounts.error !== null) return <ErrorPanel title="Could not load the accounts" error={accounts.error} />
 
-  // An account belongs to a customer through the ships it is scoped to (management), or through
-  // the crew member it is (crew — no scope, their own record only). The rest are the office's.
-  const shipOfPerson = new Map((people.data ?? []).map((p) => [p.id, p.partnershipId]))
-  const customerOf = (a: UserAccount): Customer | undefined =>
-    customers.find((c) => a.scopedPartnershipIds.some((id) => c.partnershipIds.includes(id))) ??
-    (a.personId === null ? undefined : customers.find((c) => c.partnershipIds.includes(shipOfPerson.get(a.personId as number) ?? -1)))
-  const forCustomer = (customer: Customer) => accounts.data.filter((a) => customerOf(a)?.id === customer.id)
-  const office = accounts.data.filter((a) => customerOf(a) === undefined)
+  const forCustomer = (customer: Customer) =>
+    accounts.data.filter((a) => a.scopedPartnershipIds.length > 0 && a.scopedPartnershipIds.some((id) => customer.partnershipIds.includes(id)))
+  const office = accounts.data.filter((a) => a.scopedPartnershipIds.length === 0)
 
   return (
     <>
