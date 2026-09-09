@@ -846,6 +846,229 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/business/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every invoice, newest period first — or one customer's */
+        get: {
+            parameters: {
+                query: {
+                    customerId: number | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Raise an invoice as a draft — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreateInvoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/business/invoices/{invoiceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a draft's period, amount or note — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    invoiceId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["UpdateInvoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/business/invoices/{invoiceId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark an invoice sent, paid, void, or back to draft — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    invoiceId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetInvoiceStatusRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/copy": {
         parameters: {
             query?: never;
@@ -1731,6 +1954,69 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customerId}/business": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** The business side of a customer — billing address, plan, rate (system administrator) — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    customerId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveBusinessRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomerDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6644,6 +6930,15 @@ export interface components {
             tenantOrDomain: string;
             displayName: string;
         };
+        CreateInvoiceRequest: {
+            /** Format: int64 */
+            customerId: number;
+            periodStart: components["schemas"]["LocalDate"];
+            periodEnd: components["schemas"]["LocalDate"];
+            amount: number;
+            reference?: string | null;
+            note?: string | null;
+        };
         CreateMatrixDraftRequest: {
             label: string;
             /** Format: int64 */
@@ -6751,6 +7046,12 @@ export interface components {
             notes: string | null;
             status: string;
             partnershipIds: number[];
+            billingEmail: string | null;
+            abn: string | null;
+            address: string | null;
+            plan: string | null;
+            ratePerShipMonth: number | null;
+            billingNotes: string | null;
         };
         DecideCrewRequestRequest: {
             note: string;
@@ -6904,6 +7205,22 @@ export interface components {
             extraction: components["schemas"]["ExtractedFieldDto"][];
             people: components["schemas"]["PersonSuggestionDto"][];
             requirements: components["schemas"]["RequirementDto"][];
+        };
+        InvoiceDto: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            customerId: number;
+            customerName: string;
+            reference: string;
+            periodStart: components["schemas"]["LocalDate"];
+            periodEnd: components["schemas"]["LocalDate"];
+            amount: number;
+            status: string;
+            issuedOn: components["schemas"]["LocalDate"] | null;
+            dueOn: components["schemas"]["LocalDate"] | null;
+            paidOn: components["schemas"]["LocalDate"] | null;
+            note: string | null;
         };
         JobRunDto: {
             startedAt: components["schemas"]["Instant"];
@@ -7240,6 +7557,14 @@ export interface components {
             to: string | null;
             kind: string;
         };
+        SaveBusinessRequest: {
+            billingEmail?: string | null;
+            abn?: string | null;
+            address?: string | null;
+            plan?: string | null;
+            ratePerShipMonth?: number | null;
+            billingNotes?: string | null;
+        };
         SaveCustomerRequest: {
             name: string;
             shortName?: string | null;
@@ -7292,6 +7617,11 @@ export interface components {
             expiry?: components["schemas"]["LocalDate"] | null;
             issueDate?: components["schemas"]["LocalDate"] | null;
             note?: string | null;
+        };
+        SetInvoiceStatusRequest: {
+            status: string;
+            on?: components["schemas"]["LocalDate"] | null;
+            dueOn?: components["schemas"]["LocalDate"] | null;
         };
         SetMatrixCellRequest: {
             /** Format: int64 */
@@ -7533,6 +7863,12 @@ export interface components {
         UpcomingSwingsDto: {
             swings: components["schemas"]["CrewChangeDto"][];
             unrostered: components["schemas"]["UnrosteredDto"][];
+        };
+        UpdateInvoiceRequest: {
+            periodStart: components["schemas"]["LocalDate"];
+            periodEnd: components["schemas"]["LocalDate"];
+            amount: number;
+            note?: string | null;
         };
         UpdateMatrixDraftRequest: {
             label: string;

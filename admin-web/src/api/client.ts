@@ -106,6 +106,10 @@ export type CreatePersonRequest = Schemas['CreatePersonRequest']
 /** One rewritten sentence (see components/Copy.tsx). */
 export type PageCopy = Schemas['PageCopyDto']
 
+/** One bill to a customer (BUS-1). */
+export type Invoice = Schemas['InvoiceDto']
+export type SaveBusinessRequest = Schemas['SaveBusinessRequest']
+
 /** Day against night by rank — the office's balance rule, read on the server. */
 export type ShiftBalance = Schemas['ShiftBalanceDto']
 
@@ -644,6 +648,21 @@ export const api = {
 
   clearPageCopy: (key: string): Promise<void> =>
     request(`/api/v1/copy/${encodeURIComponent(key)}`, { method: 'DELETE' }),
+
+  // The business behind the program (BUS-1): billing details and invoices. System administrator only.
+  setCustomerBusiness: (customerId: number, body: SaveBusinessRequest): Promise<Customer> =>
+    request(`/api/v1/customers/${customerId}/business`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  invoices: (customerId?: number): Promise<Invoice[]> => request(`/api/v1/business/invoices${query({ customerId })}`),
+
+  createInvoice: (body: { customerId: number; periodStart: string; periodEnd: string; amount: number; reference: string | null; note: string | null }): Promise<Invoice> =>
+    request('/api/v1/business/invoices', { method: 'POST', body: JSON.stringify(body) }),
+
+  updateInvoice: (invoiceId: number, body: { periodStart: string; periodEnd: string; amount: number; note: string | null }): Promise<Invoice> =>
+    request(`/api/v1/business/invoices/${invoiceId}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  setInvoiceStatus: (invoiceId: number, body: { status: string; on: string | null; dueOn: string | null }): Promise<Invoice> =>
+    request(`/api/v1/business/invoices/${invoiceId}/status`, { method: 'PUT', body: JSON.stringify(body) }),
 
   setRotation: (personId: number, rotation: string | null): Promise<Person> =>
     request(`/api/v1/people/${personId}/rotation`, { method: 'PUT', body: JSON.stringify({ rotation }) }),

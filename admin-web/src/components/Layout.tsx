@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useSession } from '../api/session'
+import { useIsCustomerStaff, useIsOffice, useSession } from '../api/session'
 import {
   rememberScope,
   useAllPartnerships,
@@ -116,6 +117,7 @@ export function Layout(): React.ReactNode {
         {/* Grouped rather than interleaved: a reader should be able to see at a glance how much of
             §6 exists, without reading a marker on every row. */}
         <nav className="shell__nav" aria-label="Modules">
+          <BusinessGroup />
           <CompanyGroup />
           <ComplianceGroup />
           <NavGroup label="Not built" items={NAV_ITEMS.filter((item) => !item.built)} later />
@@ -160,11 +162,50 @@ function UnreadBadge(): React.ReactNode {
 /** Select-option sentinel for the manage-customers page — never a customer id. */
 const MANAGE = '__manage__'
 
+/**
+ * The office's own section (BUS-1): customers as clients, billing, access. Only a system
+ * administrator with the whole dataset sees it; the server refuses everyone else regardless.
+ */
+function BusinessGroup(): React.ReactNode {
+  const office = useIsOffice()
+  if (!office) return null
+  return (
+    <>
+      <p className="nav__group">Business</p>
+      <NavLink to="/business" className={({ isActive }) => (isActive ? 'nav__item nav__item--active' : 'nav__item')}>
+        <span className="nav__label">Business</span>
+        {SHOW_SCREEN_CODES && <span className="nav__module">BUS-1</span>}
+      </NavLink>
+    </>
+  )
+}
+
 function CompanyGroup(): React.ReactNode {
   const customers = useCustomers()
   const scope = useCustomerScope()
   const location = useLocation()
   const navigate = useNavigate()
+  const staff = useIsCustomerStaff()
+  const own = staff ? (customers.data ?? [])[0] : undefined
+
+  // A customer's own staff: their company, fixed — no list, no "manage" — and their ships under it.
+  useEffect(() => {
+    if (own !== undefined && scope.customerId !== own.id) {
+      rememberScope(own.id, null)
+      void navigate(`${location.pathname}?customer=${own.id}`, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [own?.id, scope.customerId])
+
+  if (staff) {
+    return (
+      <>
+        <p className="nav__group">Company</p>
+        <p className="nav__fixed">{own?.name ?? '…'}</p>
+        {scope.customer !== null && <ShipBox customerId={scope.customer.id} partnershipIds={scope.customer.partnershipIds} />}
+      </>
+    )
+  }
 
   return (
     <>

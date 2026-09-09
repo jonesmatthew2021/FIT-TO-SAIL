@@ -3,6 +3,7 @@ package au.crewcomp.reference
 import au.crewcomp.platform.audit.AuditWriter
 import au.crewcomp.platform.persistence.EntityNotFoundException
 import au.crewcomp.platform.security.AccessPolicy
+import au.crewcomp.platform.security.DataScope
 import au.crewcomp.platform.security.Role
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.transaction.Transactional
@@ -28,12 +29,60 @@ class CustomerService(
     @Transactional
     fun list(): List<Customer> {
         policy.actor()
-        return customers.allOrdered()
+        val all = customers.allOrdered()
+        // A customer's own staff see their own company and nobody else's (BUS-1).
+        if (policy.scope() is DataScope.All) return all
+        return all.filter { customer -> partnerships.forCustomer(customer.requiredId).any { policy.canSeePartnership(it.requiredId) } }
     }
 
     @Transactional
     fun get(customerId: Long): Customer =
         customers.findById(customerId) ?: throw EntityNotFoundException("No customer $customerId")
+
+    /** Whether the actor may see what customers are charged (BUS-1): the office, not a customer's staff. */
+    fun canSeeBusiness(): Boolean = policy.actor().hasRole(Role.SYSTEM_ADMINISTRATOR)
+
+    /** The business side (BUS-1): system administrator only, since it is what the customer is charged. */
+    @Transactional
+    fun updateBusiness(
+        customerId: Long,
+        billingEmail: String?,
+        abn: String?,
+        address: String?,
+        plan: String?,
+        ratePerShipMonth: java.math.BigDecimal?,
+        billingNotes: String?,
+    ): Customer {
+        policy.require(Role.SYSTEM_ADMINISTRATOR)
+        val customer = get(customerId)
+        require(ratePerShipMonth == null || ratePerShipMonth.signum() >= 0) { "A rate cannot be negative" }
+        val before = businessSnapshot(customer)
+        customer.billingEmail = billingEmail?.trim()?.ifEmpty { null }
+        customer.abn = abn?.trim()?.ifEmpty { null }
+        customer.address = address?.trim()?.ifEmpty { null }
+        customer.plan = plan?.trim()?.ifEmpty { null }
+        customer.ratePerShipMonth = ratePerShipMonth?.setScale(2, java.math.RoundingMode.HALF_UP)
+        customer.billingNotes = billingNotes?.trim()?.ifEmpty { null }
+        customer.stampUpdated(policy.actor().label)
+        audit.record(
+            entityType = "Customer",
+            event = "customer.business_updated",
+            entityId = customer.id,
+            businessKey = customer.name,
+            before = before,
+            after = businessSnapshot(customer),
+        )
+        return customer
+    }
+
+    private fun businessSnapshot(customer: Customer): Map<String, Any?> = mapOf(
+        "billingEmail" to customer.billingEmail,
+        "abn" to customer.abn,
+        "address" to customer.address,
+        "plan" to customer.plan,
+        "ratePerShipMonth" to customer.ratePerShipMonth?.toPlainString(),
+        "billingNotes" to customer.billingNotes,
+    )
 
     /** The partnerships run for one customer, and the ones run for nobody yet. */
     @Transactional

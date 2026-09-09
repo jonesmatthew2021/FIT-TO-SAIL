@@ -4395,3 +4395,87 @@ a.assistant__source:hover {
   margin: 8px 0 4px;
   font-size: 12px;
 }
+
+/* ---------------------------------------------------------------------------
+ * Business (BUS-1) — customers as clients, billing, access
+ * ------------------------------------------------------------------------- */
+
+.nav__fixed {
+  margin: 2px 8px 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--color-neutral-800);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.biz-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.biz-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-neutral-800);
+  border-left: 4px solid var(--color-accent-500);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.biz-card--former {
+  border-left-color: var(--color-neutral-600);
+  opacity: 0.8;
+}
+
+.biz-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.biz-card__name {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.biz-card__cols {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 1100px) {
+  .biz-card__cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+.biz-fact {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--color-neutral-800);
+}
+
+.biz-fact__label {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-neutral-400);
+  padding-top: 2px;
+}
+
+.biz-access {
+  margin-top: 8px;
+}
+
+.check-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}

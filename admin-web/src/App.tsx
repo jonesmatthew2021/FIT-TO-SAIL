@@ -4,6 +4,7 @@ import { ApiError } from './api/client'
 import { SessionProvider } from './api/session'
 import { Layout, NAV_ITEMS } from './components/Layout'
 import { Admin } from './screens/Admin'
+import { Business } from './screens/Business'
 import { Administration } from './screens/Administration'
 import { Company } from './screens/Company'
 import { CrewRequests } from './screens/CrewRequests'
@@ -45,6 +46,7 @@ export function App(): React.ReactNode {
             <Route element={<Layout />}>
               <Route index element={<Dashboard />} />
               <Route path="company" element={<Company />} />
+              <Route path="business" element={<Business />} />
               <Route path="admin" element={<Admin />} />
               <Route path="planner" element={<SwingPlanner />} />
               <Route path="swing-compliance" element={<SwingShiftCompliance />} />

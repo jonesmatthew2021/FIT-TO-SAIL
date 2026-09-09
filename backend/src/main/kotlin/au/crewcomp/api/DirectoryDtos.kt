@@ -92,6 +92,23 @@ data class CustomerDto(
     /** `active` · `former`. */
     val status: String,
     val partnershipIds: List<Long>,
+    // The business behind the program (BUS-1). Only a system administrator is shown these.
+    val billingEmail: String?,
+    val abn: String?,
+    val address: String?,
+    val plan: String?,
+    val ratePerShipMonth: java.math.BigDecimal?,
+    val billingNotes: String?,
+)
+
+/** The business side of a customer (BUS-1): where the bill goes and what it is billed on. */
+data class SaveBusinessRequest(
+    val billingEmail: String? = null,
+    val abn: String? = null,
+    val address: String? = null,
+    val plan: String? = null,
+    val ratePerShipMonth: java.math.BigDecimal? = null,
+    val billingNotes: String? = null,
 )
 
 /** A vessel in the fleet, on the operation it sails for. */

@@ -9,7 +9,7 @@ import {
   useVessels,
 } from '../api/queries'
 import { ApiError, type Customer, type Partnership } from '../api/client'
-import { useHasRole } from '../api/session'
+import { useHasRole, useIsCustomerStaff } from '../api/session'
 import { Modal } from './Modal'
 import { shipLabel } from './Layout'
 
@@ -30,7 +30,8 @@ export function ShipBar(): React.ReactNode {
   const customers = useCustomers()
   const partnerships = useAllPartnerships()
   const vessels = useVessels()
-  const canEdit = useHasRole(...FLEET_EDITORS)
+  const staff = useIsCustomerStaff()
+  const canEdit = useHasRole(...FLEET_EDITORS) && !staff
   const location = useLocation()
   const navigate = useNavigate()
   const remove = useDeletePartnership()

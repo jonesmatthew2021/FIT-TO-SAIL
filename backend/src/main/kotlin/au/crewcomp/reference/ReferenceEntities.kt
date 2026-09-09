@@ -52,6 +52,26 @@ class Customer : AuditedEntity() {
     @Column(name = "notes")
     var notes: String? = null
 
+    // The business behind the program (BUS-1, V17): where the bill goes and what it is billed on.
+    @Column(name = "billing_email")
+    var billingEmail: String? = null
+
+    @Column(name = "abn")
+    var abn: String? = null
+
+    @Column(name = "address")
+    var address: String? = null
+
+    /** The office's name for the arrangement — "Per ship, monthly", "Fixed annual", whatever it is. */
+    @Column(name = "plan")
+    var plan: String? = null
+
+    @Column(name = "rate_per_ship_month")
+    var ratePerShipMonth: java.math.BigDecimal? = null
+
+    @Column(name = "billing_notes")
+    var billingNotes: String? = null
+
     /** `active` · `former`. A former customer keeps its partnerships and their history. */
     @Column(name = "status", nullable = false)
     var status: String = "active"

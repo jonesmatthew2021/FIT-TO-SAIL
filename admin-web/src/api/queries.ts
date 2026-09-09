@@ -39,7 +39,9 @@ import {
   type MatrixVersionSummary,
   type Notification,
   type NotificationSummary,
+  type Invoice,
   type PageCopy,
+  type SaveBusinessRequest,
   type Partnership,
   type ShiftBalance,
   type Person,
@@ -362,6 +364,35 @@ export function useClearCopy() {
     mutationFn: (key: string) => api.clearPageCopy(key),
     onSuccess: () => void client.invalidateQueries({ queryKey: ['page-copy'] }),
   })
+}
+
+// ---------------------------------------------------------------------------
+// BUS-1 — the business behind the program
+// ---------------------------------------------------------------------------
+
+export function useInvoices(customerId?: number): UseQueryResult<Invoice[]> {
+  return useQuery({ queryKey: ['invoices', customerId ?? 'all'], queryFn: () => api.invoices(customerId) })
+}
+
+function useInvoiceMutation<TArgs>(mutationFn: (args: TArgs) => Promise<Invoice>) {
+  const client = useQueryClient()
+  return useMutation({ mutationFn, onSuccess: () => void client.invalidateQueries({ queryKey: ['invoices'] }) })
+}
+
+export function useCreateInvoice() {
+  return useInvoiceMutation((body: Parameters<typeof api.createInvoice>[0]) => api.createInvoice(body))
+}
+
+export function useUpdateInvoice() {
+  return useInvoiceMutation(({ invoiceId, body }: { invoiceId: number; body: Parameters<typeof api.updateInvoice>[1] }) => api.updateInvoice(invoiceId, body))
+}
+
+export function useSetInvoiceStatus() {
+  return useInvoiceMutation(({ invoiceId, body }: { invoiceId: number; body: Parameters<typeof api.setInvoiceStatus>[1] }) => api.setInvoiceStatus(invoiceId, body))
+}
+
+export function useSetCustomerBusiness() {
+  return useCustomerMutation(({ customerId, body }: { customerId: number; body: SaveBusinessRequest }) => api.setCustomerBusiness(customerId, body))
 }
 
 export function useSetActive() {

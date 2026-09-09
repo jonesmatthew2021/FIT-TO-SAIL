@@ -28,6 +28,12 @@ class AccessPolicy(private val actorContext: ActorContext) {
         val actor = actorContext.currentOrNull() ?: return DataScope.None
 
         if (actor.kind == ActorKind.SYSTEM) return DataScope.All
+        // An account scoped to partnerships is limited to them whatever its roles — a customer's
+        // own staff running their own ships (BUS-1). Only a system administrator, the office
+        // that runs the whole service, reads everything.
+        if (!actor.hasRole(Role.SYSTEM_ADMINISTRATOR) && actor.partnershipIds.isNotEmpty()) {
+            return DataScope.Partnerships(actor.partnershipIds, actor.personId)
+        }
         if (actor.roles.any { it in Role.UNRESTRICTED_READERS }) return DataScope.All
 
         if (actor.hasRole(Role.VESSEL_MASTER) && actor.partnershipIds.isNotEmpty()) {

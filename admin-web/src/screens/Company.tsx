@@ -26,7 +26,7 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { keys } from '../api/queries'
-import { useHasRole } from '../api/session'
+import { useHasRole, useIsCustomerStaff } from '../api/session'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Spinner'
@@ -45,6 +45,7 @@ const CUSTOMER_EDITORS = ['compliance_lead', 'system_administrator'] as const
  * theirs — the end state being one system running many businesses and their partnerships.
  */
 export function Company(): React.ReactNode {
+  const staff = useIsCustomerStaff()
   const customers = useCustomers()
   const partnerships = useAllPartnerships()
   const vessels = useVessels()
@@ -54,6 +55,7 @@ export function Company(): React.ReactNode {
   const canEdit = useHasRole(...CUSTOMER_EDITORS)
   const [adding, setAdding] = useState(false)
 
+  if (staff) return <p className="empty">Your company is managed by FIT TO SAIL. Pick a ship in the rail to work on it.</p>
   if (customers.isPending || partnerships.isPending || people.isPending || vessels.isPending) {
     return <Spinner label="Loading the customers" />
   }

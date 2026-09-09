@@ -44,6 +44,22 @@ export function useToday(): string {
   return useSession().today
 }
 
+/**
+ * A customer's own staff: an account scoped to some ships and not the office's system
+ * administrator (BUS-1). The server limits what they read; this only shapes the screen to match —
+ * one company in the rail, no business section, no adding or removing ships.
+ */
+export function useIsCustomerStaff(): boolean {
+  const session = useSession()
+  return session.partnershipIds.length > 0 && !session.roles.includes('system_administrator')
+}
+
+/** The office: a system administrator with the whole dataset — the one who runs the business. */
+export function useIsOffice(): boolean {
+  const session = useSession()
+  return session.roles.includes('system_administrator') && session.partnershipIds.length === 0
+}
+
 export function SessionProvider({ children }: { children: ReactNode }): ReactNode {
   const query = useQuery({
     queryKey: ['session'],

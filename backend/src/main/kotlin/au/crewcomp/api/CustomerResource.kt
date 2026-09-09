@@ -25,7 +25,11 @@ class CustomerResource(private val customers: CustomerService) {
 
     @GET
     @Operation(summary = "Every customer, by name, with the partnerships run for each")
-    fun list(): List<CustomerDto> = customers.list().map { it.toDto(customers.partnershipsFor(it.requiredId)) }
+    fun list(): List<CustomerDto> {
+        // The business side travels only to the office (BUS-1); a customer's own staff get the directory.
+        val business = customers.canSeeBusiness()
+        return customers.list().map { it.toDto(customers.partnershipsFor(it.requiredId), business) }
+    }
 
     @GET
     @Path("/unattached-partnerships")
@@ -121,6 +125,17 @@ class CustomerResource(private val customers: CustomerService) {
         customers.removeVessel(vesselId)
         return Response.noContent().build()
     }
+
+    @PUT
+    @Path("/{customerId}/business")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Operation(summary = "The business side of a customer — billing address, plan, rate (system administrator) — audited")
+    fun setBusiness(@PathParam("customerId") customerId: Long, request: SaveBusinessRequest): CustomerDto {
+        val customer = customers.updateBusiness(
+            customerId, request.billingEmail, request.abn, request.address, request.plan, request.ratePerShipMonth, request.billingNotes,
+        )
+        return customer.toDto(customers.partnershipsFor(customerId), business = true)
+    }
 }
 
 fun au.crewcomp.reference.Vessel.toDto() = VesselDto(
@@ -130,7 +145,7 @@ fun au.crewcomp.reference.Vessel.toDto() = VesselDto(
     partnershipId = partnership.requiredId,
 )
 
-fun Customer.toDto(partnerships: List<au.crewcomp.reference.Partnership>) = CustomerDto(
+fun Customer.toDto(partnerships: List<au.crewcomp.reference.Partnership>, business: Boolean = false) = CustomerDto(
     id = requiredId,
     name = name,
     shortName = shortName,
@@ -140,4 +155,10 @@ fun Customer.toDto(partnerships: List<au.crewcomp.reference.Partnership>) = Cust
     notes = notes,
     status = status,
     partnershipIds = partnerships.map { it.requiredId },
+    billingEmail = if (business) billingEmail else null,
+    abn = if (business) abn else null,
+    address = if (business) address else null,
+    plan = if (business) plan else null,
+    ratePerShipMonth = if (business) ratePerShipMonth else null,
+    billingNotes = if (business) billingNotes else null,
 )
