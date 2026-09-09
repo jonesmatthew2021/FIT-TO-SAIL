@@ -19,6 +19,8 @@ import { ErrorPanel } from './ErrorPanel'
 import { Spinner } from './Spinner'
 import { StateChip } from './StateChip'
 import { Copy } from './Copy'
+import { AuditPack } from './AuditPack'
+import { ManningCheck } from './ManningCheck'
 import { ShiftAllocation } from './ShiftAllocation'
 import { SwingDayGrid } from './SwingDayGrid'
 import { SwingReport } from './SwingReport'
@@ -452,6 +454,7 @@ function WhoIsClear({
             </p>
           </div>
           <div className="row-actions">
+            <AuditPack ship={ship} swing={swing} evaluation={evaluation} />
             {canEdit && swing.rotation !== null && (
               <button
                 type="button"
@@ -533,6 +536,8 @@ function WhoIsClear({
       </section>
 
       <ShiftAllocation ship={ship} swing={swing} evaluation={evaluation} />
+
+      <ManningCheck ship={ship} swing={swing} />
 
       <SwingReport ship={ship} swing={swing} evaluation={evaluation} />
     </>

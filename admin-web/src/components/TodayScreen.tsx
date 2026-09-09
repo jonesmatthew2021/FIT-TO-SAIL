@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAllHoldings, useEvidenceQueue, usePeople, useRequirements, useShipDocuments } from '../api/queries'
+import { useAllHoldings, useEvidenceQueue, usePeople, useRequirements, useShipDocuments, useCustomerScope, useLeave, useReminders, useVesselCertificates } from '../api/queries'
 import type { Partnership } from '../api/client'
 import { useToday } from '../api/session'
 import { ErrorPanel } from './ErrorPanel'
@@ -70,6 +70,7 @@ export function TodayScreen({ ship, go }: { ship: Partnership; go: (tab: string)
     const sheet = sheets.data?.find((s) => s.category === category)
     return sheet === undefined ? null : Math.max(0, -daysBetween(today, sheet.filedAt.slice(0, 10)))
   }
+  const ops = useOpsToday(ship)
   const opmsAge = sheetAge('opms-sheet')
   const certSheetAge = sheetAge('certificate-sheet')
 
@@ -126,9 +127,40 @@ export function TodayScreen({ ship, go }: { ship: Partnership; go: (tab: string)
           ))}
         </section>
       )}
+      {ops.length > 0 && (
+        <section className="section">
+          <h2 className="section__title">Under Operations</h2>
+          {ops.map((o, i) => (
+            <div key={i} className="today-attention">
+              <span className="today-attention__n">{o.n}</span>
+              <span className="today-attention__text">{o.text}</span>
+              <Link className="button button--quiet" to={o.to}>
+                {o.act}
+              </Link>
+            </div>
+          ))}
+        </section>
+      )}
       {attention.length === 0 && (
         <p className="section__note">Everything else is in order — spreadsheets fresh, files where they belong, no open questions.</p>
       )}
     </div>
   )
+}
+
+/** The Operations tabs' worklist for the day: reminders owed, the vessel's papers, who is away. */
+function useOpsToday(ship: Partnership): { n: number | string; text: string; to: string; act: string }[] {
+  const today = useToday()
+  const suffix = useCustomerScope().suffix
+  const reminders = useReminders(ship.abbrev, true)
+  const vessel = useVesselCertificates(ship.abbrev)
+  const leave = useLeave(ship.abbrev, today)
+  const lines: { n: number | string; text: string; to: string; act: string }[] = []
+  const owed = reminders.data?.length ?? 0
+  if (owed > 0) lines.push({ n: owed, text: 'reminders owed to crew about certificates running out', to: `/operations${suffix}&tab=reminders`, act: 'Send them' })
+  const papers = (vessel.data ?? []).filter((c) => c.expiresOn !== null && daysBetween(today, c.expiresOn) <= 90)
+  if (papers.length > 0) lines.push({ n: papers.length, text: `of the vessel's own certificates ${papers.length === 1 ? 'runs' : 'run'} out inside 90 days`, to: `/operations${suffix}&tab=vessel`, act: 'See them' })
+  const away = (leave.data ?? []).filter((l) => ['recorded', 'requested', 'approved'].includes(l.status) && daysBetween(today, l.from) <= 0 && daysBetween(today, l.to) >= 0)
+  if (away.length > 0) lines.push({ n: away.length, text: `away on leave today: ${away.map((l) => l.personName).join(', ')}`, to: `/operations${suffix}&tab=leave`, act: 'Leave' })
+  return lines
 }

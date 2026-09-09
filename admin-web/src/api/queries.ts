@@ -40,6 +40,24 @@ import {
   type Notification,
   type NotificationSummary,
   type Invoice,
+  type LeaveRecordLine,
+  type ManningCheck,
+  type ManningRequirement,
+  type Notice,
+  type NoticeAck,
+  type PersonDetail,
+  type PostNoticeRequest,
+  type RecordLeaveRequest,
+  type Reminder,
+  type Renewal,
+  type RestSummary,
+  type SavePersonDetailRequest,
+  type SaveTravelItemRequest,
+  type SaveVesselCertificateRequest,
+  type SetRenewalRequest,
+  type Timesheet,
+  type TravelItem,
+  type VesselCertificate,
   type PageCopy,
   type SaveBusinessRequest,
   type Partnership,
@@ -393,6 +411,126 @@ export function useSetInvoiceStatus() {
 
 export function useSetCustomerBusiness() {
   return useCustomerMutation(({ customerId, body }: { customerId: number; body: SaveBusinessRequest }) => api.setCustomerBusiness(customerId, body))
+}
+
+// ---------------------------------------------------------------------------
+// Operations (OPS) — around the engine
+// ---------------------------------------------------------------------------
+
+function useOpsMutation<TArgs, TResult>(keysToDrop: readonly string[], mutationFn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      for (const key of keysToDrop) void client.invalidateQueries({ queryKey: [key] })
+    },
+  })
+}
+
+export function useLeave(partnership: string | null, from?: string): UseQueryResult<LeaveRecordLine[]> {
+  return useQuery({ queryKey: ['leave', partnership ?? '', from ?? ''], queryFn: () => api.leaveFor(partnership as string, from), enabled: partnership !== null })
+}
+export function useRecordLeave() {
+  return useOpsMutation(['leave', 'swing', 'suggestions', 'upcoming-swings'], (body: RecordLeaveRequest) => api.recordLeave(body))
+}
+export function useSetLeaveStatus() {
+  return useOpsMutation(['leave', 'swing', 'suggestions', 'upcoming-swings'], ({ leaveId, status }: { leaveId: number; status: string }) => api.setLeaveStatus(leaveId, status))
+}
+
+export function useRenewals(partnership: string | null): UseQueryResult<Renewal[]> {
+  return useQuery({ queryKey: ['renewals', partnership ?? ''], queryFn: () => api.renewals(partnership as string), enabled: partnership !== null })
+}
+export function useSetRenewal() {
+  return useOpsMutation(['renewals'], ({ personId, requirementId, body }: { personId: number; requirementId: number; body: SetRenewalRequest }) => api.setRenewal(personId, requirementId, body))
+}
+export function useClearRenewal() {
+  return useOpsMutation(['renewals'], ({ personId, requirementId }: { personId: number; requirementId: number }) => api.clearRenewal(personId, requirementId))
+}
+
+export function useVesselCertificates(partnership: string | null): UseQueryResult<VesselCertificate[]> {
+  return useQuery({ queryKey: ['vessel-certificates', partnership ?? ''], queryFn: () => api.vesselCertificates(partnership as string), enabled: partnership !== null })
+}
+export function useCreateVesselCertificate() {
+  return useOpsMutation(['vessel-certificates'], ({ partnership, body }: { partnership: string; body: SaveVesselCertificateRequest }) => api.createVesselCertificate(partnership, body))
+}
+export function useUpdateVesselCertificate() {
+  return useOpsMutation(['vessel-certificates'], ({ id, body }: { id: number; body: SaveVesselCertificateRequest }) => api.updateVesselCertificate(id, body))
+}
+export function useAttachVesselCertificateFile() {
+  return useOpsMutation(['vessel-certificates'], ({ id, file }: { id: number; file: File }) => api.attachVesselCertificateFile(id, file))
+}
+export function useWithdrawVesselCertificate() {
+  return useOpsMutation(['vessel-certificates'], (id: number) => api.withdrawVesselCertificate(id))
+}
+
+export function useManning(partnership: string | null): UseQueryResult<ManningRequirement[]> {
+  return useQuery({ queryKey: ['manning', partnership ?? ''], queryFn: () => api.manning(partnership as string), enabled: partnership !== null })
+}
+export function useManningCheck(partnership: string | null, cc: string | null): UseQueryResult<ManningCheck> {
+  return useQuery({ queryKey: ['manning-check', partnership ?? '', cc ?? ''], queryFn: () => api.manningCheck(partnership as string, cc as string), enabled: partnership !== null && cc !== null })
+}
+export function useSetManning() {
+  return useOpsMutation(['manning', 'manning-check'], ({ partnership, requirements }: { partnership: string; requirements: ManningRequirement[] }) => api.setManning(partnership, requirements))
+}
+
+export function useRestSummary(partnership: string | null, from: string, to: string): UseQueryResult<RestSummary> {
+  return useQuery({ queryKey: ['rest', partnership ?? '', from, to], queryFn: () => api.restSummary(partnership as string, from, to), enabled: partnership !== null })
+}
+export function useSetRest() {
+  return useOpsMutation(['rest'], ({ personId, day, restHours, note }: { personId: number; day: string; restHours: number; note: string | null }) => api.setRest(personId, day, restHours, note))
+}
+export function useClearRest() {
+  return useOpsMutation(['rest'], ({ personId, day }: { personId: number; day: string }) => api.clearRest(personId, day))
+}
+
+export function useTravel(partnership: string | null, cc: string | null): UseQueryResult<TravelItem[]> {
+  return useQuery({ queryKey: ['travel', partnership ?? '', cc ?? ''], queryFn: () => api.travel(partnership as string, cc as string), enabled: partnership !== null && cc !== null })
+}
+export function useAddTravel() {
+  return useOpsMutation(['travel'], ({ partnership, cc, body }: { partnership: string; cc: string; body: SaveTravelItemRequest }) => api.addTravel(partnership, cc, body))
+}
+export function useUpdateTravel() {
+  return useOpsMutation(['travel'], ({ id, body }: { id: number; body: SaveTravelItemRequest }) => api.updateTravel(id, body))
+}
+export function useRemoveTravel() {
+  return useOpsMutation(['travel'], (id: number) => api.removeTravel(id))
+}
+
+export function usePersonDetail(personId: number): UseQueryResult<PersonDetail> {
+  return useQuery({ queryKey: ['person-detail', personId], queryFn: () => api.personDetail(personId) })
+}
+export function useSetPersonDetail() {
+  return useOpsMutation(['person-detail'], ({ personId, body }: { personId: number; body: SavePersonDetailRequest }) => api.setPersonDetail(personId, body))
+}
+
+export function useNotices(partnershipId?: number): UseQueryResult<Notice[]> {
+  return useQuery({ queryKey: ['notices', partnershipId ?? 'all'], queryFn: () => api.notices(partnershipId) })
+}
+export function useNoticeAcks(noticeId: number | null): UseQueryResult<NoticeAck[]> {
+  return useQuery({ queryKey: ['notice-acks', noticeId ?? 0], queryFn: () => api.noticeAcks(noticeId as number), enabled: noticeId !== null })
+}
+export function usePostNotice() {
+  return useOpsMutation(['notices'], (body: PostNoticeRequest) => api.postNotice(body))
+}
+export function useWithdrawNotice() {
+  return useOpsMutation(['notices'], (id: number) => api.withdrawNotice(id))
+}
+export function useAcknowledgeNotice() {
+  return useOpsMutation(['notices', 'notice-acks'], ({ id, personId }: { id: number; personId: number }) => api.acknowledgeNotice(id, personId))
+}
+
+export function useReminders(partnership: string | null, pending: boolean): UseQueryResult<Reminder[]> {
+  return useQuery({ queryKey: ['reminders', partnership ?? '', pending], queryFn: () => api.reminders(partnership as string, pending), enabled: partnership !== null })
+}
+export function useGenerateReminders() {
+  return useOpsMutation(['reminders'], (partnership: string) => api.generateReminders(partnership))
+}
+export function useMarkReminderSent() {
+  return useOpsMutation(['reminders'], ({ id, channel }: { id: number; channel: string }) => api.markReminderSent(id, channel))
+}
+
+export function useTimesheet(partnership: string | null, from: string, to: string): UseQueryResult<Timesheet> {
+  return useQuery({ queryKey: ['timesheet', partnership ?? '', from, to], queryFn: () => api.timesheet(partnership as string, from, to), enabled: partnership !== null })
 }
 
 export function useSetActive() {

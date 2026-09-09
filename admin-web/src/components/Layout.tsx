@@ -49,6 +49,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/people', label: 'Crew and certification', module: 'ADM-5', built: true },
   { to: '/planner', label: 'Crew and shift distribution', module: 'ADM-2', built: true },
   { to: '/swing-compliance', label: 'Swing and shift compliance', module: 'POR-2', built: true },
+  { to: '/operations', label: 'Operations', module: 'OPS-1', built: true },
   { to: '/matrix', label: 'Matrix', module: 'ADM-3', built: true },
   { to: '/register', label: 'Register', module: 'ADM-4', built: true },
   { to: '/exceptions', label: 'Exceptions', module: 'ADM-7', built: true },

@@ -6,12 +6,15 @@ import {
   usePerson,
   usePersonAssignments,
   usePersonEvidence,
+  useRenewals,
   useRequirements,
   useSetHolding,
 } from '../api/queries'
 import { api, ApiError, type EvidenceDocument, type Holding, type Requirement, type SetHoldingRequest } from '../api/client'
 import { useHasRole, useSession } from '../api/session'
 import { PersonCertificates, validityLabel } from '../components/CertificatesOnFile'
+import { PersonPapers } from '../components/PersonPapers'
+import { RenewalMark } from '../components/RenewalMark'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { RequirementLabel } from '../components/RequirementLabel'
 import { Spinner } from '../components/Spinner'
@@ -93,7 +96,9 @@ export function PersonDetail(): React.ReactNode {
         </dl>
       </header>
 
-      <HoldingsGrid personId={personId} sam={person.data.sam} />
+      <HoldingsGrid personId={personId} sam={person.data.sam} partnership={person.data.partnershipAbbrev} />
+
+      <PersonPapers personId={personId} />
 
       {/* The scans behind the holdings, on the same page as the holdings — where the portal's
           users look for them. */}
@@ -107,8 +112,9 @@ export function PersonDetail(): React.ReactNode {
   )
 }
 
-function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): React.ReactNode {
+function HoldingsGrid({ personId, sam, partnership }: { personId: number; sam: string; partnership: string }): React.ReactNode {
   const holdings = useHoldings(personId)
+  const renewals = useRenewals(partnership)
   const requirements = useRequirements()
   const documents = usePersonEvidence(personId)
   const canEdit = useHasRole(...HOLDING_EDITORS)
@@ -131,7 +137,8 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
     scans.set(document.matchedRequirementId, list)
   }
   for (const list of scans.values()) list.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
-  const columns = canEdit ? 7 : 6
+  const columns = canEdit ? 8 : 7
+  const renewalFor = (requirementId: number) => renewals.data?.find((r) => r.personId === personId && r.requirementId === requirementId)
 
   const grouped = new Map<string, Holding[]>()
   for (const holding of holdings.data) {
@@ -213,6 +220,7 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
               <col className="col-expiry" />
               <col className="col-validity" />
               <col className="col-certificate" />
+              <col className="col-renewal" />
               {canEdit && <col className="col-edit" />}
             </colgroup>
             <thead>
@@ -223,6 +231,7 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
                 <th scope="col">Expiry</th>
                 <th scope="col">Validity period</th>
                 <th scope="col">Certificate</th>
+                <th scope="col">Renewal</th>
                 {canEdit && <th scope="col" />}
               </tr>
             </thead>
@@ -306,6 +315,9 @@ function HoldingsGrid({ personId, sam }: { personId: number; sam: string }): Rea
                                 </span>
                               ))
                             )}
+                          </td>
+                          <td>
+                            <RenewalMark personId={personId} requirementId={holding.requirementId} renewal={renewalFor(holding.requirementId)} canEdit={canEdit} />
                           </td>
                           {canEdit && (
                             <td>

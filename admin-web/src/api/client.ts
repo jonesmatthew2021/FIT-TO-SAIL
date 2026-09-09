@@ -110,6 +110,26 @@ export type PageCopy = Schemas['PageCopyDto']
 export type Invoice = Schemas['InvoiceDto']
 export type SaveBusinessRequest = Schemas['SaveBusinessRequest']
 
+// Operations (OPS) — around the engine: leave, renewals, the vessel's papers, manning, rest, travel, papers, notices, reminders, timesheets
+export type LeaveRecordLine = Schemas['LeaveDto']
+export type RecordLeaveRequest = Schemas['RecordLeaveRequest']
+export type Renewal = Schemas['RenewalDto']
+export type SetRenewalRequest = Schemas['SetRenewalRequest']
+export type VesselCertificate = Schemas['VesselCertificateDto']
+export type SaveVesselCertificateRequest = Schemas['SaveVesselCertificateRequest']
+export type ManningRequirement = Schemas['ManningRequirementDto']
+export type ManningCheck = Schemas['ManningCheckDto']
+export type RestSummary = Schemas['RestSummaryDto']
+export type TravelItem = Schemas['TravelItemDto']
+export type SaveTravelItemRequest = Schemas['SaveTravelItemRequest']
+export type PersonDetail = Schemas['PersonDetailDto']
+export type SavePersonDetailRequest = Schemas['SavePersonDetailRequest']
+export type Notice = Schemas['NoticeDto']
+export type NoticeAck = Schemas['NoticeAckDto']
+export type PostNoticeRequest = Schemas['PostNoticeRequest']
+export type Reminder = Schemas['ReminderDto']
+export type Timesheet = Schemas['TimesheetDto']
+
 /** Day against night by rank — the office's balance rule, read on the server. */
 export type ShiftBalance = Schemas['ShiftBalanceDto']
 
@@ -663,6 +683,76 @@ export const api = {
 
   setInvoiceStatus: (invoiceId: number, body: { status: string; on: string | null; dueOn: string | null }): Promise<Invoice> =>
     request(`/api/v1/business/invoices/${invoiceId}/status`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  // --- Operations (OPS) ---
+  leaveFor: (partnership: string, from?: string): Promise<LeaveRecordLine[]> =>
+    request(`/api/v1/ops/leave/${encodeURIComponent(partnership)}${query({ from })}`),
+  recordLeave: (body: RecordLeaveRequest): Promise<LeaveRecordLine> => request('/api/v1/ops/leave', { method: 'POST', body: JSON.stringify(body) }),
+  setLeaveStatus: (leaveId: number, status: string): Promise<LeaveRecordLine> =>
+    request(`/api/v1/ops/leave/${leaveId}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+
+  renewals: (partnership: string): Promise<Renewal[]> => request(`/api/v1/ops/renewals/${encodeURIComponent(partnership)}`),
+  setRenewal: (personId: number, requirementId: number, body: SetRenewalRequest): Promise<Renewal> =>
+    request(`/api/v1/ops/renewals/${personId}/${requirementId}`, { method: 'PUT', body: JSON.stringify(body) }),
+  clearRenewal: (personId: number, requirementId: number): Promise<void> =>
+    request(`/api/v1/ops/renewals/${personId}/${requirementId}`, { method: 'DELETE' }),
+
+  vesselCertificates: (partnership: string): Promise<VesselCertificate[]> =>
+    request(`/api/v1/ops/vessel-certificates/${encodeURIComponent(partnership)}`),
+  createVesselCertificate: (partnership: string, body: SaveVesselCertificateRequest): Promise<VesselCertificate> =>
+    request(`/api/v1/ops/vessel-certificates/${encodeURIComponent(partnership)}`, { method: 'POST', body: JSON.stringify(body) }),
+  updateVesselCertificate: (id: number, body: SaveVesselCertificateRequest): Promise<VesselCertificate> =>
+    request(`/api/v1/ops/vessel-certificates/item/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  attachVesselCertificateFile: (id: number, file: File): Promise<VesselCertificate> =>
+    request(`/api/v1/ops/vessel-certificates/item/${id}/file`, {
+      method: 'POST',
+      headers: { 'Content-Type': file.type === '' ? 'application/octet-stream' : file.type, 'X-File-Name': encodeURIComponent(file.name) },
+      body: file,
+    }),
+  vesselCertificateUrl: (id: number): string => `/api/v1/ops/vessel-certificates/item/${id}/content`,
+  withdrawVesselCertificate: (id: number): Promise<void> => request(`/api/v1/ops/vessel-certificates/item/${id}`, { method: 'DELETE' }),
+
+  manning: (partnership: string): Promise<ManningRequirement[]> => request(`/api/v1/ops/manning/${encodeURIComponent(partnership)}`),
+  setManning: (partnership: string, requirements: ManningRequirement[]): Promise<ManningRequirement[]> =>
+    request(`/api/v1/ops/manning/${encodeURIComponent(partnership)}`, { method: 'PUT', body: JSON.stringify({ requirements }) }),
+  manningCheck: (partnership: string, cc: string): Promise<ManningCheck> =>
+    request(`/api/v1/ops/manning/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}/check`),
+
+  restSummary: (partnership: string, from: string, to: string): Promise<RestSummary> =>
+    request(`/api/v1/ops/rest/${encodeURIComponent(partnership)}${query({ from, to })}`),
+  setRest: (personId: number, day: string, restHours: number, note: string | null): Promise<unknown> =>
+    request(`/api/v1/ops/rest/${personId}/${day}`, { method: 'PUT', body: JSON.stringify({ restHours, note }) }),
+  clearRest: (personId: number, day: string): Promise<void> => request(`/api/v1/ops/rest/${personId}/${day}`, { method: 'DELETE' }),
+
+  travel: (partnership: string, cc: string): Promise<TravelItem[]> =>
+    request(`/api/v1/ops/travel/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}`),
+  addTravel: (partnership: string, cc: string, body: SaveTravelItemRequest): Promise<TravelItem> =>
+    request(`/api/v1/ops/travel/${encodeURIComponent(partnership)}/${encodeURIComponent(cc)}`, { method: 'POST', body: JSON.stringify(body) }),
+  updateTravel: (id: number, body: SaveTravelItemRequest): Promise<TravelItem> =>
+    request(`/api/v1/ops/travel/item/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  removeTravel: (id: number): Promise<void> => request(`/api/v1/ops/travel/item/${id}`, { method: 'DELETE' }),
+
+  personDetail: (personId: number): Promise<PersonDetail> => request(`/api/v1/ops/person-details/${personId}`),
+  setPersonDetail: (personId: number, body: SavePersonDetailRequest): Promise<PersonDetail> =>
+    request(`/api/v1/ops/person-details/${personId}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  notices: (partnershipId?: number): Promise<Notice[]> => request(`/api/v1/ops/notices${query({ partnershipId })}`),
+  postNotice: (body: PostNoticeRequest): Promise<Notice> => request('/api/v1/ops/notices', { method: 'POST', body: JSON.stringify(body) }),
+  withdrawNotice: (id: number): Promise<void> => request(`/api/v1/ops/notices/${id}`, { method: 'DELETE' }),
+  noticeAcks: (id: number): Promise<NoticeAck[]> => request(`/api/v1/ops/notices/${id}/acknowledgements`),
+  acknowledgeNotice: (id: number, personId: number): Promise<NoticeAck> =>
+    request(`/api/v1/ops/notices/${id}/acknowledge/${personId}`, { method: 'POST' }),
+
+  reminders: (partnership: string, pending: boolean): Promise<Reminder[]> =>
+    request(`/api/v1/ops/reminders/${encodeURIComponent(partnership)}${query({ pending: pending ? 'true' : undefined })}`),
+  generateReminders: (partnership: string): Promise<{ made: number; pending: number }> =>
+    request(`/api/v1/ops/reminders/${encodeURIComponent(partnership)}/generate`, { method: 'POST' }),
+  markReminderSent: (id: number, channel: string): Promise<Reminder> =>
+    request(`/api/v1/ops/reminders/${id}/sent`, { method: 'PUT', body: JSON.stringify({ channel }) }),
+
+  timesheet: (partnership: string, from: string, to: string): Promise<Timesheet> =>
+    request(`/api/v1/ops/timesheets/${encodeURIComponent(partnership)}${query({ from, to })}`),
+  calendarUrl: (partnership: string): string => `/api/v1/ops/calendar/${encodeURIComponent(partnership)}.ics`,
 
   setRotation: (personId: number, rotation: string | null): Promise<Person> =>
     request(`/api/v1/people/${personId}/rotation`, { method: 'PUT', body: JSON.stringify({ rotation }) }),

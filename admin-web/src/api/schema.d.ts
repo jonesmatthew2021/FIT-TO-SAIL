@@ -3828,6 +3828,1782 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ops/calendar/{partnership}.ics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The swing calendar as an iCalendar feed */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/calendar": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record leave — audited; a standing record is a clash on the planner */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RecordLeaveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeaveDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/leave/{leaveId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Approve, decline or cancel leave — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    leaveId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetLeaveStatusRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeaveDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/leave/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Leave on a ship's crew that ends on or after a day (today when omitted) */
+        get: {
+            parameters: {
+                query: {
+                    from: string | null;
+                };
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LeaveDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/manning/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The ship's minimum safe manning table */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManningRequirementDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** Replace the ship's manning table — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetManningRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManningRequirementDto"][];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/manning/{partnership}/{cc}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A swing's roster against the manning table */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cc: string;
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ManningCheckDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current notices — for one ship when given, else every one the caller may see */
+        get: {
+            parameters: {
+                query: {
+                    partnershipId: number | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NoticeDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Post a notice to a customer, a ship, or everyone — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PostNoticeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NoticeDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/notices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Withdraw a notice — audited */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/notices/{id}/acknowledge/{personId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a person's acknowledgement — from the crew app, or the office on their word */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                    personId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NoticeAckDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/notices/{id}/acknowledgements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Who has acknowledged a notice, and when */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NoticeAckDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/person-details/{personId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A crew member's papers and contacts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    personId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PersonDetailDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** Set a crew member's papers and contacts — audited by field name */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    personId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SavePersonDetailRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PersonDetailDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/reminders/{id}/sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark a reminder sent, and how — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MarkSentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReminderDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/reminders/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The reminder queue for a ship's crew — pending first */
+        get: {
+            parameters: {
+                query: {
+                    pending: boolean | null;
+                };
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReminderDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/reminders/{partnership}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bring the queue up to date from the holdings — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GeneratedDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/renewals/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every renewal mark on a ship's crew */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RenewalDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/renewals/{personId}/{requirementId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Mark what is being done about a certificate: booked, chased, evidence in — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    personId: number;
+                    requirementId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetRenewalRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RenewalDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Clear the mark — audited */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    personId: number;
+                    requirementId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/rest/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Hours of rest for a ship's crew over a range, with the breaches of 10-in-24 and 77-in-7 */
+        get: {
+            parameters: {
+                query: {
+                    from: string;
+                    to: string;
+                };
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RestSummaryDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/rest/{personId}/{day}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Record a person's rest for a day — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    day: string;
+                    personId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SetRestRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RestRecordDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Clear a day's record — audited */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    day: string;
+                    personId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/timesheets/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Days onboard per person over a range, from the roster */
+        get: {
+            parameters: {
+                query: {
+                    from: string;
+                    to: string;
+                };
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TimesheetDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/travel/item/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a travel item — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveTravelItemRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TravelItemDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Remove a travel item — audited */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/travel/{partnership}/{cc}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The travel behind a swing */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cc: string;
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TravelItemDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Add a flight, a bed or a transfer — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    cc: string;
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveTravelItemRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TravelItemDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/vessel-certificates/item/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change a vessel certificate's details — audited */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveVesselCertificateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VesselCertificateDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        /** Withdraw a vessel certificate from the file — audited */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/vessel-certificates/item/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The scan's bytes */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": unknown;
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/vessel-certificates/item/{id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Attach the scan — raw bytes, the file name URL-encoded in X-File-Name */
+        post: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-File-Name": string | null;
+                };
+                path: {
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "*/*": string;
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VesselCertificateDto"];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ops/vessel-certificates/{partnership}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The ship's own certificates, soonest to expire first */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VesselCertificateDto"][];
+                    };
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Add a vessel certificate — audited */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    partnership: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SaveVesselCertificateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["VesselCertificateDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Authorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Allowed */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/partnerships": {
         parameters: {
             query?: never;
@@ -7169,6 +8945,12 @@ export interface components {
             registerRecordId: string | null;
             notes: string[];
         };
+        GeneratedDto: {
+            /** Format: int32 */
+            made: number;
+            /** Format: int32 */
+            pending: number;
+        };
         HoldingDto: {
             /** Format: int64 */
             id: number;
@@ -7228,6 +9010,18 @@ export interface components {
             outcome: string;
             detail: string | null;
         };
+        LeaveDto: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            position: string;
+            kind: string;
+            from: components["schemas"]["LocalDate"];
+            to: components["schemas"]["LocalDate"];
+            status: string;
+        };
         LeaveRecordDto: {
             /** Format: int64 */
             id: number;
@@ -7243,6 +9037,35 @@ export interface components {
          * @example 2022-03-10
          */
         LocalDate: string;
+        ManningCheckDto: {
+            ccId: string;
+            lines: components["schemas"]["ManningCheckLine"][];
+            /** Format: int32 */
+            short: number;
+        };
+        ManningCheckLine: {
+            /** Format: int64 */
+            positionId: number;
+            positionName: string;
+            shift: string | null;
+            /** Format: int32 */
+            required: number;
+            /** Format: int32 */
+            standing: number;
+            names: string[];
+            satisfied: boolean;
+        };
+        ManningRequirementDto: {
+            /** Format: int64 */
+            positionId: number;
+            positionName: string;
+            shift: string | null;
+            /** Format: int32 */
+            required: number;
+        };
+        MarkSentRequest: {
+            channel: string;
+        };
         MatrixConditionalMemberDto: {
             /** Format: int64 */
             requirementId: number;
@@ -7322,6 +9145,32 @@ export interface components {
         NextRecordIdDto: {
             recordId: string;
         };
+        NoticeAckDto: {
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            ackedAt: components["schemas"]["Instant"];
+            ackedBy: string;
+        };
+        NoticeDto: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            customerId: number | null;
+            customerName: string | null;
+            /** Format: int64 */
+            partnershipId: number | null;
+            partnershipAbbrev: string | null;
+            title: string;
+            body: string;
+            requiresAck: boolean;
+            postedAt: components["schemas"]["Instant"];
+            postedBy: string;
+            /** Format: int32 */
+            acknowledged: number;
+            /** Format: int32 */
+            reaches: number;
+        };
         NotificationDto: {
             /** Format: int64 */
             id: number;
@@ -7372,6 +9221,23 @@ export interface components {
             currentK: number | null;
             today: components["schemas"]["LocalDate"];
         };
+        PersonDetailDto: {
+            /** Format: int64 */
+            personId: number;
+            passportNumber: string | null;
+            passportExpiry: components["schemas"]["LocalDate"] | null;
+            visaDetail: string | null;
+            visaExpiry: components["schemas"]["LocalDate"] | null;
+            seafarerBook: string | null;
+            seafarerBookExpiry: components["schemas"]["LocalDate"] | null;
+            nextOfKinName: string | null;
+            nextOfKinRelation: string | null;
+            nextOfKinPhone: string | null;
+            emergencyContact: string | null;
+            ppeSizes: string | null;
+            dietary: string | null;
+            notes: string | null;
+        };
         PersonDto: {
             /** Format: int64 */
             id: number;
@@ -7404,6 +9270,15 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        PostNoticeRequest: {
+            /** Format: int64 */
+            customerId?: number | null;
+            /** Format: int64 */
+            partnershipId?: number | null;
+            title: string;
+            body: string;
+            requiresAck?: boolean;
         };
         PublicationResultDto: {
             published: components["schemas"]["MatrixVersionDto"];
@@ -7450,6 +9325,13 @@ export interface components {
             day: number;
             /** Format: int32 */
             night: number;
+        };
+        RecordLeaveRequest: {
+            /** Format: int64 */
+            personId: number;
+            kind: string;
+            from: components["schemas"]["LocalDate"];
+            to: components["schemas"]["LocalDate"];
         };
         RegisterNoteDto: {
             /** Format: int64 */
@@ -7500,6 +9382,39 @@ export interface components {
         RejectEvidenceRequest: {
             reason: string;
         };
+        ReminderDto: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            personEmail: string | null;
+            position: string;
+            /** Format: int64 */
+            requirementId: number;
+            code: string;
+            title: string;
+            expiresOn: components["schemas"]["LocalDate"];
+            /** Format: int32 */
+            daysBefore: number;
+            sentAt: components["schemas"]["Instant"] | null;
+            sentBy: string | null;
+            channel: string | null;
+        };
+        RenewalDto: {
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            /** Format: int64 */
+            requirementId: number;
+            code: string;
+            status: string;
+            provider: string | null;
+            courseDate: components["schemas"]["LocalDate"] | null;
+            note: string | null;
+            updatedBy: string;
+            updatedOn: components["schemas"]["LocalDate"];
+        };
         RequirementAliasDto: {
             /** Format: int64 */
             id: number;
@@ -7546,6 +9461,28 @@ export interface components {
         ResolveExceptionRequest: {
             note: string;
         };
+        RestBreach: {
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            day: components["schemas"]["LocalDate"];
+            rule: string;
+            hours: number;
+        };
+        RestRecordDto: {
+            /** Format: int64 */
+            personId: number;
+            personName: string;
+            day: components["schemas"]["LocalDate"];
+            restHours: number;
+            note: string | null;
+        };
+        RestSummaryDto: {
+            from: components["schemas"]["LocalDate"];
+            to: components["schemas"]["LocalDate"];
+            records: components["schemas"]["RestRecordDto"][];
+            breaches: components["schemas"]["RestBreach"][];
+        };
         RuleDiffEntryDto: {
             /** Format: int64 */
             partnershipId: number | null;
@@ -7574,6 +9511,21 @@ export interface components {
             notes?: string | null;
             status?: string;
         };
+        SavePersonDetailRequest: {
+            passportNumber?: string | null;
+            passportExpiry?: components["schemas"]["LocalDate"] | null;
+            visaDetail?: string | null;
+            visaExpiry?: components["schemas"]["LocalDate"] | null;
+            seafarerBook?: string | null;
+            seafarerBookExpiry?: components["schemas"]["LocalDate"] | null;
+            nextOfKinName?: string | null;
+            nextOfKinRelation?: string | null;
+            nextOfKinPhone?: string | null;
+            emergencyContact?: string | null;
+            ppeSizes?: string | null;
+            dietary?: string | null;
+            notes?: string | null;
+        };
         SaveRequirementRequest: {
             code?: string | null;
             category: string;
@@ -7581,6 +9533,26 @@ export interface components {
             issuingAuthority?: string | null;
             notes?: string | null;
             status?: string;
+        };
+        SaveTravelItemRequest: {
+            /** Format: int64 */
+            personId?: number | null;
+            kind: string;
+            detail: string;
+            onDate?: components["schemas"]["LocalDate"] | null;
+            status?: string;
+            note?: string | null;
+        };
+        SaveVesselCertificateRequest: {
+            /** Format: int64 */
+            vesselId?: number | null;
+            title: string;
+            kind: string;
+            reference?: string | null;
+            issuer?: string | null;
+            issuedOn?: components["schemas"]["LocalDate"] | null;
+            expiresOn?: components["schemas"]["LocalDate"] | null;
+            note?: string | null;
         };
         ScheduledJobDto: {
             name: string;
@@ -7623,6 +9595,12 @@ export interface components {
             on?: components["schemas"]["LocalDate"] | null;
             dueOn?: components["schemas"]["LocalDate"] | null;
         };
+        SetLeaveStatusRequest: {
+            status: string;
+        };
+        SetManningRequest: {
+            requirements: components["schemas"]["ManningRequirementDto"][];
+        };
         SetMatrixCellRequest: {
             /** Format: int64 */
             partnershipId?: number | null;
@@ -7637,6 +9615,16 @@ export interface components {
             /** Format: int32 */
             rosterCycleDays?: number | null;
             rosterAnchorCrew?: string | null;
+        };
+        SetRenewalRequest: {
+            status: string;
+            provider?: string | null;
+            courseDate?: components["schemas"]["LocalDate"] | null;
+            note?: string | null;
+        };
+        SetRestRequest: {
+            restHours: number;
+            note?: string | null;
         };
         SetRotationRequest: {
             rotation?: string | null;
@@ -7837,8 +9825,47 @@ export interface components {
             inHand: boolean;
             nudgedAt: components["schemas"]["Instant"] | null;
         };
+        TimesheetDto: {
+            partnership: string;
+            from: components["schemas"]["LocalDate"];
+            to: components["schemas"]["LocalDate"];
+            lines: components["schemas"]["TimesheetLine"][];
+            /** Format: int64 */
+            totalDays: number;
+        };
+        TimesheetLeg: {
+            ccId: string;
+            from: components["schemas"]["LocalDate"];
+            to: components["schemas"]["LocalDate"];
+            /** Format: int64 */
+            days: number;
+        };
+        TimesheetLine: {
+            /** Format: int64 */
+            personId: number;
+            sam: string;
+            name: string;
+            position: string;
+            rotation: string | null;
+            /** Format: int64 */
+            days: number;
+            legs: components["schemas"]["TimesheetLeg"][];
+        };
         TransitionRegisterRecordRequest: {
             status: string;
+        };
+        TravelItemDto: {
+            /** Format: int64 */
+            id: number;
+            ccId: string;
+            /** Format: int64 */
+            personId: number | null;
+            personName: string | null;
+            kind: string;
+            detail: string;
+            onDate: components["schemas"]["LocalDate"] | null;
+            status: string;
+            note: string | null;
         };
         /** Format: uuid */
         UUID: string;
@@ -7895,6 +9922,25 @@ export interface components {
             personId: number | null;
             lastLoginAt: components["schemas"]["Instant"] | null;
             identityLinked: boolean;
+        };
+        VesselCertificateDto: {
+            /** Format: int64 */
+            id: number;
+            /** Format: int64 */
+            partnershipId: number;
+            /** Format: int64 */
+            vesselId: number | null;
+            vesselName: string | null;
+            title: string;
+            kind: string;
+            reference: string | null;
+            issuer: string | null;
+            issuedOn: components["schemas"]["LocalDate"] | null;
+            expiresOn: components["schemas"]["LocalDate"] | null;
+            fileName: string | null;
+            /** Format: int64 */
+            byteSize: number | null;
+            note: string | null;
         };
         VesselDto: {
             /** Format: int64 */
