@@ -4479,3 +4479,37 @@ a.assistant__source:hover {
   flex-wrap: wrap;
   gap: 10px 18px;
 }
+
+/* Two kinds of access, chosen as cards */
+.kind-choice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.kind-choice__option {
+  appearance: none;
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-neutral-800);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kind-choice__option span {
+  font-size: 12px;
+  color: var(--color-neutral-400);
+  line-height: 1.5;
+}
+
+.kind-choice__option--on {
+  border-color: var(--color-accent-500);
+  box-shadow: 0 0 0 1px var(--color-accent-500);
+}

@@ -12,7 +12,7 @@ import {
 } from '../api/queries'
 import { writeDevIdentity } from '../api/client'
 import { formatDate } from '../domain/dates'
-import { roleLabel } from '../domain/enums'
+import { accessLabel, roleLabel } from '../domain/enums'
 import { AssistantPanel, AssistantTrigger, useAssistantPanel } from './AssistantPanel'
 import { CopyProvider, EditTextToggle } from './Copy'
 
@@ -94,7 +94,7 @@ export function Layout(): React.ReactNode {
           <span className="shell__zone">AWST</span>
           {session.dateOverridden && <span className="shell__pinned">Date pinned</span>}
           <span className="shell__divider" aria-hidden="true" />
-          <span className="shell__roles">{session.roles.map(roleLabel).join(' · ')}</span>
+          <span className="shell__roles" title={session.roles.map(roleLabel).join(' · ')}>{accessLabel(session.roles)}</span>
           <span className="shell__actor">{session.label}</span>
           <EditTextToggle />
           <AssistantTrigger state={assistant} />

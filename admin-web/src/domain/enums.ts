@@ -224,6 +224,29 @@ const ROLE_LABELS: Record<string, string> = {
 
 export const ALL_ROLES: readonly string[] = Object.keys(ROLE_LABELS)
 
+/**
+ * The two kinds of access a customer's people get (BUS-1), and the office's own.
+ *
+ * Chris's engine has seven roles; the office hands out two bundles of them. Management is the
+ * company's people who run its compliance — every back-office role at once. Crew is a crew
+ * member: their own record, through the crew app. The office is a system administrator.
+ */
+export type AccessKind = 'office' | 'management' | 'crew'
+
+export const MANAGEMENT_ROLES: readonly string[] = ['compliance_lead', 'crew_coordinator', 'data_steward', 'workflow_manager']
+export const CREW_ROLES: readonly string[] = ['crew_member']
+
+export function accessKind(roles: readonly string[]): AccessKind {
+  if (roles.includes('system_administrator')) return 'office'
+  if (roles.length > 0 && roles.every((role) => role === 'crew_member' || role === 'vessel_master')) return 'crew'
+  return 'management'
+}
+
+export function accessLabel(roles: readonly string[]): string {
+  const kind = accessKind(roles)
+  return kind === 'office' ? 'Office' : kind === 'management' ? 'Management' : 'Crew'
+}
+
 export function roleLabel(role: string): string {
   return ROLE_LABELS[role] ?? role
 }

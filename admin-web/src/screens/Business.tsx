@@ -10,6 +10,7 @@ import {
   useSetInvoiceStatus,
   useSetUserAccountScopes,
   useSetUserAccountStatus,
+  usePeople,
   useUpdateCustomer,
   useUpdateInvoice,
   useUserAccounts,
@@ -24,10 +25,7 @@ import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Spinner'
 import { downloadCsv, toCsv } from '../domain/csv'
 import { epochDay, formatDate, formatDayMonth } from '../domain/dates'
-import { roleLabel } from '../domain/enums'
-
-/** The roles a customer's own staff can be given — the compliance roles, never the office's. */
-const CUSTOMER_ROLES = ['compliance_lead', 'crew_coordinator', 'data_steward', 'workflow_manager', 'vessel_master'] as const
+import { CREW_ROLES, MANAGEMENT_ROLES, accessLabel, roleLabel } from '../domain/enums'
 
 const TABS = [
   { id: 'customers', label: 'Customers' },
@@ -689,7 +687,7 @@ function AccountTable({ accounts, onStatus, pending }: { accounts: readonly User
           <tr>
             <th scope="col">Name</th>
             <th scope="col">Email</th>
-            <th scope="col">Roles</th>
+            <th scope="col">Access</th>
             <th scope="col">Status</th>
             <th scope="col" />
           </tr>
@@ -706,7 +704,7 @@ function AccountTable({ accounts, onStatus, pending }: { accounts: readonly User
             <tr key={account.id}>
               <td>{account.displayName}</td>
               <td>{account.email ?? <span className="dim">—</span>}</td>
-              <td className="table__wrap">{account.roles.map(roleLabel).join(' · ')}</td>
+              <td title={account.roles.map(roleLabel).join(' · ')}>{accessLabel(account.roles)}</td>
               <td>
                 <span className={`chip chip--${account.status === 'active' ? 'good' : 'muted'} chip--small`}>{account.status}</span>
               </td>
@@ -729,54 +727,87 @@ function AccountTable({ accounts, onStatus, pending }: { accounts: readonly User
   )
 }
 
-/** A new account for a customer's person: made, then scoped to the customer's ships, in that order. */
+/**
+ * Access for one of a customer's people, of one of two kinds. Management: the company's people
+ * who run its compliance — every back-office role, limited to the company's ships. Crew: a crew
+ * member, who sees their own record and nothing else — so no ship scope at all, since a scope
+ * would widen a crew member to the whole ship.
+ */
 function InviteForm({ customer, ships, onClose }: { customer: Customer; ships: Partnership[]; onClose: () => void }): React.ReactNode {
   const create = useCreateUserAccount()
   const scope = useSetUserAccountScopes()
+  const people = usePeople()
+  const [kind, setKind] = useState<'management' | 'crew'>('management')
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
-  const [roles, setRoles] = useState<string[]>(['compliance_lead'])
+  const [personId, setPersonId] = useState<number | null>(null)
   const [error, setError] = useState<unknown>(null)
   const pending = create.isPending || scope.isPending
+  const crew = (people.data ?? []).filter((p) => customer.partnershipIds.includes(p.partnershipId) && p.status === 'active')
+  const person = crew.find((p) => p.id === personId)
+  const ready = kind === 'management' ? displayName.trim() !== '' : personId !== null
 
   return (
-    <Modal title={`Access for ${customer.name}`} note={`Limited to ${ships.map((s) => s.abbrev).join(', ')} — they see this company and nobody else's.`} onClose={onClose}>
+    <Modal title={`Access for ${customer.name}`} note="Two kinds: Management runs the company's compliance across its ships; Crew sees their own record." onClose={onClose}>
       <form
         className="editor"
         onSubmit={(event) => {
           event.preventDefault()
+          if (!ready) return
           setError(null)
-          create.mutate(
-            { displayName, email: email === '' ? null : email, roles },
-            {
-              onSuccess: (account) =>
-                scope.mutate({ userAccountId: account.id, partnershipIds: ships.map((s) => s.id) }, { onSuccess: onClose, onError: setError }),
-              onError: setError,
-            },
-          )
+          if (kind === 'management') {
+            create.mutate(
+              { displayName, email: email === '' ? null : email, roles: [...MANAGEMENT_ROLES] },
+              {
+                onSuccess: (account) =>
+                  scope.mutate({ userAccountId: account.id, partnershipIds: ships.map((s) => s.id) }, { onSuccess: onClose, onError: setError }),
+                onError: setError,
+              },
+            )
+          } else {
+            create.mutate(
+              { displayName: person?.name ?? displayName, email: email === '' ? (person?.email ?? null) : email, roles: [...CREW_ROLES], personId },
+              { onSuccess: onClose, onError: setError },
+            )
+          }
         }}
       >
-        <Field label="Name" value={displayName} onChange={setDisplayName} />
-        <Field label="Email" value={email} onChange={setEmail} type="email" />
-        <fieldset className="field field--inline field--grow">
-          <span className="field__label">What they may do</span>
-          <div className="check-list">
-            {CUSTOMER_ROLES.map((role) => (
-              <label key={role} className="check check--box">
-                <input
-                  type="checkbox"
-                  checked={roles.includes(role)}
-                  onChange={() => setRoles(roles.includes(role) ? roles.filter((r) => r !== role) : [...roles, role])}
-                />
-                <span className="dot" />
-                {roleLabel(role)}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <div className="kind-choice" role="radiogroup" aria-label="Kind of access">
+          <button type="button" className={kind === 'management' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setKind('management')}>
+            <strong>Management</strong>
+            <span>Runs the company's compliance: crew, certificates, swings, matrix — across {ships.map((s) => s.abbrev).join(', ')}.</span>
+          </button>
+          <button type="button" className={kind === 'crew' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setKind('crew')}>
+            <strong>Crew</strong>
+            <span>One crew member: their own certificates and swings, through the crew app. Nothing else.</span>
+          </button>
+        </div>
+
+        {kind === 'management' ? (
+          <>
+            <Field label="Name" value={displayName} onChange={setDisplayName} />
+            <Field label="Email" value={email} onChange={setEmail} type="email" />
+          </>
+        ) : (
+          <>
+            <label className="field field--inline field--grow">
+              <span className="field__label">Crew member</span>
+              <select className="input" value={personId ?? ''} onChange={(event) => setPersonId(event.target.value === '' ? null : Number(event.target.value))}>
+                <option value="">Choose…</option>
+                {crew.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} · {p.positionName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Field label="Email" value={email} onChange={setEmail} type="email" placeholder={person?.email ?? 'the address they sign in with'} />
+          </>
+        )}
+
         <div className="editor__actions">
-          <button type="submit" className="button button--primary" disabled={pending || displayName.trim() === '' || roles.length === 0}>
-            {pending ? 'Setting up…' : 'Give access'}
+          <button type="submit" className="button button--primary" disabled={pending || !ready}>
+            {pending ? 'Setting up…' : kind === 'management' ? 'Give management access' : 'Give crew access'}
           </button>
           <button type="button" className="button" onClick={onClose}>
             Cancel
