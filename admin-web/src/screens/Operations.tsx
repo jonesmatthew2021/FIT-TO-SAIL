@@ -1674,7 +1674,7 @@ function AmsaTab({ ship }: { ship: Partnership }): React.ReactNode {
   const notMet = items.data.filter((i) => i.status === 'not_met')
   const unknown = items.data.filter((i) => i.status === 'unknown')
   const dueSoon = items.data.filter((i) => i.nextDue !== null && i.status !== 'not_applicable' && daysBetween(today, i.nextDue) <= 60)
-  const regime = ship.regime === 'international' ? 'international (STCW / SOLAS)' : ship.regime === 'domestic' ? 'domestic commercial vessel (National Law)' : 'not yet chosen'
+  const regime = ship.regime === 'international' ? 'international (STCW / SOLAS)' : ship.regime === 'domestic' ? 'domestic commercial vessel (DCV) under the National Law' : 'not yet chosen'
 
   return (
     <div className="swing-page">
@@ -1701,7 +1701,7 @@ function AmsaTab({ ship }: { ship: Partnership }): React.ReactNode {
             {canEdit && (
               <>
                 <button type="button" className="button" disabled={addStandard.isPending} onClick={() => addStandard.mutate(ship.abbrev)}>
-                  {addStandard.isPending ? 'Adding…' : ship.regime === 'international' ? 'Add the international list' : 'Add the National Law list'}
+                  {addStandard.isPending ? 'Adding…' : ship.regime === 'international' ? 'Add the international list' : 'Add the DCV (National Law) list'}
                 </button>
                 <button type="button" className="button button--primary" onClick={() => setEditing('new')}>
                   Add a requirement

@@ -220,7 +220,7 @@ export function OperationForm({
           <span className="field__label">Which manning requirements does it fall under?</span>
           <div className="kind-choice">
             <button type="button" className={regime === 'domestic' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setRegime('domestic')}>
-              <strong>Domestic commercial vessel</strong>
+              <strong>Domestic commercial vessel (DCV)</strong>
               <span>The National Law and AMSA's Marine Orders — crewing determined for the operation.</span>
             </button>
             <button type="button" className={regime === 'international' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setRegime('international')}>
