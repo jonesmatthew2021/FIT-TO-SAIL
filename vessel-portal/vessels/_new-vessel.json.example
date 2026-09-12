@@ -1,0 +1,10 @@
+{
+  "id": "mv-example",
+  "operator": "The company's name, as it should read under the vessel's name",
+  "name": "MV",
+  "nameAccent": "Example",
+  "strapline": "Port · Project — the small line under the masthead",
+  "partnershipAbbrev": "EXA",
+  "portalUrl": "",
+  "notes": "Copy this file to <vessel-id>.json, fill it in, run: node build.mjs <vessel-id>. portalUrl is filled in after the worker deploys (worker/DEPLOY.md in the portal build repo)."
+}

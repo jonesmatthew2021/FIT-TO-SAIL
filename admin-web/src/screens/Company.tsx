@@ -31,6 +31,7 @@ import { ErrorPanel } from '../components/ErrorPanel'
 import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Spinner'
 import { groupByRank } from '../domain/ranks'
+import { vesselPortalUrl } from '../domain/vesselPortals'
 
 /** The roles the server accepts for a customer write — mirrored to hide the controls. */
 const CUSTOMER_EDITORS = ['compliance_lead', 'system_administrator'] as const
@@ -253,6 +254,20 @@ function CustomerCard({
                   <Link className="button" to={`/admin?customer=${customer.id}&operation=${partnership.id}`}>
                     Open this ship
                   </Link>
+                  {/* The company's own crew portal, where it has one — a separate
+                      system on purpose (vessel-portal/ at the repo root): its
+                      certification checkers and this engine read the same
+                      certificates independently, each a cross-check on the other. */}
+                  {vesselPortalUrl(partnership.abbrev) !== null && (
+                    <a
+                      className="button button--quiet"
+                      href={vesselPortalUrl(partnership.abbrev) ?? undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Crew portal
+                    </a>
+                  )}
                   {canEdit && (
                     <button
                       type="button"
