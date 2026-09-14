@@ -1,0 +1,14 @@
+{
+  "name": "FIT TO SAIL",
+  "short_name": "Fit to Sail",
+  "description": "Crew compliance — the requirements matrix, whole-swing evaluation and the evidence behind it.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#171a27",
+  "theme_color": "#171a27",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
