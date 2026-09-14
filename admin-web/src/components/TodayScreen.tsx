@@ -35,6 +35,9 @@ export function TodayScreen({ ship, go }: { ship: Partnership; go: (tab: string)
   const awaiting = useEvidenceQueue(['pending_review', 'pending_extraction'])
   const sheets = useShipDocuments(ship.abbrev)
   const [showAll, setShowAll] = useState(false)
+  // Every hook before the first early return: the screen renders the spinner
+  // with the same hook count it renders the day with.
+  const ops = useOpsToday(ship)
 
   if (people.isPending || requirements.isPending || holdings.isPending) return <Spinner label="Gathering the day" />
   if (people.error !== null) return <ErrorPanel title="Could not load the crew" error={people.error} />
@@ -70,7 +73,6 @@ export function TodayScreen({ ship, go }: { ship: Partnership; go: (tab: string)
     const sheet = sheets.data?.find((s) => s.category === category)
     return sheet === undefined ? null : Math.max(0, -daysBetween(today, sheet.filedAt.slice(0, 10)))
   }
-  const ops = useOpsToday(ship)
   const opmsAge = sheetAge('opms-sheet')
   const certSheetAge = sheetAge('certificate-sheet')
 
