@@ -15,7 +15,7 @@
  * `vessel-portal/vessels/*.json` by hand.
  */
 const PORTALS: Record<string, string> = {
-  UNI: 'https://coolibah-portal.coolibah-portal-worker.workers.dev',
+  UNI: 'https://coolibah-portal.com',
 }
 
 /** The ship's own portal address, or null when the company doesn't have one yet. */
