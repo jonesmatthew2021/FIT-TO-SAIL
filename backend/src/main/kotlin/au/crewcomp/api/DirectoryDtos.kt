@@ -23,6 +23,8 @@ import java.time.LocalDate
  */
 
 data class SessionDto(
+    /** The company the account works for (BUS-2); null for the office. */
+    val customerId: Long?,
     val label: String,
     /** Appendix-A-adjacent: the §3 role wire values. UI gating from these is defence in depth. */
     val roles: List<String>,
@@ -96,6 +98,8 @@ data class CustomerDto(
     /** `active` · `former`. */
     val status: String,
     val partnershipIds: List<Long>,
+    /** Ships the company oversees through a fleet (BUS-2) — operated by someone else. */
+    val overseenPartnershipIds: List<Long>,
     // The business behind the program (BUS-1). Only a system administrator is shown these.
     val billingEmail: String?,
     val abn: String?,
@@ -274,7 +278,8 @@ data class LeaveRecordDto(
 // Mapping
 // ---------------------------------------------------------------------------
 
-fun Actor.toSessionDto(today: LocalDate, dateOverridden: Boolean) = SessionDto(
+fun Actor.toSessionDto(today: LocalDate, dateOverridden: Boolean, customerId: Long? = null) = SessionDto(
+    customerId = customerId,
     label = label,
     roles = roles.map { it.wire }.sorted(),
     personId = personId,

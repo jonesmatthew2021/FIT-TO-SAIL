@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useIsCustomerStaff, useIsOffice, useSession } from '../api/session'
 import {
+  customerShipIds,
   rememberScope,
   useAllPartnerships,
   useCrewRequestSummary,
@@ -187,7 +188,9 @@ function CompanyGroup(): React.ReactNode {
   const location = useLocation()
   const navigate = useNavigate()
   const staff = useIsCustomerStaff()
-  const own = staff ? (customers.data ?? [])[0] : undefined
+  const session = useSession()
+  // Their own company: the one the account works for, else the only one they can see.
+  const own = staff ? ((customers.data ?? []).find((c) => c.id === session.customerId) ?? (customers.data ?? [])[0]) : undefined
 
   // A customer's own staff: their company, fixed — no list, no "manage" — and their ships under it.
   useEffect(() => {
@@ -202,8 +205,11 @@ function CompanyGroup(): React.ReactNode {
     return (
       <>
         <p className="nav__group">Company</p>
-        <p className="nav__fixed">{own?.name ?? '…'}</p>
-        {scope.customer !== null && <ShipBox customerId={scope.customer.id} partnershipIds={scope.customer.partnershipIds} />}
+        <p className="nav__fixed">
+          {own?.name ?? '…'}
+          {own !== undefined && own.partnershipIds.length === 0 && own.overseenPartnershipIds.length > 0 && <span className="muted"> · oversight</span>}
+        </p>
+        {scope.customer !== null && <ShipBox customerId={scope.customer.id} partnershipIds={customerShipIds(scope.customer)} />}
       </>
     )
   }
@@ -241,7 +247,7 @@ function CompanyGroup(): React.ReactNode {
         ))}
         <option value={MANAGE}>Manage customers…</option>
       </select>
-      {scope.customer !== null && <ShipBox customerId={scope.customer.id} partnershipIds={scope.customer.partnershipIds} />}
+      {scope.customer !== null && <ShipBox customerId={scope.customer.id} partnershipIds={customerShipIds(scope.customer)} />}
     </>
   )
 }
@@ -325,10 +331,14 @@ function ShipGate(): React.ReactNode {
   const customers = useCustomers()
   const partnerships = useAllPartnerships()
   const vessels = useVessels()
+  const staff = useIsCustomerStaff()
+  const session = useSession()
 
   if (scope.operationId !== null || location.pathname === '/company') return <Outlet />
 
-  const list = customers.data ?? []
+  // A customer's own people choose among their own company's ships (and the fleets it oversees), not everyone they can see.
+  const all = customers.data ?? []
+  const list = staff ? all.filter((c) => c.id === session.customerId).concat(all.some((c) => c.id === session.customerId) ? [] : all.slice(0, 1)) : all
   return (
     <div className="screen">
       <header className="screen__header">
@@ -344,7 +354,7 @@ function ShipGate(): React.ReactNode {
         </p>
       )}
       {list.map((customer) => {
-        const ships = (partnerships.data ?? []).filter((p) => customer.partnershipIds.includes(p.id))
+        const ships = (partnerships.data ?? []).filter((p) => customerShipIds(customer).includes(p.id))
         return (
           <section key={customer.id} className="panel">
             <p className="panel__title">{customer.name}</p>

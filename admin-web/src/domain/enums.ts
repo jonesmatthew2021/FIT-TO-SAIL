@@ -231,20 +231,23 @@ export const ALL_ROLES: readonly string[] = Object.keys(ROLE_LABELS)
  * company's people who run its compliance — every back-office role at once. Crew is a crew
  * member: their own record, through the crew app. The office is a system administrator.
  */
-export type AccessKind = 'office' | 'management' | 'crew'
+export type AccessKind = 'office' | 'management' | 'oversight' | 'crew'
 
 export const MANAGEMENT_ROLES: readonly string[] = ['compliance_lead', 'crew_coordinator', 'data_steward', 'workflow_manager']
 export const CREW_ROLES: readonly string[] = ['crew_member']
+/** Oversight (BUS-2): sight of a fleet another company operates, read only. Vessel Master alone is the read-only role. */
+export const OVERSIGHT_ROLES: readonly string[] = ['vessel_master']
 
 export function accessKind(roles: readonly string[]): AccessKind {
   if (roles.includes('system_administrator')) return 'office'
   if (roles.length > 0 && roles.every((role) => role === 'crew_member')) return 'crew'
+  if (roles.length > 0 && roles.every((role) => role === 'vessel_master')) return 'oversight'
   return 'management'
 }
 
 export function accessLabel(roles: readonly string[]): string {
   const kind = accessKind(roles)
-  return kind === 'office' ? 'Office' : kind === 'management' ? 'Management' : 'Crew'
+  return kind === 'office' ? 'Office' : kind === 'management' ? 'Management' : kind === 'oversight' ? 'Oversight' : 'Crew'
 }
 
 export function roleLabel(role: string): string {

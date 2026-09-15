@@ -2,13 +2,19 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   useAllPartnerships,
+  useCreateFleet,
+  useDeleteFleet,
+  useFleets,
+  useLinkAccountCompany,
+  useSetFleetOverseers,
+  useSetFleetShips,
+  useUpdateFleet,
   useCreateInvoice,
   useCreateUserAccount,
   useCustomers,
   useInvoices,
   useSetCustomerBusiness,
   useSetInvoiceStatus,
-  useSetUserAccountScopes,
   useSetUserAccountStatus,
   usePeople,
   useUpdateCustomer,
@@ -16,7 +22,7 @@ import {
   useUserAccounts,
   useVessels,
 } from '../api/queries'
-import { ApiError, type Customer, type Invoice, type Partnership, type UserAccount, type Vessel } from '../api/client'
+import { ApiError, type Customer, type Fleet, type Invoice, type Partnership, type UserAccount, type Vessel } from '../api/client'
 import { useIsOffice, useToday } from '../api/session'
 import { Copy } from '../components/Copy'
 import { ErrorPanel } from '../components/ErrorPanel'
@@ -25,11 +31,12 @@ import { Modal } from '../components/Modal'
 import { Spinner } from '../components/Spinner'
 import { downloadCsv, toCsv } from '../domain/csv'
 import { epochDay, formatDate, formatDayMonth } from '../domain/dates'
-import { CREW_ROLES, MANAGEMENT_ROLES, accessLabel, roleLabel } from '../domain/enums'
+import { CREW_ROLES, MANAGEMENT_ROLES, OVERSIGHT_ROLES, accessKind, accessLabel, roleLabel } from '../domain/enums'
 
 const TABS = [
   { id: 'customers', label: 'Customers' },
   { id: 'billing', label: 'Billing' },
+  { id: 'fleets', label: 'Fleets and oversight' },
   { id: 'access', label: 'Access' },
 ] as const
 
@@ -96,6 +103,7 @@ export function Business(): React.ReactNode {
 
       {tab === 'customers' && <CustomersTab customers={customers.data} shipsOf={shipsOf} vessels={vessels.data ?? []} />}
       {tab === 'billing' && <BillingTab customers={customers.data} shipsOf={shipsOf} />}
+      {tab === 'fleets' && <FleetsTab customers={customers.data} partnerships={partnerships.data} vessels={vessels.data ?? []} />}
       {tab === 'access' && <AccessTab customers={customers.data} shipsOf={shipsOf} vessels={vessels.data ?? []} />}
     </div>
   )
@@ -180,6 +188,11 @@ function CustomersTab({
                       </li>
                     ))}
                   </ul>
+                  {customer.overseenPartnershipIds.length > 0 && (
+                    <p className="muted">
+                      Oversees {customer.overseenPartnershipIds.length} {customer.overseenPartnershipIds.length === 1 ? 'ship' : 'ships'} run by others — see Fleets and oversight.
+                    </p>
+                  )}
                   {customer.ratePerShipMonth !== null && ships.length > 0 && (
                     <p className="muted">{money2(customer.ratePerShipMonth * ships.length)} a month at the current rate.</p>
                   )}
@@ -620,66 +633,93 @@ function AccessTab({
 }): React.ReactNode {
   const accounts = useUserAccounts()
   const people = usePeople()
+  const partnerships = useAllPartnerships()
   const setAccountStatus = useSetUserAccountStatus()
-  const [inviting, setInviting] = useState<{ customer: Customer; kind: 'management' | 'crew' } | null>(null)
+  const [inviting, setInviting] = useState<{ customer: Customer; kind: InviteKind } | null>(null)
 
   if (accounts.isPending) return <Spinner label="Loading the accounts" />
   if (accounts.error !== null) return <ErrorPanel title="Could not load the accounts" error={accounts.error} />
 
-  // Management belongs to a customer through the ships it is scoped to; crew through the crew
-  // member it is (their own record, no scope). What is neither is the office's.
+  // An account belongs to the company it is linked to. One made before companies were linked
+  // belongs through the ships it is scoped to, or the crew member it is. What is neither is the office's.
   const shipOfPerson = new Map((people.data ?? []).map((p) => [p.id, p.partnershipId]))
-  const management = (customer: Customer) =>
-    accounts.data.filter((a) => a.scopedPartnershipIds.some((id) => customer.partnershipIds.includes(id)))
-  const crewOf = (customer: Customer) =>
-    accounts.data.filter(
-      (a) => a.scopedPartnershipIds.length === 0 && a.personId !== null && customer.partnershipIds.includes(shipOfPerson.get(a.personId) ?? -1),
-    )
-  const placed = new Set(customers.flatMap((c) => [...management(c), ...crewOf(c)].map((a) => a.id)))
+  const belongs = (a: UserAccount, customer: Customer) =>
+    a.customerId !== null
+      ? a.customerId === customer.id
+      : a.scopedPartnershipIds.some((id) => customer.partnershipIds.includes(id)) ||
+        (a.scopedPartnershipIds.length === 0 && a.personId !== null && customer.partnershipIds.includes(shipOfPerson.get(a.personId) ?? -1))
+  const of = (customer: Customer, kind: 'management' | 'oversight' | 'crew') =>
+    accounts.data.filter((a) => belongs(a, customer) && accessKind(a.roles) === kind)
+  const placed = new Set(customers.flatMap((c) => accounts.data.filter((a) => belongs(a, c)).map((a) => a.id)))
   const office = accounts.data.filter((a) => !placed.has(a.id))
   const onStatus = (a: UserAccount, status: string) => setAccountStatus.mutate({ userAccountId: a.id, status })
+  const overseen = (customer: Customer) => (partnerships.data ?? []).filter((p) => customer.overseenPartnershipIds.includes(p.id))
+  const label = (list: Partnership[]) => list.map((s) => shipLabel(s.id, s.abbrev, s.name, vessels)).join(', ')
 
   return (
     <>
       <p className="note">
         <Copy k="business.access-note">
-          A customer's people sign in to the same program and see only their own company. Management runs the company's compliance across its ships; crew see their own record through the crew app. An account with no ships and no crew member against it sees everything, so those are the office's and are listed last.
+          A customer's people sign in to the same program and see only their own company. Management runs the company's compliance across its ships; oversight sees, read only, the fleets a company monitors for others; crew see their own record through the crew app. An account with no company, ships or crew member against it sees everything, so those are the office's and are listed last.
         </Copy>
       </p>
 
       {customers.map((customer) => {
         const ships = shipsOf(customer)
-        const managers = management(customer)
-        const crew = crewOf(customer)
+        const watched = overseen(customer)
+        const managers = of(customer, 'management')
+        const overseers = of(customer, 'oversight')
+        const crew = of(customer, 'crew')
         return (
           <div key={customer.id}>
-            <section className="section biz-access">
-              <div className="section__header">
-                <div>
-                  <h2 className="section__title">{customer.name} management</h2>
-                  <p className="section__note">
-                    {managers.length === 0 ? 'Nobody yet' : `${managers.length} with access`} · {ships.length === 0 ? 'no ships yet' : ships.map((s) => shipLabel(s.id, s.abbrev, s.name, vessels)).join(', ')}
-                  </p>
+            {(ships.length > 0 || managers.length > 0 || watched.length === 0) && (
+              <section className="section biz-access">
+                <div className="section__header">
+                  <div>
+                    <h2 className="section__title">{customer.name} management</h2>
+                    <p className="section__note">
+                      {managers.length === 0 ? 'Nobody yet' : `${managers.length} with access`} · {ships.length === 0 ? 'no ships of its own yet' : label(ships)}
+                    </p>
+                  </div>
+                  <button type="button" className="button button--primary" disabled={ships.length === 0} title={ships.length === 0 ? "Add the customer's ships under Company first" : ''} onClick={() => setInviting({ customer, kind: 'management' })}>
+                    Give management access
+                  </button>
                 </div>
-                <button type="button" className="button button--primary" disabled={ships.length === 0} title={ships.length === 0 ? "Add the customer's ships under Company first" : ''} onClick={() => setInviting({ customer, kind: 'management' })}>
-                  Give management access
-                </button>
-              </div>
-              {managers.length > 0 && <AccountTable accounts={managers} onStatus={onStatus} pending={setAccountStatus.isPending} />}
-            </section>
+                {managers.length > 0 && <AccountTable accounts={managers} onStatus={onStatus} pending={setAccountStatus.isPending} />}
+              </section>
+            )}
 
-            <section className="section biz-access">
-              <div className="section__header">
-                <div>
-                  <h2 className="section__title">{customer.name} crew</h2>
-                  <p className="section__note">{crew.length === 0 ? 'No crew member has an account yet' : `${crew.length} with access`} · their own record, through the crew app</p>
+            {(watched.length > 0 || overseers.length > 0) && (
+              <section className="section biz-access">
+                <div className="section__header">
+                  <div>
+                    <h2 className="section__title">{customer.name} oversight</h2>
+                    <p className="section__note">
+                      {overseers.length === 0 ? 'Nobody yet' : `${overseers.length} with access`} · read only · {watched.length === 0 ? 'no fleet to oversee' : label(watched)}
+                    </p>
+                  </div>
+                  <button type="button" className="button button--primary" disabled={watched.length === 0} title={watched.length === 0 ? 'Make this company the overseer of a fleet first' : ''} onClick={() => setInviting({ customer, kind: 'oversight' })}>
+                    Give oversight access
+                  </button>
                 </div>
-                <button type="button" className="button" disabled={ships.length === 0} onClick={() => setInviting({ customer, kind: 'crew' })}>
-                  Give crew access
-                </button>
-              </div>
-              {crew.length > 0 && <AccountTable accounts={crew} onStatus={onStatus} pending={setAccountStatus.isPending} />}
-            </section>
+                {overseers.length > 0 && <AccountTable accounts={overseers} onStatus={onStatus} pending={setAccountStatus.isPending} />}
+              </section>
+            )}
+
+            {(ships.length > 0 || crew.length > 0) && (
+              <section className="section biz-access">
+                <div className="section__header">
+                  <div>
+                    <h2 className="section__title">{customer.name} crew</h2>
+                    <p className="section__note">{crew.length === 0 ? 'No crew member has an account yet' : `${crew.length} with access`} · their own record, through the crew app</p>
+                  </div>
+                  <button type="button" className="button" disabled={ships.length === 0} onClick={() => setInviting({ customer, kind: 'crew' })}>
+                    Give crew access
+                  </button>
+                </div>
+                {crew.length > 0 && <AccountTable accounts={crew} onStatus={onStatus} pending={setAccountStatus.isPending} />}
+              </section>
+            )}
           </div>
         )
       })}
@@ -698,7 +738,15 @@ function AccessTab({
       </section>
 
       {setAccountStatus.error !== null && <p className="editor__error">{errorText(setAccountStatus.error)}</p>}
-      {inviting !== null && <InviteForm customer={inviting.customer} ships={shipsOf(inviting.customer)} initialKind={inviting.kind} onClose={() => setInviting(null)} />}
+      {inviting !== null && (
+        <InviteForm
+          customer={inviting.customer}
+          ships={shipsOf(inviting.customer)}
+          overseen={overseen(inviting.customer)}
+          initialKind={inviting.kind}
+          onClose={() => setInviting(null)}
+        />
+      )}
     </>
   )
 }
@@ -751,63 +799,78 @@ function AccountTable({ accounts, onStatus, pending }: { accounts: readonly User
   )
 }
 
+type InviteKind = 'management' | 'oversight' | 'crew'
+
 /**
- * Access for one of a customer's people, of one of two kinds. Management: the company's people
- * who run its compliance — every back-office role, limited to the company's ships. Crew: a crew
- * member, who sees their own record and nothing else — so no ship scope at all, since a scope
- * would widen a crew member to the whole ship.
+ * Access for one of a customer's people, of one of three kinds, and the account linked to the
+ * company so its ships follow the company's arrangement:
+ *
+ *  - Management: every back-office role, over the company's own ships (and any fleet it oversees).
+ *  - Oversight: Vessel Master alone — read only — over the fleets the company oversees for others.
+ *  - Crew: one crew member's own record, through the crew app; no ship scope.
  */
-function InviteForm({ customer, ships, initialKind, onClose }: { customer: Customer; ships: Partnership[]; initialKind: 'management' | 'crew'; onClose: () => void }): React.ReactNode {
+function InviteForm({
+  customer,
+  ships,
+  overseen,
+  initialKind,
+  onClose,
+}: {
+  customer: Customer
+  ships: Partnership[]
+  overseen: Partnership[]
+  initialKind: InviteKind
+  onClose: () => void
+}): React.ReactNode {
   const create = useCreateUserAccount()
-  const scope = useSetUserAccountScopes()
+  const link = useLinkAccountCompany()
   const people = usePeople()
-  const [kind, setKind] = useState<'management' | 'crew'>(initialKind)
+  const [kind, setKind] = useState<InviteKind>(initialKind)
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [personId, setPersonId] = useState<number | null>(null)
   const [error, setError] = useState<unknown>(null)
-  const pending = create.isPending || scope.isPending
+  const pending = create.isPending || link.isPending
   const crew = (people.data ?? []).filter((p) => customer.partnershipIds.includes(p.partnershipId) && p.status === 'active')
   const person = crew.find((p) => p.id === personId)
-  const ready = kind === 'management' ? displayName.trim() !== '' : personId !== null
+  const ready = kind === 'crew' ? personId !== null : displayName.trim() !== ''
+  const kinds: { id: InviteKind; title: string; text: string; offered: boolean }[] = [
+    { id: 'management', title: 'Management', text: `Runs the company's compliance: crew, certificates, swings, matrix — across ${ships.map((s) => s.abbrev).join(', ') || 'its ships'}.`, offered: ships.length > 0 },
+    { id: 'oversight', title: 'Oversight', text: `Sees, read only, the fleets ${customer.shortName ?? customer.name} oversees — ${overseen.map((s) => s.abbrev).join(', ') || 'none yet'}. Changes nothing.`, offered: overseen.length > 0 },
+    { id: 'crew', title: 'Crew', text: 'One crew member: their own certificates and swings, through the crew app. Nothing else.', offered: ships.length > 0 },
+  ]
 
   return (
-    <Modal title={`Access for ${customer.name}`} note="Two kinds: Management runs the company's compliance across its ships; Crew sees their own record." onClose={onClose}>
+    <Modal title={`Access for ${customer.name}`} note="The account is tied to the company, so what it sees follows the company's ships and the fleets it oversees." onClose={onClose}>
       <form
         className="editor"
         onSubmit={(event) => {
           event.preventDefault()
           if (!ready) return
           setError(null)
-          if (kind === 'management') {
-            create.mutate(
-              { displayName, email: email === '' ? null : email, roles: [...MANAGEMENT_ROLES] },
-              {
-                onSuccess: (account) =>
-                  scope.mutate({ userAccountId: account.id, partnershipIds: ships.map((s) => s.id) }, { onSuccess: onClose, onError: setError }),
-                onError: setError,
-              },
-            )
-          } else {
-            create.mutate(
-              { displayName: person?.name ?? displayName, email: email === '' ? (person?.email ?? null) : email, roles: [...CREW_ROLES], personId },
-              { onSuccess: onClose, onError: setError },
-            )
-          }
+          const roles = kind === 'management' ? [...MANAGEMENT_ROLES] : kind === 'oversight' ? [...OVERSIGHT_ROLES] : [...CREW_ROLES]
+          const body =
+            kind === 'crew'
+              ? { displayName: person?.name ?? displayName, email: email === '' ? (person?.email ?? null) : email, roles, personId }
+              : { displayName, email: email === '' ? null : email, roles }
+          create.mutate(body, {
+            onSuccess: (account) => link.mutate({ accountId: account.id, customerId: customer.id }, { onSuccess: onClose, onError: setError }),
+            onError: setError,
+          })
         }}
       >
-        <div className="kind-choice" role="radiogroup" aria-label="Kind of access">
-          <button type="button" className={kind === 'management' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setKind('management')}>
-            <strong>Management</strong>
-            <span>Runs the company's compliance: crew, certificates, swings, matrix — across {ships.map((s) => s.abbrev).join(', ')}.</span>
-          </button>
-          <button type="button" className={kind === 'crew' ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setKind('crew')}>
-            <strong>Crew</strong>
-            <span>One crew member: their own certificates and swings, through the crew app. Nothing else.</span>
-          </button>
+        <div className="kind-choice kind-choice--three" role="radiogroup" aria-label="Kind of access">
+          {kinds
+            .filter((k) => k.offered)
+            .map((k) => (
+              <button key={k.id} type="button" className={kind === k.id ? 'kind-choice__option kind-choice__option--on' : 'kind-choice__option'} onClick={() => setKind(k.id)}>
+                <strong>{k.title}</strong>
+                <span>{k.text}</span>
+              </button>
+            ))}
         </div>
 
-        {kind === 'management' ? (
+        {kind !== 'crew' ? (
           <>
             <Field label="Name" value={displayName} onChange={setDisplayName} />
             <Field label="Email" value={email} onChange={setEmail} type="email" />
@@ -831,7 +894,7 @@ function InviteForm({ customer, ships, initialKind, onClose }: { customer: Custo
 
         <div className="editor__actions">
           <button type="submit" className="button button--primary" disabled={pending || !ready}>
-            {pending ? 'Setting up…' : kind === 'management' ? 'Give management access' : 'Give crew access'}
+            {pending ? 'Setting up…' : `Give ${kind} access`}
           </button>
           <button type="button" className="button" onClick={onClose}>
             Cancel
@@ -839,6 +902,221 @@ function InviteForm({ customer, ships, initialKind, onClose }: { customer: Custo
         </div>
         {error !== null && <p className="editor__error">{errorText(error)}</p>}
       </form>
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Fleets and oversight (BUS-2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Fleets across operators and the companies overseeing them. A fleet groups ships from any
+ * customers — "the MinRes barges", whoever runs each — and an overseer is a company given sight
+ * of it: Portways monitors the MinRes barges without operating one. Every account tied to an
+ * overseer follows the fleet: add a ship and they see it, remove the company and they stop.
+ */
+function FleetsTab({ customers, partnerships, vessels }: { customers: readonly Customer[]; partnerships: readonly Partnership[]; vessels: readonly Vessel[] }): React.ReactNode {
+  const fleets = useFleets()
+  const accounts = useUserAccounts()
+  const remove = useDeleteFleet()
+  const [editing, setEditing] = useState<Fleet | 'new' | null>(null)
+  const [choosingShips, setChoosingShips] = useState<Fleet | null>(null)
+  const [choosingOverseers, setChoosingOverseers] = useState<Fleet | null>(null)
+
+  if (fleets.isPending) return <Spinner label="Loading the fleets" />
+  if (fleets.error !== null) return <ErrorPanel title="Could not load the fleets" error={fleets.error} />
+
+  const customerName = (id: number | null) => customers.find((c) => c.id === id)?.name ?? 'no customer'
+  const linked = (customerId: number) => (accounts.data ?? []).filter((a) => a.customerId === customerId && a.status === 'active').length
+
+  return (
+    <div className="swing-page">
+      <section className="section fold fold--accent">
+        <div className="section__header">
+          <div>
+            <h2 className="section__title">
+              {fleets.data.length === 0 ? 'No fleets yet.' : `${fleets.data.length} ${fleets.data.length === 1 ? 'fleet' : 'fleets'}`}
+            </h2>
+            <p className="section__note">
+              <Copy k="business.fleets-note">
+                When one company watches ships it does not run — Portways monitoring the MinRes barges, whoever operates each — group those ships as a fleet and make that company its overseer. Everyone at the overseer then sees the fleet's ships, read only, and keeps seeing them as ships join or leave.
+              </Copy>
+            </p>
+          </div>
+          <button type="button" className="button button--primary" onClick={() => setEditing('new')}>
+            New fleet
+          </button>
+        </div>
+      </section>
+
+      {fleets.data.map((fleet) => {
+        const ships = partnerships.filter((p) => fleet.partnershipIds.includes(p.id))
+        const overseers = customers.filter((c) => fleet.overseerCustomerIds.includes(c.id))
+        return (
+          <div key={fleet.id} className="biz-card">
+            <div className="biz-card__head">
+              <div>
+                <span className="biz-card__name">{fleet.name}</span>
+                {fleet.note !== null && <div className="muted">{fleet.note}</div>}
+              </div>
+              <span className="row-actions">
+                <button type="button" className="button button--quiet" onClick={() => setEditing(fleet)}>
+                  Rename
+                </button>
+                <button type="button" className="button button--quiet" disabled={remove.isPending} onClick={() => remove.mutate(fleet.id)}>
+                  Remove fleet
+                </button>
+              </span>
+            </div>
+            <div className="biz-card__cols biz-card__cols--two">
+              <div>
+                <p className="nav__group swing-eyebrow">Ships · {ships.length}</p>
+                {ships.length === 0 && <p className="dim">No ships in this fleet yet.</p>}
+                <ul className="list-plain list-plain--tight">
+                  {ships.map((ship) => (
+                    <li key={ship.id}>
+                      <strong>{shipLabel(ship.id, ship.abbrev, ship.name, vessels)}</strong> <span className="muted">· run by {customerName(ship.customerId)}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" className="button" onClick={() => setChoosingShips(fleet)}>
+                  Choose ships
+                </button>
+              </div>
+              <div>
+                <p className="nav__group swing-eyebrow">Overseen by · {overseers.length}</p>
+                {overseers.length === 0 && <p className="dim">No company oversees this fleet yet.</p>}
+                <ul className="list-plain list-plain--tight">
+                  {overseers.map((c) => (
+                    <li key={c.id}>
+                      <strong>{c.name}</strong>{' '}
+                      <span className="muted">
+                        · {linked(c.id)} {linked(c.id) === 1 ? 'login follows' : 'logins follow'} this fleet
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" className="button" onClick={() => setChoosingOverseers(fleet)}>
+                  Choose overseers
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+
+      {remove.error !== null && <p className="editor__error">{errorText(remove.error)}</p>}
+      {editing !== null && <FleetForm {...(editing === 'new' ? {} : { existing: editing })} onClose={() => setEditing(null)} />}
+      {choosingShips !== null && (
+        <ChooseMany
+          title={`Ships in ${choosingShips.name}`}
+          note="Any customer's ships. The overseers' logins follow whatever is ticked."
+          groups={customers
+            .map((c) => ({ label: c.name, items: partnerships.filter((p) => p.customerId === c.id).map((p) => ({ id: p.id, label: shipLabel(p.id, p.abbrev, p.name, vessels) })) }))
+            .filter((g) => g.items.length > 0)}
+          chosen={choosingShips.partnershipIds}
+          kind="ships"
+          fleetId={choosingShips.id}
+          onClose={() => setChoosingShips(null)}
+        />
+      )}
+      {choosingOverseers !== null && (
+        <ChooseMany
+          title={`Who oversees ${choosingOverseers.name}`}
+          note="Each company ticked sees every ship in the fleet, read only, through its oversight logins."
+          groups={[{ label: 'Companies', items: customers.map((c) => ({ id: c.id, label: c.name })) }]}
+          chosen={choosingOverseers.overseerCustomerIds}
+          kind="overseers"
+          fleetId={choosingOverseers.id}
+          onClose={() => setChoosingOverseers(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function FleetForm({ existing, onClose }: { existing?: Fleet; onClose: () => void }): React.ReactNode {
+  const create = useCreateFleet()
+  const update = useUpdateFleet()
+  const [name, setName] = useState(existing?.name ?? '')
+  const [note, setNote] = useState(existing?.note ?? '')
+  const pending = create.isPending || update.isPending
+  return (
+    <Modal title={existing === undefined ? 'New fleet' : `Rename ${existing.name}`} onClose={onClose}>
+      <form
+        className="editor"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const cleanNote = note === '' ? null : note
+          if (existing === undefined) create.mutate({ name, note: cleanNote }, { onSuccess: onClose })
+          else update.mutate({ id: existing.id, name, note: cleanNote }, { onSuccess: onClose })
+        }}
+      >
+        <Field label="Name" value={name} onChange={setName} placeholder="MinRes barges" />
+        <Field label="Note" value={note} onChange={setNote} placeholder="What the fleet is and why it is watched" />
+        <div className="editor__actions">
+          <button type="submit" className="button button--primary" disabled={pending || name.trim() === ''}>
+            {pending ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {(create.error ?? update.error) !== null && <p className="editor__error">{errorText(create.error ?? update.error)}</p>}
+      </form>
+    </Modal>
+  )
+}
+
+function ChooseMany({
+  title,
+  note,
+  groups,
+  chosen,
+  kind,
+  fleetId,
+  onClose,
+}: {
+  title: string
+  note: string
+  groups: { label: string; items: { id: number; label: string }[] }[]
+  chosen: readonly number[]
+  kind: 'ships' | 'overseers'
+  fleetId: number
+  onClose: () => void
+}): React.ReactNode {
+  const setShips = useSetFleetShips()
+  const setOverseers = useSetFleetOverseers()
+  const [picked, setPicked] = useState<number[]>([...chosen])
+  const save = kind === 'ships' ? setShips : setOverseers
+  return (
+    <Modal title={title} note={note} onClose={onClose}>
+      <div className="editor">
+        {groups.map((group) => (
+          <fieldset key={group.label} className="field field--inline field--grow">
+            <span className="field__label">{group.label}</span>
+            <div className="check-list">
+              {group.items.map((item) => (
+                <label key={item.id} className="check check--box">
+                  <input type="checkbox" checked={picked.includes(item.id)} onChange={() => setPicked(picked.includes(item.id) ? picked.filter((x) => x !== item.id) : [...picked, item.id])} />
+                  <span className="dot" />
+                  {item.label}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ))}
+        <div className="editor__actions">
+          <button type="button" className="button button--primary" disabled={save.isPending} onClick={() => save.mutate({ id: fleetId, ids: picked }, { onSuccess: onClose })}>
+            {save.isPending ? 'Saving…' : 'Save'}
+          </button>
+          <button type="button" className="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {save.error !== null && <p className="editor__error">{errorText(save.error)}</p>}
+      </div>
     </Modal>
   )
 }

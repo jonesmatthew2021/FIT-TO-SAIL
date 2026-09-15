@@ -38,6 +38,7 @@ function DevSignIn(): React.ReactNode {
   )
   const [personId, setPersonId] = useState(existing?.personId?.toString() ?? '')
   const [partnerships, setPartnerships] = useState(existing?.partnershipIds?.join(',') ?? '')
+  const [customerId, setCustomerId] = useState(existing?.customerId?.toString() ?? '')
 
   function toggle(role: string): void {
     setRoles((current) =>
@@ -47,6 +48,7 @@ function DevSignIn(): React.ReactNode {
 
   function apply(): void {
     const parsedPersonId = Number.parseInt(personId, 10)
+    const parsedCustomerId = Number.parseInt(customerId, 10)
     const parsedPartnerships = partnerships
       .split(',')
       .map((value) => Number.parseInt(value.trim(), 10))
@@ -57,6 +59,7 @@ function DevSignIn(): React.ReactNode {
       roles,
       ...(Number.isNaN(parsedPersonId) ? {} : { personId: parsedPersonId }),
       ...(parsedPartnerships.length === 0 ? {} : { partnershipIds: parsedPartnerships }),
+      ...(Number.isNaN(parsedCustomerId) ? {} : { customerId: parsedCustomerId }),
     })
     // A reload is the honest way to restart every query under the new identity: role changes
     // alter what half these endpoints return, so keeping any cached answer would be wrong.
@@ -108,6 +111,11 @@ function DevSignIn(): React.ReactNode {
           placeholder="e.g. 1,2"
           onChange={(event) => setPartnerships(event.target.value)}
         />
+      </label>
+
+      <label className="field">
+        <span className="field__label">Company id (the company the account works for)</span>
+        <input className="input" value={customerId} inputMode="numeric" placeholder="blank for the office" onChange={(event) => setCustomerId(event.target.value)} />
       </label>
 
       <button type="button" className="button button--primary" onClick={apply}>

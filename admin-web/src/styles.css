@@ -4585,3 +4585,12 @@ a.assistant__source:hover {
 }
 
 .table--holdings .col-renewal { width: 190px; }
+
+/* Fleets and oversight (BUS-2) */
+.biz-card__cols--two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.kind-choice--three {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}

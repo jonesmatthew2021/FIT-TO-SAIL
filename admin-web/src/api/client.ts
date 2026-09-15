@@ -130,6 +130,8 @@ export type PostNoticeRequest = Schemas['PostNoticeRequest']
 export type Reminder = Schemas['ReminderDto']
 export type Timesheet = Schemas['TimesheetDto']
 export type AuditRecord = Schemas['AuditDto']
+/** A fleet across operators, and the companies overseeing it (BUS-2). */
+export type Fleet = Schemas['FleetDto']
 export type AuditFinding = Schemas['AuditFindingDto']
 export type SaveAuditRequest = Schemas['SaveAuditRequest']
 export type SaveFindingRequest = Schemas['SaveFindingRequest']
@@ -192,6 +194,8 @@ export interface DevIdentity {
   roles: string[]
   personId?: number
   partnershipIds?: number[]
+  /** The company the account works for (BUS-2); sent as X-Dev-Customer. */
+  customerId?: number
 }
 
 const DEV_IDENTITY_KEY = 'crewcomp.dev-identity'
@@ -225,6 +229,7 @@ function devHeaders(): Record<string, string> {
   if (identity.partnershipIds !== undefined && identity.partnershipIds.length > 0) {
     headers['X-Dev-Partnerships'] = identity.partnershipIds.join(',')
   }
+  if (identity.customerId !== undefined) headers['X-Dev-Customer'] = String(identity.customerId)
   return headers
 }
 
@@ -755,6 +760,20 @@ export const api = {
     request(`/api/v1/ops/reminders/${encodeURIComponent(partnership)}/generate`, { method: 'POST' }),
   markReminderSent: (id: number, channel: string): Promise<Reminder> =>
     request(`/api/v1/ops/reminders/${id}/sent`, { method: 'PUT', body: JSON.stringify({ channel }) }),
+
+  // BUS-2 — fleets across operators, and the companies that oversee them
+  fleets: (): Promise<Fleet[]> => request('/api/v1/business/fleets'),
+  createFleet: (name: string, note: string | null): Promise<Fleet> =>
+    request('/api/v1/business/fleets', { method: 'POST', body: JSON.stringify({ name, note }) }),
+  updateFleet: (id: number, name: string, note: string | null): Promise<Fleet> =>
+    request(`/api/v1/business/fleets/${id}`, { method: 'PUT', body: JSON.stringify({ name, note }) }),
+  deleteFleet: (id: number): Promise<void> => request(`/api/v1/business/fleets/${id}`, { method: 'DELETE' }),
+  setFleetShips: (id: number, ids: number[]): Promise<Fleet> =>
+    request(`/api/v1/business/fleets/${id}/ships`, { method: 'PUT', body: JSON.stringify({ ids }) }),
+  setFleetOverseers: (id: number, ids: number[]): Promise<Fleet> =>
+    request(`/api/v1/business/fleets/${id}/overseers`, { method: 'PUT', body: JSON.stringify({ ids }) }),
+  linkAccountCompany: (accountId: number, customerId: number | null): Promise<void> =>
+    request(`/api/v1/business/accounts/${accountId}/company`, { method: 'PUT', body: JSON.stringify({ customerId }) }),
 
   audits: (partnership: string): Promise<AuditRecord[]> => request(`/api/v1/ops/audits/${encodeURIComponent(partnership)}`),
   createAudit: (partnership: string, body: SaveAuditRequest): Promise<AuditRecord> =>

@@ -29,9 +29,20 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag
 class SessionResource(
     private val policy: AccessPolicy,
     private val clock: BusinessClock,
+    private val accounts: au.crewcomp.people.UserAccountRepository,
+    @org.eclipse.microprofile.config.inject.ConfigProperty(name = "crewcomp.dev-auth.enabled", defaultValue = "false")
+    private val devAuth: Boolean,
 ) {
 
     @GET
     @Operation(summary = "The current actor, their roles, and the server's business date")
-    fun current(): SessionDto = policy.actor().toSessionDto(clock.today(), clock.isOverridden)
+    fun current(@jakarta.ws.rs.core.Context headers: jakarta.ws.rs.core.HttpHeaders): SessionDto {
+        val actor = policy.actor()
+        // The company the account works for (BUS-2). A signed-in account carries it; under the
+        // development shim, which has no account, the X-Dev-Customer header stands in. A display
+        // hint only — what the caller may read is decided by the partnership scope, never by this.
+        val customerId = actor.userAccountId?.let { accounts.findById(it)?.customerId }
+            ?: headers.getHeaderString("X-Dev-Customer")?.toLongOrNull()?.takeIf { devAuth }
+        return actor.toSessionDto(clock.today(), clock.isOverridden, customerId)
+    }
 }

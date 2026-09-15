@@ -156,6 +156,8 @@ data class JobRunDto(
 
 data class UserAccountDto(
     val id: Long,
+    /** The company the account works for (BUS-2); null for the office's own. */
+    val customerId: Long?,
     val displayName: String,
     val email: String?,
     /** `corporate` · `local_test`. A `local_test` account is a flagged SEC-1b exception. */
@@ -279,6 +281,7 @@ fun ScheduledJob.toDto(lastRun: JobRun?) = ScheduledJobDto(
 
 fun UserAccount.toDto() = UserAccountDto(
     id = requiredId,
+    customerId = customerId,
     displayName = displayName,
     email = email,
     kind = kindValue,

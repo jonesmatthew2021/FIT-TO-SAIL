@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  customerShipIds,
   useAllPartnerships,
   useCreatePartnership,
   useCustomerScope,
@@ -39,7 +40,8 @@ export function ShipBar(): React.ReactNode {
   const [removing, setRemoving] = useState(false)
 
   const all = partnerships.data ?? []
-  const ships = scope.customer === null ? all : all.filter((p) => scope.customer?.partnershipIds.includes(p.id))
+  const reach = scope.customer === null ? null : customerShipIds(scope.customer)
+  const ships = reach === null ? all : all.filter((p) => reach.includes(p.id))
   const selected = scope.operationId === null ? undefined : all.find((p) => p.id === scope.operationId)
 
   return (

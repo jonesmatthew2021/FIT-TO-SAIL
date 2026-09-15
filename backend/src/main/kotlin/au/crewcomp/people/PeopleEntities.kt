@@ -176,6 +176,14 @@ class UserAccount : AuditedEntity() {
     @Column(name = "partnership_id")
     var scopedPartnershipIds: MutableSet<Long> = mutableSetOf()
 
+    /**
+     * The company the account works for (BUS-2, V21) — null for the office's own accounts. An
+     * account linked to a company is scoped by FleetService to the company's own ships plus the
+     * fleets it oversees, and re-scoped whenever that arrangement changes.
+     */
+    @Column(name = "customer_id")
+    var customerId: Long? = null
+
     var kind: UserAccountKind
         get() = UserAccountKind.fromWire(kindValue)
         set(value) {

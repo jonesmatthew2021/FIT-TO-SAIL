@@ -21,14 +21,14 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag
 @Authenticated
 @Produces(MediaType.APPLICATION_JSON)
 @Tag(name = "Customers", description = "The client companies the operation works for (COM-1)")
-class CustomerResource(private val customers: CustomerService) {
+class CustomerResource(private val customers: CustomerService, private val fleets: au.crewcomp.reference.FleetService) {
 
     @GET
     @Operation(summary = "Every customer, by name, with the partnerships run for each")
     fun list(): List<CustomerDto> {
         // The business side travels only to the office (BUS-1); a customer's own staff get the directory.
         val business = customers.canSeeBusiness()
-        return customers.list().map { it.toDto(customers.partnershipsFor(it.requiredId), business) }
+        return customers.list().map { it.toDto(customers.partnershipsFor(it.requiredId), business, fleets.overseenPartnershipIds(it.requiredId)) }
     }
 
     @GET
@@ -145,7 +145,7 @@ fun au.crewcomp.reference.Vessel.toDto() = VesselDto(
     partnershipId = partnership.requiredId,
 )
 
-fun Customer.toDto(partnerships: List<au.crewcomp.reference.Partnership>, business: Boolean = false) = CustomerDto(
+fun Customer.toDto(partnerships: List<au.crewcomp.reference.Partnership>, business: Boolean = false, overseen: List<Long> = emptyList()) = CustomerDto(
     id = requiredId,
     name = name,
     shortName = shortName,
@@ -155,6 +155,7 @@ fun Customer.toDto(partnerships: List<au.crewcomp.reference.Partnership>, busine
     notes = notes,
     status = status,
     partnershipIds = partnerships.map { it.requiredId },
+    overseenPartnershipIds = overseen,
     billingEmail = if (business) billingEmail else null,
     abn = if (business) abn else null,
     address = if (business) address else null,

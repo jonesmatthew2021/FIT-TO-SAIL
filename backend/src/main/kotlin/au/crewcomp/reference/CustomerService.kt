@@ -22,6 +22,7 @@ class CustomerService(
     private val customers: CustomerRepository,
     private val partnerships: PartnershipRepository,
     private val vessels: VesselRepository,
+    private val fleets: FleetRepository,
     private val policy: AccessPolicy,
     private val audit: AuditWriter,
 ) {
@@ -32,7 +33,11 @@ class CustomerService(
         val all = customers.allOrdered()
         // A customer's own staff see their own company and nobody else's (BUS-1).
         if (policy.scope() is DataScope.All) return all
-        return all.filter { customer -> partnerships.forCustomer(customer.requiredId).any { policy.canSeePartnership(it.requiredId) } }
+        val overseen = fleets.allOrdered()
+        return all.filter { customer ->
+            partnerships.forCustomer(customer.requiredId).any { policy.canSeePartnership(it.requiredId) } ||
+                overseen.any { f -> customer.requiredId in f.overseerCustomerIds && f.partnershipIds.any { policy.canSeePartnership(it) } }
+        }
     }
 
     @Transactional

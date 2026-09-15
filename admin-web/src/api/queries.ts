@@ -57,6 +57,7 @@ import {
   type SetRenewalRequest,
   type Timesheet,
   type AuditRecord,
+  type Fleet,
   type RegulatoryItem,
   type SaveAuditRequest,
   type SaveFindingRequest,
@@ -534,6 +535,41 @@ export function useMarkReminderSent() {
   return useOpsMutation(['reminders'], ({ id, channel }: { id: number; channel: string }) => api.markReminderSent(id, channel))
 }
 
+// BUS-2 — fleets and oversight. A change moves which ships a company's accounts can see, so the
+// accounts and the customer list go with the fleets.
+export function useFleets(): UseQueryResult<Fleet[]> {
+  return useQuery({ queryKey: ['fleets'], queryFn: api.fleets })
+}
+function useFleetMutation<TArgs, TResult>(mutationFn: (args: TArgs) => Promise<TResult>) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ['fleets'] })
+      void client.invalidateQueries({ queryKey: keys.customers })
+      void client.invalidateQueries({ queryKey: keys.userAccounts })
+    },
+  })
+}
+export function useCreateFleet() {
+  return useFleetMutation(({ name, note }: { name: string; note: string | null }) => api.createFleet(name, note))
+}
+export function useUpdateFleet() {
+  return useFleetMutation(({ id, name, note }: { id: number; name: string; note: string | null }) => api.updateFleet(id, name, note))
+}
+export function useDeleteFleet() {
+  return useFleetMutation((id: number) => api.deleteFleet(id))
+}
+export function useSetFleetShips() {
+  return useFleetMutation(({ id, ids }: { id: number; ids: number[] }) => api.setFleetShips(id, ids))
+}
+export function useSetFleetOverseers() {
+  return useFleetMutation(({ id, ids }: { id: number; ids: number[] }) => api.setFleetOverseers(id, ids))
+}
+export function useLinkAccountCompany() {
+  return useFleetMutation(({ accountId, customerId }: { accountId: number; customerId: number | null }) => api.linkAccountCompany(accountId, customerId))
+}
+
 export function useAudits(partnership: string | null): UseQueryResult<AuditRecord[]> {
   return useQuery({ queryKey: ['audits', partnership ?? ''], queryFn: () => api.audits(partnership as string), enabled: partnership !== null })
 }
@@ -657,10 +693,11 @@ export function useCustomerScope(): {
   if (customer !== null) {
     // A ship the customer does not have filters to nothing: a stale ship must not show the
     // customer's whole fleet as if it were the one asked for.
+    const reach = customerShipIds(customer)
     partnershipIds =
       operationId === null
-        ? new Set(customer.partnershipIds)
-        : new Set(customer.partnershipIds.filter((id) => id === operationId))
+        ? new Set(reach)
+        : new Set(reach.filter((id) => id === operationId))
   }
 
   const suffix =
@@ -1464,4 +1501,9 @@ export function useSetHolding(personId: number) {
       void client.invalidateQueries({ queryKey: ['expiry-alerts'] })
     },
   })
+}
+
+/** A customer's own ships and the ships it oversees through a fleet (BUS-2), in that order. */
+export function customerShipIds(customer: Customer): number[] {
+  return [...customer.partnershipIds, ...customer.overseenPartnershipIds.filter((id) => !customer.partnershipIds.includes(id))]
 }
