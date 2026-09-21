@@ -24,9 +24,9 @@
     <quarkus-mcp-server.version>1.13.1</quarkus-mcp-server.version>
 
     <!-- 3.5.6+: JUnit Platform 6 (managed by the Quarkus BOM) needs a current provider. -->
-    <surefire-plugin.version>3.5.6</surefire-plugin.version>
-    <failsafe-plugin.version>3.5.6</failsafe-plugin.version>
-    <assertj.version>3.27.3</assertj.version>
+    <surefire-plugin.version>3.6.0</surefire-plugin.version>
+    <failsafe-plugin.version>3.6.0</failsafe-plugin.version>
+    <assertj.version>3.27.7</assertj.version>
 
     <!--
       `*IT` tests boot the application, and therefore Dev Services, and therefore need a
@@ -78,7 +78,7 @@
     <dependency>
       <groupId>com.anthropic</groupId>
       <artifactId>anthropic-java</artifactId>
-      <version>2.34.0</version>
+      <version>2.63.0</version>
     </dependency>
     <dependency>
       <groupId>io.quarkus</groupId>
