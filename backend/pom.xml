@@ -19,7 +19,7 @@
     <!-- ADR 0001: Quarkus 3.33 LTS -->
     <quarkus.platform.version>3.33.2</quarkus.platform.version>
 
-    <kotlin.version>2.3.10</kotlin.version>
+    <kotlin.version>2.4.20</kotlin.version>
     <!-- Quarkiverse MCP server (spec §13.1 — day-one requirement) -->
     <quarkus-mcp-server.version>1.13.1</quarkus-mcp-server.version>
 
