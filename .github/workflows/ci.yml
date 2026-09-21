@@ -47,9 +47,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -66,7 +66,7 @@ jobs:
       # their committed types against *this* build rather than against a schema they built themselves
       # — which would let a stale committed file pass by being regenerated in the same run.
       - name: Publish the OpenAPI schema
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: openapi-schema
           path: backend/target/openapi/openapi.json
@@ -75,7 +75,7 @@ jobs:
 
       - name: Publish test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-test-reports
           path: |
@@ -95,7 +95,7 @@ jobs:
     # it on every PR push would slow the loop without catching more.
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: graalvm/setup-graalvm@v1
         with:
@@ -117,9 +117,9 @@ jobs:
     timeout-minutes: 15
     needs: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -129,7 +129,7 @@ jobs:
         working-directory: admin-web
 
       - name: Fetch the backend's OpenAPI schema
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: openapi-schema
           path: openapi
@@ -190,7 +190,7 @@ jobs:
     timeout-minutes: 20
     needs: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
@@ -201,7 +201,7 @@ jobs:
         working-directory: mobile
 
       - name: Fetch the backend's OpenAPI schema
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: openapi-schema
           path: openapi
@@ -231,12 +231,12 @@ jobs:
     timeout-minutes: 30
     needs: mobile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # 21, not 17, because that is the JDK the build has actually been run on — Android Studio's
       # bundled JBR is what `flutter build apk` picks up locally. AGP 8.13 and Gradle 9.1 both
       # support it, and matching removes a difference that could only ever show up here.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
@@ -289,7 +289,7 @@ jobs:
             echo "libsqlite3mc.so present for $abi"
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mobile-android-debug-apk
           path: mobile/build/app/outputs/flutter-apk/app-debug.apk
@@ -309,7 +309,7 @@ jobs:
     # opposite of the Android lane's situation.
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: subosito/flutter-action@v2
         with:
